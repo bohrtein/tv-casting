@@ -9,8 +9,11 @@
 <body>
 
   <div id="idle-screen" class="screen">
-    <canvas id="idle-rain-bloom" aria-hidden="true"></canvas>
-    <canvas id="idle-rain" aria-hidden="true"></canvas>
+    <!-- Pre-rendered on a real computer (tools/render-idle-background.js),
+         not computed live: canvas-scripted rain was unusably slow on this
+         TV's own hardware. A plain <video> loop is decoded by the TV's
+         hardware video pipeline instead, same as any other cast stream. -->
+    <video id="idle-bg-video" src="media/idle-background.mp4" autoplay loop muted playsinline aria-hidden="true"></video>
     <div class="idle-vignette" aria-hidden="true"></div>
     <div class="idle-scanlines" aria-hidden="true"></div>
     <div class="idle-panel">
@@ -33,7 +36,6 @@
        Only resolves on a real Tizen TV / the Tizen Studio TV emulator. -->
   <script src="$WEBAPIS/webapis/webapis.js"></script>
   <script src="js/config.js"></script>
-  <script src="js/background.js"></script>
   <script src="js/relay-client.js"></script>
   <script src="js/player.js"></script>
   <script src="js/app.js"></script>

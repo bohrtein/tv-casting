@@ -32,10 +32,10 @@ files:
   - icon.png
   - index.html
   - js/app.js
-  - js/background.js
   - js/config.js
   - js/player.js
   - js/relay-client.js
+  - media/idle-background.mp4
 
 # list of files to exclude based on the matched patterns
 excludes:

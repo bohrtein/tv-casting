@@ -29,21 +29,27 @@
     onError: onPlaybackError
   });
 
-  var idleBackground = createIdleBackground(
-    document.getElementById('idle-rain'),
-    document.getElementById('idle-rain-bloom')
-  );
+  var idleBgVideo = document.getElementById('idle-bg-video');
 
   function showIdleScreen() {
     elements.playerScreen.classList.add('hidden');
     elements.idleScreen.classList.remove('hidden');
-    idleBackground.start();
+    // Resumes decoding the idle background; harmless if it's already
+    // playing (autoplay) or if the element isn't there in some
+    // stripped-down test harness. play() returns a Promise on modern
+    // engines but not on older WebKit builds -- guard the .catch().
+    if (idleBgVideo) {
+      var playResult = idleBgVideo.play();
+      if (playResult && playResult.catch) playResult.catch(function () {});
+    }
   }
 
   function showPlayerScreen() {
     elements.idleScreen.classList.add('hidden');
     elements.playerScreen.classList.remove('hidden');
-    idleBackground.stop();
+    // No reason to keep decoding the idle background while a real
+    // stream is playing.
+    if (idleBgVideo) idleBgVideo.pause();
   }
 
   function onRegistered() {

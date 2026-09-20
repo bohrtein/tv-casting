@@ -53,31 +53,34 @@ html, body {
   overflow: hidden;
 }
 
-/* Digital-rain background, ported from the Matrix design system
-   (companion/matrix.js + matrix.css) for this fixed 1920x1080 canvas.
-   #idle-screen is already position:absolute (.screen), so these fill it. */
-#idle-rain, #idle-rain-bloom {
+/* Digital-rain background, matching the Matrix design system used in
+   companion/ -- but pre-rendered to video on a real computer
+   (tools/render-idle-background.js) rather than run live: the canvas
+   version this app tried first was unusably slow on the TV's own CPU.
+   A plain looping <video> is decoded by the TV's hardware video
+   pipeline instead, same as any cast stream (see PLAN.md's status log).
+   #idle-screen is already position:absolute (.screen), so this fills it.
+   Longhand top/right/bottom/left, not the `inset` shorthand: this app's
+   real target is an old TV WebKit build that predates `inset` support. */
+#idle-bg-video {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   z-index: 0;
+  object-fit: cover;
   pointer-events: none;
-}
-
-#idle-rain {
-  opacity: 0.9;
-}
-
-/* Quarter-res copy of the rain, blurred and pushed hot: the phosphor
-   bloom around every stream, for one drawImage per frame. */
-#idle-rain-bloom {
-  filter: blur(9px) saturate(1.4) brightness(1.6);
 }
 
 .idle-vignette, .idle-scanlines {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 1;
   pointer-events: none;
 }

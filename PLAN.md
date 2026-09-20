@@ -186,6 +186,44 @@ loop: browse Jellyfin → pair with TV → cast → control → see live status.
 
 ## Current status
 
+2026-09-20 — Replaced the live-canvas idle background (previous entry
+below) with a pre-rendered video, after the user tested the canvas
+version on the real TV and reported it "not rendering at all" with a
+terrible frame rate. Root causes: (1) the canvas/vignette/scanline CSS
+used the `inset: 0` shorthand, which is a relatively recent addition
+(Chromium ~87, 2020) that this TV's much older WebKit almost certainly
+doesn't parse, likely collapsing those elements to zero size; (2) even
+fixed, live canvas rendering (per-glyph `shadowBlur`, a full quarter-res
+bloom pass + CSS blur filter, 25fps across a 1920x1080 grid) was simply
+too expensive for this 2018 TV's CPU — the entire approach of computing
+the effect on-device was the wrong call for this hardware, not just a
+tunable performance bug. Deleted `js/background.js` entirely. New
+`tools/render-idle-background.js` + `tools/render-harness.html` load
+`companion/matrix.js`'s real animation, unmodified, in a headless
+Playwright/Chromium browser on a real computer, record it, and encode
+`media/idle-background.mp4` (H.264, ~5.8MB for an 18s loop) with a
+crossfade between the tail and head so `<video loop>` doesn't hard-cut.
+`index.html` now just has `<video id="idle-bg-video" ... autoplay loop
+muted>`; `app.js` calls `.play()`/`.pause()` on it in
+`showIdleScreen()`/`showPlayerScreen()` instead of starting/stopping a
+JS loop. This offloads the actual decoding to the TV's hardware video
+pipeline, the same one that plays every cast stream, instead of
+software canvas scripting. Also switched the vignette/scanline overlay
+CSS to explicit longhand `top/right/bottom/left` instead of `inset`, for
+the same old-WebKit reason. Caught a real bug while building the
+renderer: the first version's recording included the ~3s the rain takes
+to fill in from its scattered initial state at the *front* of the kept
+clip (never trimmed), so frame 0 was nearly solid black — fixed by
+trimming that lead-in with `-ss` before encoding, verified by extracting
+frame 0 as a PNG and confirming it's fully populated. Verified in the
+browser preview via direct video-element inspection (`paused`,
+`currentTime` advancing, `videoWidth`/`videoHeight`, no `.error`) rather
+than screenshots, since the preview pane's screenshot tool had already
+proven unreliable for this app's oversized fixed 1920x1080 layout in the
+previous entry. Not yet verified on the actual Tizen emulator or TV —
+that's the real test this was tuned for and the browser preview can't
+fully stand in for it.
+
 2026-09-20 — Ported the Matrix design system's idle-screen background
 (digital rain + bloom + vignette/scanlines) into `tv-receiver`, by
 request, so the idle screen (shown on boot and whenever nothing is
