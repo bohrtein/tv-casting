@@ -1,0 +1,30 @@
+name = "TV Casting"
+description = "Phone/desktop pairing + remote for casting to the TV (companion PWA)."
+icon = "\U0001F4FA"
+
+# Only the companion (a static PWA, no build step) is launched by the hub.
+# relay/ and resolver/ are deliberately NOT app-launcher-managed: relay is a
+# WebSocket server the TV/phone connect to directly and must stay running
+# even when nobody has the App Hub dashboard open (the hub's idle-reaper
+# only resets on proxied HTTP traffic, which relay's WS connections never
+# generate), and resolver hands the TV a direct media URL it fetches itself
+# -- same "real traffic bypasses the hub" problem, plus the hub's proxy
+# buffers whole responses in memory, which is a bad fit for serving
+# multi-hundred-MB/GB video. Both run as their own always-on systemd
+# services instead -- see relay/systemd/ and resolver/systemd/.
+command = ["node", "serve.js"]
+cwd = "companion"
+
+# serve.js has no dedicated /healthz -- GET / returns index.html with a
+# real 200, which is a perfectly good and simpler health check here, and
+# avoids adding a route to a file whose whole point is "no framework, no
+# deps, serves the folder as-is."
+health_path = "/"
+
+idle_timeout_minutes = 30
+startup_timeout_seconds = 10
+
+# Everything companion talks to (relay's ws:// URL, the resolver's http://
+# URL) is a fixed LAN host:port configured in companion/js/config.js, not
+# routed through the hub -- so App Hub proxying this page changes nothing
+# about how pairing/casting actually works, only how you reach the page.

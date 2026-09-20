@@ -42,6 +42,33 @@ These are enforced in code review, not just convention:
   via yt-dlp, serves it back over HTTP) precisely because the relay isn't
   allowed to.
 
+## Deployment (Ubuntu server, alongside [app-launcher hub](https://github.com/bohrtein/apphub))
+
+- **`relay/` and `resolver/` run as their own always-on systemd services**
+  (`relay/systemd/tv-casting-relay.service`, `resolver/systemd/tv-casting-resolver.service`),
+  independent of the app-launcher hub's own on-demand process management.
+  They're not a fit for it: the hub only starts an app when its dashboard
+  is used and stops it after proxied-traffic idle time, but the TV and
+  phone companions talk to relay (WebSocket) and resolver's `/media/*`
+  (direct file fetch) on their own fixed ports, never through the hub's
+  proxy -- so the hub would have no way to see either one is actually in
+  use, and relay in particular has to be up even when nobody has App Hub
+  open at all. Both units assume `/opt/tv-casting/<relay|resolver>` and
+  the hub's own `apphub` service account -- copy to `/etc/systemd/system/`,
+  `daemon-reload`, `enable --now`, same as `apphub.service` itself.
+- **`companion/` is registered with the app-launcher hub** as an on-demand
+  app via its **+ Import from GitHub** page -- this repo's root
+  [`app.toml`](app.toml) points the hub at `node companion/serve.js`, so
+  importing `tv-casting` there launches/stops/health-checks just the
+  companion PWA like any other app-launcher app. It's a clean fit (small
+  static assets, no persistent connection) unlike relay/resolver above.
+  Reaching it then goes through the hub's own login (password + TOTP)
+  first, same as every other app-launcher app.
+- `companion/js/config.js`'s `RELAY_URL`/`RESOLVER_URL` still point
+  straight at relay/resolver's own LAN host:port either way -- being
+  proxied by the hub only changes how you reach the companion page
+  itself, not how the three pieces talk to each other.
+
 ## Status
 
 See the "Current status" section at the bottom of [PLAN.md](PLAN.md).
