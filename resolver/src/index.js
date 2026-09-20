@@ -66,7 +66,10 @@ function jobPublicShape(job, req) {
     id: job.id,
     status: job.status,
     progress: job.progress,
-    title: job.title
+    title: job.title,
+    sourceUrl: job.sourceUrl,
+    createdAt: job.createdAt,
+    finishedAt: job.finishedAt
   };
   if (job.status === 'error') shape.error = job.error;
   if (job.status === 'ready') {
@@ -257,6 +260,21 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Lets ANY companion see what's resolving/downloading right now (or
+  // recently finished/errored), not just the device that started it --
+  // a resolve job already runs independently of the browser tab that
+  // triggered it, this just makes that state discoverable from
+  // elsewhere. Same trust model as the rest of this LAN-only, no-auth
+  // app (root README.md decision #4) -- nothing here is per-device or
+  // per-user scoped.
+  if (req.method === 'GET' && url.pathname === '/jobs') {
+    const list = Array.from(jobs.jobs.values())
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      .map((job) => jobPublicShape(job, req));
+    sendJson(res, 200, { jobs: list });
+    return;
+  }
+
   const jobMatch = /^\/resolve\/([0-9a-f]{16})$/.exec(url.pathname);
   if (req.method === 'GET' && jobMatch) {
     const job = jobs.get(jobMatch[1]);
@@ -299,5 +317,5 @@ setInterval(() => {
 }, SWEEP_INTERVAL_MS);
 
 server.listen(PORT, () => {
-  log(`resolver listening on :${PORT} (POST /resolve, GET /resolve/:id, GET /media/:file, GET /healthz)`);
+  log(`resolver listening on :${PORT} (POST /resolve, GET /resolve/:id, GET /jobs, GET /media/:file, GET /healthz)`);
 });

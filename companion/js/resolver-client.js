@@ -59,8 +59,22 @@ function createResolverClient(config) {
     });
   }
 
+  // Lists every job the resolver knows about (active + recent), newest
+  // first -- not scoped to this device/tab, since the resolver itself
+  // isn't. Used for the remote tab's "downloading now" section (works
+  // even if a different device started the cast) and the activity log.
+  function listJobs() {
+    return fetch(config.RESOLVER_URL + '/jobs').then(function (res) {
+      if (!res.ok) throw new Error('Could not reach the resolver (HTTP ' + res.status + ')');
+      return res.json();
+    }).then(function (body) {
+      return body.jobs || [];
+    });
+  }
+
   return {
     isDirectMediaUrl: isDirectMediaUrl,
-    resolve: resolve
+    resolve: resolve,
+    listJobs: listJobs
   };
 }

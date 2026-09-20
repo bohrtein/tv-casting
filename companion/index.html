@@ -55,6 +55,7 @@
       <button class="mx-tab" data-mx-tab="library" aria-selected="true">library</button>
       <button class="mx-tab" data-mx-tab="link">link</button>
       <button class="mx-tab" data-mx-tab="remote">remote</button>
+      <button class="mx-tab" data-mx-tab="activity">activity</button>
     </nav>
 
     <div class="mx-stack">
@@ -116,6 +117,14 @@
 
         <section class="mx-panel mx-glass" data-mx-panel="remote" style="margin-top:16px">
           <h2 class="mx-panel-title">remote</h2>
+
+          <div id="remote-downloads" class="cn-hidden" style="margin-bottom:16px">
+            <h3 style="font-size:12px; color:var(--mx-ink-dim); text-transform:uppercase; letter-spacing:.04em; margin:0 0 8px">
+              downloading now
+            </h3>
+            <div id="remote-downloads-list" class="cn-rows"></div>
+          </div>
+
           <div class="mx-readout" id="remote-readout">nothing casting</div>
           <div class="cn-seekbar" style="margin-top:14px">
             <input class="cn-seek-range" id="remote-seek" type="range" min="0" max="0" value="0" step="1" disabled aria-label="seek position">
@@ -133,6 +142,17 @@
           <p style="margin-top:20px">
             <button id="remote-unpair" class="mx-btn" type="button">forget this tv</button>
           </p>
+        </section>
+      </div>
+
+      <div class="mx-col">
+        <section class="mx-panel mx-glass" data-mx-panel="activity">
+          <h2 class="mx-panel-title">activity</h2>
+          <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 16px">
+            Every link resolved recently, from any device — what it's
+            called, whether it's downloading, cached, or failed.
+          </p>
+          <div id="activity-list" class="mx-log"></div>
         </section>
       </div>
     </div>

@@ -29,6 +29,9 @@ document.addEventListener('DOMContentLoaded', function () {
     linkTitle: document.getElementById('link-title'),
     linkReadout: document.getElementById('link-readout'),
     linkCast: document.getElementById('link-cast'),
+    remoteDownloads: document.getElementById('remote-downloads'),
+    remoteDownloadsList: document.getElementById('remote-downloads-list'),
+    activityList: document.getElementById('activity-list'),
     remoteReadout: document.getElementById('remote-readout'),
     remoteSeek: document.getElementById('remote-seek'),
     remoteSeekPos: document.getElementById('remote-seek-pos'),
@@ -286,6 +289,72 @@ document.addEventListener('DOMContentLoaded', function () {
       setReadout(el.linkReadout, err.message, true);
     });
   });
+
+  // --- job activity: downloads-in-progress + activity log ---
+  // Polls the resolver directly (same LAN, no auth, same pattern the
+  // rest of this file already uses) rather than routing through the
+  // relay -- a resolve job already runs independently of whichever
+  // browser tab/device started it, so this just makes that state
+  // discoverable from any device, any time, including one that wasn't
+  // even open when the download started.
+
+  var JOBS_POLL_MS = 3000;
+
+  function formatClock(ts) {
+    if (!ts) return '';
+    var d = new Date(ts);
+    var h = d.getHours();
+    var m = d.getMinutes();
+    return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+  }
+
+  function renderDownloads(allJobs) {
+    var active = allJobs.filter(function (j) {
+      return j.status === 'starting' || j.status === 'downloading';
+    });
+    el.remoteDownloads.classList.toggle('cn-hidden', active.length === 0);
+    el.remoteDownloadsList.innerHTML = '';
+    active.forEach(function (job) {
+      var row = document.createElement('div');
+      row.className = 'cn-row';
+      row.innerHTML = '<span class="cn-row-name">' + escapeHtml(describeResolveProgress(job)) + '</span>';
+      el.remoteDownloadsList.appendChild(row);
+    });
+  }
+
+  function renderActivity(allJobs) {
+    el.activityList.innerHTML = '';
+    if (!allJobs.length) {
+      el.activityList.innerHTML = '<span class="mx-empty">nothing resolved yet.</span>';
+      return;
+    }
+    allJobs.slice(0, 30).forEach(function (job) {
+      var item = document.createElement('div');
+      item.className = 'mx-log-item' + (job.status === 'ready' ? ' mx-ok' : job.status === 'error' ? ' mx-err' : '');
+      var label = job.title || job.sourceUrl || job.id;
+      var detail;
+      if (job.status === 'error') detail = 'failed — ' + job.error;
+      else if (job.status === 'ready') detail = 'ready';
+      else detail = describeResolveProgress(job);
+      item.innerHTML =
+        '<time>' + formatClock(job.createdAt) + '</time>' +
+        '<span>' + escapeHtml(label) + ' — ' + escapeHtml(detail) + '</span>';
+      el.activityList.appendChild(item);
+    });
+  }
+
+  function pollJobs() {
+    resolver.listJobs().then(function (allJobs) {
+      renderDownloads(allJobs);
+      renderActivity(allJobs);
+    }).catch(function () {
+      // Resolver unreachable -- leave whatever was last rendered up
+      // rather than blank a working UI over a transient LAN hiccup.
+    });
+  }
+
+  pollJobs();
+  setInterval(pollJobs, JOBS_POLL_MS);
 
   // --- remote ---
 
