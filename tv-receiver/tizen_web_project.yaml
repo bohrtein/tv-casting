@@ -36,6 +36,7 @@ files:
   - js/player.js
   - js/relay-client.js
   - media/idle-background.mp4
+  - media/idle-background-poster.jpg
 
 # list of files to exclude based on the matched patterns
 excludes:

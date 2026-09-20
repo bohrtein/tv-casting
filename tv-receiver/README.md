@@ -14,22 +14,31 @@ messages this app sends and receives.
 - `css/style.css` — fixed 1920x1080, 10-foot-UI styling (no dependency on
   the Matrix design system used in `companion/` — that system's
   components target phone/desktop breakpoints, not a TV canvas).
-- `media/idle-background.mp4` — the idle screen's digital-rain
-  background, matching the look of `companion/matrix.js`'s animation but
-  **pre-rendered to video**, not run live: a first attempt ran the real
-  canvas animation on-device and it was unusably slow on this TV's own
-  CPU. `app.js` just plays this on loop with a plain `<video>` tag, which
-  the TV decodes in hardware like any other stream. See
-  `tools/render-idle-background.js` for how it's generated.
+- `media/idle-background.mp4` (+ `idle-background-poster.jpg`) — the
+  idle screen's digital-rain background, matching the look of
+  `companion/matrix.js`'s animation but **pre-rendered to video**, not
+  run live: a first attempt ran the real canvas animation on-device and
+  it was unusably slow on this TV's own CPU. `app.js` just plays this on
+  loop with a plain `<video>` tag, which the TV decodes in hardware like
+  any other stream. Encoded conservatively (H.264 Baseline, level 3.1,
+  no B-frames, one reference frame, 1280x720) because this TV's plain
+  `<video>` element turned out to be much pickier than `webapis.avplay`
+  about profile/level — the first encode (High profile, level 5.0)
+  played fine in a desktop browser but didn't play at all on the real
+  TV. The poster JPEG is a still frame of the same background, shown
+  immediately and left in place if the video ever fails to play for any
+  reason, so the idle screen is never plain black. See
+  `tools/render-idle-background.js` for how both are generated.
 - `tools/render-idle-background.js`, `tools/render-harness.html` — the
-  generator for `media/idle-background.mp4`: loads
-  `companion/matrix.js`'s animation unmodified in a real headless
-  browser (Playwright), records it, and encodes a seamless-looking loop
-  (crossfades the tail into the head so `<video loop>` doesn't hard-cut).
-  Not part of the shipped app — rerun it and re-save `media/idle-background.mp4`
-  if the design changes. Needs `playwright` (already a dependency of
-  `resolver/` — no separate install here, just point `NODE_PATH` at it:
-  `NODE_PATH=../../resolver/node_modules node render-idle-background.js [seconds]`
+  generator for `media/idle-background.*`: loads `companion/matrix.js`'s
+  animation unmodified in a real headless browser (Playwright), records
+  it, and encodes a seamless-looking loop (crossfades the tail into the
+  head so `<video loop>` doesn't hard-cut) plus the poster frame. Not
+  part of the shipped app — rerun it and re-save the outputs if the
+  design changes, or if a device turns out to need even more
+  conservative encode settings. Needs `playwright` (already a dependency
+  of `resolver/` — no separate install here, just point `NODE_PATH` at
+  it: `NODE_PATH=../../resolver/node_modules node render-idle-background.js [seconds]`
   from this folder) and `ffmpeg`/`ffprobe` on `PATH`.
 - `js/config.js` — `RELAY_URL`. Edit for your setup.
 - `js/relay-client.js` — WebSocket client: registers as `tv`, reconnects

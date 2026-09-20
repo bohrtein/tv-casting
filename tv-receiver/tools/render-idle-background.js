@@ -9,7 +9,8 @@
 // (see PLAN.md's status log for the frame-rate problem this replaces).
 //
 // Usage: node render-idle-background.js [seconds]
-// Requires playwright + ffmpeg on PATH. Output: ../media/idle-background.mp4
+// Requires playwright + ffmpeg on PATH.
+// Output: ../media/idle-background.mp4, ../media/idle-background-poster.jpg
 
 const path = require('path');
 const fs = require('fs');
@@ -18,12 +19,23 @@ const { chromium } = require('playwright');
 
 const SECONDS = Number(process.argv[2]) || 20;
 const CROSSFADE_SEC = 1.5; // blends the tail into the head so `loop` doesn't hard-cut
+// Recorded at full 1920x1080 (the harness page is that size regardless),
+// but ENCODE_WIDTH/HEIGHT is what actually ships: this is a background
+// decoration, not the main content, and a big chunk of "black screen,
+// nothing plays" reports on old Tizen TVs trace back to the plain
+// <video> element's decoder being far pickier than webapis.avplay about
+// resolution/profile/level -- this project already uses AVPlay instead
+// of <video> for real casting for exactly that reason. Smaller + a
+// conservative encode (baseline profile, no B-frames, one reference
+// frame) below maximizes the odds an old embedded decoder accepts it.
 const WIDTH = 1920, HEIGHT = 1080;
+const ENCODE_WIDTH = 1280, ENCODE_HEIGHT = 720;
 const TOOLS_DIR = __dirname;
 const RAW_DIR = path.join(TOOLS_DIR, '.render-tmp');
 const MEDIA_DIR = path.join(TOOLS_DIR, '..', 'media');
 const PLAIN_MP4 = path.join(RAW_DIR, 'plain.mp4');
 const OUT_MP4 = path.join(MEDIA_DIR, 'idle-background.mp4');
+const OUT_POSTER = path.join(MEDIA_DIR, 'idle-background-poster.jpg');
 
 function ffprobeDuration(file) {
   const out = execFileSync('ffprobe', [
@@ -92,20 +104,39 @@ async function main() {
     '[0:v]trim=' + mainEnd + ':' + total + ',setpts=PTS-STARTPTS[tail];' +
     '[0:v]trim=0:' + mainEnd + ',setpts=PTS-STARTPTS[main];' +
     '[tail][head]xfade=transition=fade:duration=' + d + ':offset=0[seam];' +
-    '[main][seam]concat=n=2:v=1:a=0[out]',
+    '[main][seam]concat=n=2:v=1:a=0[looped];' +
+    '[looped]scale=' + ENCODE_WIDTH + ':' + ENCODE_HEIGHT + '[out]',
     '-map', '[out]',
     '-c:v', 'libx264',
-    '-crf', '26',
+    '-profile:v', 'baseline',
+    '-level', '3.1',
+    '-bf', '0',            // no B-frames -- some embedded <video> decoders choke on them
+    '-refs', '1',          // one reference frame, same reason
+    '-crf', '23',
     '-preset', 'slow',
     '-pix_fmt', 'yuv420p',
     '-movflags', '+faststart',
     OUT_MP4
   ], { stdio: 'inherit' });
 
+  // A poster frame means the idle screen never shows plain black even if
+  // this <video> still refuses to play on some device -- worst case it's
+  // a static image of the same background instead of nothing at all.
+  execFileSync('ffmpeg', [
+    '-y',
+    '-i', OUT_MP4,
+    '-ss', '3',
+    '-frames:v', '1',
+    '-update', '1',
+    '-q:v', '4',
+    OUT_POSTER
+  ], { stdio: 'inherit' });
+
   fs.rmSync(RAW_DIR, { recursive: true, force: true });
 
   const stat = fs.statSync(OUT_MP4);
   console.log('Wrote', OUT_MP4, '(' + (stat.size / 1024 / 1024).toFixed(2) + ' MB)');
+  console.log('Wrote', OUT_POSTER);
 }
 
 main().catch((err) => {

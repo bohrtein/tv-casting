@@ -186,6 +186,31 @@ loop: browse Jellyfin → pair with TV → cast → control → see live status.
 
 ## Current status
 
+2026-09-20 — Fixed the pre-rendered idle background (previous entry
+below) after the user tested it on the real TV: text/panel rendered
+fine, relay connected fine, but the video itself never showed anything
+— plain black behind the "waiting for a companion" text. The first
+encode used H.264 High profile, level 5.0, with B-frames and 5 reference
+frames; it played perfectly in a desktop browser (which is all the
+previous entry's verification could check) but this TV's plain `<video>`
+element apparently rejected it outright. This project already learned
+this exact lesson once for real casting — `player.js` uses
+`webapis.avplay` rather than a `<video>` tag specifically because
+Tizen's built-in HTML5 video decoder is far pickier than AVPlay about
+profile/level/resolution — and the idle background hit the same wall.
+Re-encoded via `tools/render-idle-background.js` with H.264 Baseline
+profile, level 3.1, zero B-frames, one reference frame, and downscaled
+to 1280x720 (this is a decorative background, not primary content, and
+the smaller frame further reduces decode load). Also added a poster
+frame (`media/idle-background-poster.jpg`, extracted from the encoded
+video) so the idle screen shows a static image of the same background
+immediately and stays on it if the video still doesn't play on some
+device, instead of ever falling back to plain black. Verified the new
+encode plays in the browser preview (correct `videoWidth`/`videoHeight`,
+`readyState`, no `.error`) — still not verified on the actual TV itself,
+which is the only real test for exactly the kind of decoder-support gap
+this fix targets.
+
 2026-09-20 — Replaced the live-canvas idle background (previous entry
 below) with a pre-rendered video, after the user tested the canvas
 version on the real TV and reported it "not rendering at all" with a

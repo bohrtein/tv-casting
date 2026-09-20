@@ -12,8 +12,14 @@
     <!-- Pre-rendered on a real computer (tools/render-idle-background.js),
          not computed live: canvas-scripted rain was unusably slow on this
          TV's own hardware. A plain <video> loop is decoded by the TV's
-         hardware video pipeline instead, same as any other cast stream. -->
-    <video id="idle-bg-video" src="media/idle-background.mp4" autoplay loop muted playsinline aria-hidden="true"></video>
+         hardware video pipeline instead, same as any other cast stream.
+         `poster` shows a static frame of the same background immediately
+         and stays put if this <video> ever fails to play for any reason
+         -- idle screen is never plain black either way. Baseline-profile
+         H.264 at 1280x720, no B-frames/multi-ref: this TV's plain <video>
+         decoder is pickier than webapis.avplay (see README.md). -->
+    <video id="idle-bg-video" src="media/idle-background.mp4" poster="media/idle-background-poster.jpg"
+           autoplay loop muted playsinline webkit-playsinline aria-hidden="true"></video>
     <div class="idle-vignette" aria-hidden="true"></div>
     <div class="idle-scanlines" aria-hidden="true"></div>
     <div class="idle-panel">
