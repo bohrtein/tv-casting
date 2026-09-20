@@ -107,6 +107,17 @@ class MediaCache {
     return this.entries.some((e) => e.fileName === fileName);
   }
 
+  // Returns every cached entry, most-recently-used first -- same
+  // self-healing as find() (an entry whose file vanished from disk is
+  // pruned rather than handed out), just applied to the whole list
+  // instead of a single lookup.
+  list() {
+    const before = this.entries.length;
+    this.entries = this.entries.filter((e) => fs.existsSync(path.join(this.mediaDir, e.fileName)));
+    if (this.entries.length !== before) this._save();
+    return this.entries.slice().sort((a, b) => b.lastUsedAt - a.lastUsedAt);
+  }
+
   // Registers a freshly downloaded file, replacing any stale entry for
   // the same source url, then evicts least-recently-used entries beyond
   // maxEntries. Returns the evicted entries so the caller can delete

@@ -72,9 +72,23 @@ function createResolverClient(config) {
     });
   }
 
+  // Lists the still-on-disk rewatch cache (most recently used first) --
+  // the subset of past resolves that can be cast again instantly, with
+  // no re-download. Separate from listJobs(), which is the full
+  // starting/downloading/ready/error activity log.
+  function listCache() {
+    return fetch(config.RESOLVER_URL + '/cache').then(function (res) {
+      if (!res.ok) throw new Error('Could not reach the resolver (HTTP ' + res.status + ')');
+      return res.json();
+    }).then(function (body) {
+      return body.entries || [];
+    });
+  }
+
   return {
     isDirectMediaUrl: isDirectMediaUrl,
     resolve: resolve,
-    listJobs: listJobs
+    listJobs: listJobs,
+    listCache: listCache
   };
 }

@@ -108,6 +108,10 @@ downloads).
   human-readable message from yt-dlp).
 - `GET /media/:id.mp4` — the resolved file, with HTTP Range support so
   AVPlay can seek.
+- `GET /cache` → `{ "entries": [{ "sourceUrl", "title", "streamUrl", "lastUsedAt" }, ...] }`,
+  most-recently-used first. The still-on-disk rewatch cache (up to
+  `RESOLVER_CACHE_SIZE` entries) — lets a client offer "cast something
+  you already downloaded" without re-resolving the source url.
 - `GET /healthz` — `{ "status": "ok", "jobs": <n> }`.
 
 ## Config (`.env`, see `.env.example`)

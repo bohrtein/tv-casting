@@ -277,6 +277,23 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Lets the companion offer "previously downloaded" as a section
+  // separate from /jobs' activity log -- these are specifically the
+  // still-on-disk, re-castable-without-a-redownload entries the LRU
+  // cache is tracking (mediaCache's max entries, 5 by default), not
+  // every job that's ever run.
+  if (req.method === 'GET' && url.pathname === '/cache') {
+    const host = req.headers.host;
+    const list = mediaCache.list().map((entry) => ({
+      sourceUrl: entry.sourceUrl,
+      title: entry.title,
+      streamUrl: `http://${host}/media/${entry.fileName}`,
+      lastUsedAt: entry.lastUsedAt
+    }));
+    sendJson(res, 200, { entries: list });
+    return;
+  }
+
   const jobMatch = /^\/resolve\/([0-9a-f]{16})$/.exec(url.pathname);
   if (req.method === 'GET' && jobMatch) {
     const job = jobs.get(jobMatch[1]);
@@ -319,5 +336,5 @@ setInterval(() => {
 }, SWEEP_INTERVAL_MS);
 
 server.listen(PORT, () => {
-  log(`resolver listening on :${PORT} (POST /resolve, GET /resolve/:id, GET /jobs, GET /media/:file, GET /healthz)`);
+  log(`resolver listening on :${PORT} (POST /resolve, GET /resolve/:id, GET /jobs, GET /cache, GET /media/:file, GET /healthz)`);
 });

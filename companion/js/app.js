@@ -29,6 +29,8 @@ document.addEventListener('DOMContentLoaded', function () {
     linkTitle: document.getElementById('link-title'),
     linkReadout: document.getElementById('link-readout'),
     linkCast: document.getElementById('link-cast'),
+    linkDownloaded: document.getElementById('link-downloaded'),
+    linkDownloadedList: document.getElementById('link-downloaded-list'),
     remoteDownloads: document.getElementById('remote-downloads'),
     remoteDownloadsList: document.getElementById('remote-downloads-list'),
     activityList: document.getElementById('activity-list'),
@@ -290,6 +292,26 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
+  // --- previously downloaded: instant recast from the resolver's
+  // rewatch cache, no url needed ---
+
+  function renderDownloaded(entries) {
+    el.linkDownloaded.classList.toggle('cn-hidden', entries.length === 0);
+    el.linkDownloadedList.innerHTML = '';
+    entries.forEach(function (entry) {
+      var row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'cn-row';
+      row.innerHTML =
+        '<span class="cn-row-name">' + escapeHtml(entry.title || entry.sourceUrl) + '</span>' +
+        '<span class="mx-pill">cached</span>';
+      row.addEventListener('click', function () {
+        castToTv(entry.streamUrl, entry.title || entry.sourceUrl);
+      });
+      el.linkDownloadedList.appendChild(row);
+    });
+  }
+
   // --- job activity: downloads-in-progress + activity log ---
   // Polls the resolver directly (same LAN, no auth, same pattern the
   // rest of this file already uses) rather than routing through the
@@ -351,6 +373,7 @@ document.addEventListener('DOMContentLoaded', function () {
       // Resolver unreachable -- leave whatever was last rendered up
       // rather than blank a working UI over a transient LAN hiccup.
     });
+    resolver.listCache().then(renderDownloaded).catch(function () {});
   }
 
   pollJobs();
