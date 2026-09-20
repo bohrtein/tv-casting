@@ -17,6 +17,23 @@
 // whole category up front. Extend without editing code via the
 // RESOLVER_DENYLIST_EXTRA env var (comma-separated hostnames).
 const DENYLIST = [
+  // observed in this resolver's own deployment logs
+  'playmate.to',
+
+  // widely known unauthorized video-embed hosts used across piracy
+  // indices for movies/TV -- same "obfuscated iframe embed" pattern
+  'streamtape.com',
+  'dood.to', 'dood.wf', 'dood.la', 'dood.ws', 'dood.pm', 'doodstream.com',
+  'voe.sx',
+  'upstream.to',
+  'streamwish.com', 'streamwish.to',
+  'filemoon.sx', 'filemoon.to',
+  'mixdrop.co', 'mixdrop.to',
+  'vidsrc.to', 'vidsrc.me', 'vidsrc.cc',
+  '2embed.to', '2embed.cc',
+  'embed.su',
+  'rabbitstream.net',
+  'streamlare.com'
 ];
 
 function extraFromEnv() {
