@@ -11,11 +11,6 @@
   <div id="idle-screen" class="screen">
     <div class="idle-panel">
       <div class="brand">tv-casting</div>
-      <div id="qr-holder" class="qr-holder"></div>
-      <div class="code-row">
-        <span class="code-label">Code</span>
-        <span id="room-code" class="room-code">------</span>
-      </div>
       <div id="connection-note" class="connection-note">Connecting to relay&hellip;</div>
     </div>
   </div>
@@ -33,7 +28,6 @@
   <!-- Samsung device API bridge: provides window.webapis (AVPlay, etc).
        Only resolves on a real Tizen TV / the Tizen Studio TV emulator. -->
   <script src="$WEBAPIS/webapis/webapis.js"></script>
-  <script src="js/vendor/qrcode.js"></script>
   <script src="js/config.js"></script>
   <script src="js/relay-client.js"></script>
   <script src="js/player.js"></script>

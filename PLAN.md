@@ -5,12 +5,13 @@
 Four independent pieces, one repo, four top-level folders:
 
 - **`relay/`** — Node.js + `ws`, runs on the home Ubuntu server alongside the
-  app-launcher hub. Handles device pairing (room codes) and forwards
-  play/pause/stop/status JSON messages. Transport only — no media logic, no
-  direct calls to the media server.
-- **`tv-receiver/`** — Samsung Tizen (HTML/CSS/JS + AVPlay API). Idle screen
-  shows the pairing code, connects to the relay, plays whatever stream URL
-  it's sent, reports status back.
+  app-launcher hub. No pairing — tracks at most one connected TV and any
+  number of companions, forwards play/pause/stop/status JSON messages
+  between them. Transport only — no media logic, no direct calls to the
+  media server.
+- **`tv-receiver/`** — Samsung Tizen (HTML/CSS/JS + AVPlay API). Connects to
+  the relay on boot, plays whatever stream URL it's sent, reports status
+  back.
 - **`companion/`** — phone/computer PWA. Talks to Jellyfin directly for
   library browsing and stream URLs, and to the resolver for non-direct
   links, styled with the existing design system, connects to the relay
@@ -30,14 +31,19 @@ Hard rules (from project conventions, keep enforcing these in review):
 
 ## Decisions (locked in)
 
-1. **Room code** — TV generates a short code and renders it as a QR code
+1. ~~**Room code** — TV generates a short code and renders it as a QR code
    (primary path for phone companions) with the plain code printed
    underneath (fallback for desktop companions, which can't scan their
-   own screen). One relay pairing mechanism, two entry paths.
-2. **Pairing lifecycle** — companion remembers the last paired TV
+   own screen). One relay pairing mechanism, two entry paths.~~
+   **Superseded (see status log)** — pairing/QR removed entirely for
+   easier iteration on the TV app. The relay now tracks at most one TV
+   and any number of companions with no gating at all.
+2. ~~**Pairing lifecycle** — companion remembers the last paired TV
    (room code / TV id) in local storage and auto-reconnects on next
    launch if that TV/room is still live. TV still gets a new code on
-   every app restart; the *companion* is what remembers, not the relay.
+   every app restart; the *companion* is what remembers, not the relay.~~
+   **Superseded** — nothing to remember or reconnect to now that there's
+   no room/code concept.
 3. **Relay message schema** — still needs to be nailed down at the start
    of Phase 1 (exact JSON shape for `play`/`pause`/`stop`/`status`/errors),
    but no open product question left — this is just implementation detail
@@ -179,6 +185,32 @@ loop: browse Jellyfin → pair with TV → cast → control → see live status.
   network (or wherever the design intends).
 
 ## Current status
+
+2026-09-20 — Removed pairing and QR-code pairing entirely, by request,
+to make TV-app iteration easier (no re-pairing after every reload while
+developing). Supersedes decisions #1 and #2 above. Changes:
+- `relay/`: `rooms.js` → `clients.js`, replacing the room registry
+  (code → {tv, companions}) with a flat `ClientRegistry` (at most one TV
+  socket, a set of companion sockets, no codes/tokens at all).
+  `codes.js` deleted. `register`/`join` no longer take or return a code;
+  a second TV registering just replaces the first. `PROTOCOL.md`
+  rewritten to match.
+- `tv-receiver/`: idle screen no longer renders a QR or room code —
+  `js/vendor/qrcode.js` deleted, `js/app.js`/`relay-client.js` simplified
+  to register with no resume/code handling, idle screen just shows a
+  "waiting for a companion…" note. `COMPANION_BASE_URL` dropped from
+  `js/config.js` (nothing points at it anymore).
+- `companion/`: no more pairing screen — `js/app.js` shows the app
+  screen unconditionally instead of gating on `relay.isPaired()`;
+  `js/relay-client.js` joins immediately on connect instead of waiting
+  for a code; dropped the `?code=` URL handling, the typed-code field,
+  and the "forget this tv" button along with `pairing.lastCode` local
+  storage.
+Not deployed to the real Ubuntu server or tested against the real TV —
+this was a local code change only; the next real-hardware test will also
+need the relay redeployed since the wire protocol changed (old TV/
+companion builds won't speak it). The user is planning further updates
+to `tv-receiver` on top of this.
 
 2026-09-20 — Deployed the tier-3 fallback (see entry below) to the real
 Ubuntu server, with a denylist added first by request after the live

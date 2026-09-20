@@ -1,11 +1,11 @@
 # TV receiver (Tizen)
 
-A Tizen TV web app: idle screen with a pairing QR code + plain code,
-connects to the relay, plays whatever it's told to via Samsung's AVPlay
-API, reports status back. See root [README.md](../README.md) and
-[PLAN.md](../PLAN.md) for the wider picture, and
-[relay/PROTOCOL.md](../relay/PROTOCOL.md) for the exact messages this
-app sends and receives.
+A Tizen TV web app: connects to the relay, plays whatever it's told to
+via Samsung's AVPlay API, reports status back. No pairing — the relay
+forwards commands from whatever companion is connected. See root
+[README.md](../README.md) and [PLAN.md](../PLAN.md) for the wider
+picture, and [relay/PROTOCOL.md](../relay/PROTOCOL.md) for the exact
+messages this app sends and receives.
 
 ## Layout
 
@@ -14,14 +14,9 @@ app sends and receives.
 - `css/style.css` — fixed 1920x1080, 10-foot-UI styling (no dependency on
   the Matrix design system used in `companion/` — that system's
   components target phone/desktop breakpoints, not a TV canvas).
-- `js/vendor/qrcode.js` — [kazuhikoarase/qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator)
-  (MIT), vendored whole, no build step. Generates the idle-screen QR as
-  inline SVG.
-- `js/config.js` — `RELAY_URL` and `COMPANION_BASE_URL`. Edit these for
-  your setup.
+- `js/config.js` — `RELAY_URL`. Edit for your setup.
 - `js/relay-client.js` — WebSocket client: registers as `tv`, reconnects
-  with exponential backoff on drop, always takes whatever fresh room
-  code comes back (a TV never reclaims an old code — see PROTOCOL.md).
+  with exponential backoff on drop.
 - `js/player.js` — thin wrapper around `webapis.avplay`: play/pause/
   resume/seek/seekBy/stop.
 - `js/app.js` — wires the above together: idle screen ⇄ player screen,
@@ -53,8 +48,7 @@ in signature.:<-3>` on install.
 4. Create a Samsung Certificate for that emulator (see above), set it
    active.
 5. Edit `js/config.js`: `RELAY_URL` (defaults to the relay deployed in
-   Phase 1) and `COMPANION_BASE_URL` (still a placeholder until the
-   companion is actually hosted somewhere — Phase 5).
+   Phase 1).
 6. Build Project → Run Project with the emulator selected.
 
 ## What's actually been verified

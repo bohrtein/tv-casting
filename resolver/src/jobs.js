@@ -2,10 +2,9 @@
 
 const crypto = require('crypto');
 
-// In-memory only, like the relay's room registry -- a resolver restart
+// In-memory only, like the relay's client registry -- a resolver restart
 // just means any in-flight or recently-finished job is gone, which is
-// fine (the companion re-requests, same as re-pairing after a relay
-// restart).
+// fine (the companion just re-requests it).
 class JobRegistry {
   constructor() {
     this.jobs = new Map(); // id -> job

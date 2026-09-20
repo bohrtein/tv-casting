@@ -4,8 +4,6 @@
   var elements = {
     idleScreen: document.getElementById('idle-screen'),
     playerScreen: document.getElementById('player-screen'),
-    qrHolder: document.getElementById('qr-holder'),
-    roomCode: document.getElementById('room-code'),
     connectionNote: document.getElementById('connection-note'),
     nowPlayingTitle: document.getElementById('now-playing-title'),
     nowPlayingState: document.getElementById('now-playing-state'),
@@ -31,14 +29,6 @@
     onError: onPlaybackError
   });
 
-  function renderQr(code) {
-    var url = APP_CONFIG.COMPANION_BASE_URL + '?code=' + encodeURIComponent(code);
-    var qr = qrcode(0, 'M'); // typeNumber 0 = auto-pick the smallest size that fits
-    qr.addData(url);
-    qr.make();
-    elements.qrHolder.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2 });
-  }
-
   function showIdleScreen() {
     elements.playerScreen.classList.add('hidden');
     elements.idleScreen.classList.remove('hidden');
@@ -49,10 +39,8 @@
     elements.playerScreen.classList.remove('hidden');
   }
 
-  function onRegistered(code) {
-    elements.roomCode.textContent = code;
-    elements.connectionNote.textContent = '';
-    renderQr(code);
+  function onRegistered() {
+    elements.connectionNote.textContent = 'Waiting for a companion…';
   }
 
   function onDisconnected() {

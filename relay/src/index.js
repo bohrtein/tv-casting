@@ -2,13 +2,12 @@
 
 const http = require('http');
 const { WebSocketServer } = require('ws');
-const { RoomRegistry } = require('./rooms');
+const { ClientRegistry } = require('./clients');
 const {
   TYPES,
   ERROR_CODES,
   parseEnvelope,
   validateRegister,
-  hasValidResume,
   validateJoin,
   validateCommand,
   validateStatus,
@@ -17,18 +16,13 @@ const { log } = require('./logger');
 
 const PORT = process.env.PORT || 8787;
 const HEARTBEAT_INTERVAL_MS = 30000;
-// Comfortably longer than the TV's own reconnect backoff cap
-// (RECONNECT_MAX_DELAY_MS in tv-receiver/js/config.js, 30s) so a few
-// retries can land inside the window before the room is given up on.
-const TV_GRACE_MS = 45000;
-const REAP_INTERVAL_MS = 5000;
 
-const rooms = new RoomRegistry();
+const clients = new ClientRegistry();
 
 const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url === '/healthz') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', rooms: rooms.rooms.size }));
+    res.end(JSON.stringify({ status: 'ok', tvConnected: !!clients.tvSocket, companions: clients.companions.size }));
     return;
   }
   res.writeHead(404);
@@ -50,8 +44,8 @@ function sendError(socket, code, message) {
   send(socket, { type: TYPES.ERROR, code, message });
 }
 
-function broadcastToCompanions(room, message) {
-  for (const companion of room.companions) {
+function broadcastToCompanions(message) {
+  for (const companion of clients.companions) {
     send(companion, message);
   }
 }
@@ -62,45 +56,22 @@ function handleFirstMessage(socket, msg) {
       sendError(socket, ERROR_CODES.INVALID_MESSAGE, 'register requires role "tv".');
       return;
     }
-
-    if (hasValidResume(msg)) {
-      const reattached = rooms.reattachTv(msg.resume.code, msg.resume.token, socket);
-      if (reattached) {
-        socket.role = 'tv';
-        socket.roomCode = reattached;
-        const room = rooms.getRoom(reattached);
-        send(socket, { type: TYPES.REGISTERED, role: 'tv', code: reattached, resumeToken: room.resumeToken });
-        log('tv reattached', reattached);
-        return;
-      }
-      // Token didn't match a live room (grace period expired, relay
-      // restarted, code already reaped) -- fall through to a fresh room,
-      // same as a TV with no resume info at all.
-    }
-
-    const { code, resumeToken } = rooms.createRoom(socket);
+    clients.setTv(socket);
     socket.role = 'tv';
-    socket.roomCode = code;
-    send(socket, { type: TYPES.REGISTERED, role: 'tv', code, resumeToken });
-    log('tv registered', code);
+    send(socket, { type: TYPES.REGISTERED, role: 'tv' });
+    log('tv registered');
     return;
   }
 
   if (msg.type === TYPES.JOIN) {
     if (!validateJoin(msg)) {
-      sendError(socket, ERROR_CODES.INVALID_MESSAGE, 'join requires role "companion" and a code.');
+      sendError(socket, ERROR_CODES.INVALID_MESSAGE, 'join requires role "companion".');
       return;
     }
-    const room = rooms.getRoom(msg.code);
-    if (!room) {
-      sendError(socket, ERROR_CODES.TV_NOT_FOUND, 'No TV is using this code.');
-      return;
-    }
-    rooms.joinRoom(msg.code, socket);
+    clients.addCompanion(socket);
     socket.role = 'companion';
-    socket.roomCode = msg.code;
-    send(socket, { type: TYPES.JOINED, code: msg.code });
-    log('companion joined', msg.code);
+    send(socket, { type: TYPES.JOINED });
+    log('companion joined');
     return;
   }
 
@@ -112,12 +83,11 @@ function handleCommand(socket, msg) {
     sendError(socket, ERROR_CODES.INVALID_MESSAGE, `Invalid command payload for action "${msg.action}".`);
     return;
   }
-  const room = rooms.getRoom(socket.roomCode);
-  if (!room || !room.tvSocket || room.tvSocket.readyState !== room.tvSocket.OPEN) {
-    sendError(socket, ERROR_CODES.TV_NOT_FOUND, 'No TV is connected in this room.');
+  if (!clients.tvSocket || clients.tvSocket.readyState !== clients.tvSocket.OPEN) {
+    sendError(socket, ERROR_CODES.TV_NOT_FOUND, 'No TV is connected.');
     return;
   }
-  send(room.tvSocket, msg);
+  send(clients.tvSocket, msg);
 }
 
 function handleStatus(socket, msg) {
@@ -125,15 +95,12 @@ function handleStatus(socket, msg) {
     sendError(socket, ERROR_CODES.INVALID_MESSAGE, `Invalid status state "${msg.state}".`);
     return;
   }
-  const room = rooms.getRoom(socket.roomCode);
-  if (!room) return;
-  broadcastToCompanions(room, msg);
+  broadcastToCompanions(msg);
 }
 
 wss.on('connection', (socket) => {
   socket.isAlive = true;
   socket.role = null;
-  socket.roomCode = null;
 
   socket.on('pong', () => {
     socket.isAlive = true;
@@ -175,27 +142,20 @@ wss.on('connection', (socket) => {
   });
 
   socket.on('close', () => {
-    if (socket.role === 'tv' && socket.roomCode) {
-      const room = rooms.getRoom(socket.roomCode);
-      // A newer socket may have already reattached to this room (the TV
-      // reconnected before this stale socket's close event fired) --
-      // only mark the room disconnected if this close is still the room's
-      // current TV socket.
-      if (room && room.tvSocket === socket) {
-        rooms.markTvDisconnected(socket.roomCode);
-        log('tv disconnected, room kept for reattach', socket.roomCode, `(${TV_GRACE_MS}ms grace)`);
-      }
-    } else if (socket.role === 'companion' && socket.roomCode) {
-      rooms.removeCompanion(socket.roomCode, socket);
-      log('companion left', socket.roomCode);
+    if (socket.role === 'tv') {
+      clients.clearTv(socket);
+      broadcastToCompanions({ type: TYPES.STATUS, state: 'tv_offline' });
+      log('tv disconnected');
+    } else if (socket.role === 'companion') {
+      clients.removeCompanion(socket);
+      log('companion left');
     }
   });
 });
 
 // Heartbeat: a network drop doesn't always send a clean close frame (e.g.
-// a TV losing wifi), which would otherwise leave a zombie room that no
-// companion could ever reconnect to. terminate() on a socket that missed
-// its pong fires 'close', so the cleanup above still runs.
+// a TV losing wifi). terminate() on a socket that missed its pong fires
+// 'close', so the cleanup above still runs.
 const heartbeat = setInterval(() => {
   for (const socket of wss.clients) {
     if (socket.isAlive === false) {
@@ -208,23 +168,6 @@ const heartbeat = setInterval(() => {
 }, HEARTBEAT_INTERVAL_MS);
 
 wss.on('close', () => clearInterval(heartbeat));
-
-// Rooms whose TV has been gone past its grace period are truly dead --
-// only now do their companions get told (matches PROTOCOL.md's
-// "Disconnects" section: one final tv_offline, then the code stops
-// working). A TV that reconnects with a matching resume token before this
-// runs just reclaims the room in place and none of this ever fires.
-const reaper = setInterval(() => {
-  const reaped = rooms.reapStale(TV_GRACE_MS);
-  reaped.forEach(({ code, companions }) => {
-    for (const companion of companions) {
-      send(companion, { type: TYPES.STATUS, state: 'tv_offline' });
-    }
-    log('tv grace period expired, room torn down', code);
-  });
-}, REAP_INTERVAL_MS);
-
-wss.on('close', () => clearInterval(reaper));
 
 server.listen(PORT, () => {
   log(`relay listening on :${PORT} (ws + http GET /healthz)`);

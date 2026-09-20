@@ -1,5 +1,5 @@
 name = "TV Casting"
-description = "Phone/desktop pairing + remote for casting to the TV (companion PWA)."
+description = "Phone/desktop remote for casting to the TV (companion PWA)."
 icon = "\U0001F4FA"
 
 # Only the companion (a static PWA, no build step) is launched by the hub.
@@ -34,4 +34,4 @@ startup_timeout_seconds = 10
 # Everything companion talks to (relay's ws:// URL, the resolver's http://
 # URL) is a fixed LAN host:port configured in companion/js/config.js, not
 # routed through the hub -- so App Hub proxying this page changes nothing
-# about how pairing/casting actually works, only how you reach the page.
+# about how casting actually works, only how you reach the page.

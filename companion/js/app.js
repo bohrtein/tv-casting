@@ -18,9 +18,6 @@ document.addEventListener('DOMContentLoaded', function () {
     loginPass: document.getElementById('login-pass'),
     loginReadout: document.getElementById('login-readout'),
     loginSubmit: document.getElementById('login-submit'),
-    pairingCode: document.getElementById('pairing-code'),
-    pairingReadout: document.getElementById('pairing-readout'),
-    pairingSubmit: document.getElementById('pairing-submit'),
     libraryLogin: document.getElementById('library-login'),
     libraryBrowser: document.getElementById('library-browser'),
     libraryBreadcrumb: document.getElementById('library-breadcrumb'),
@@ -41,25 +38,10 @@ document.addEventListener('DOMContentLoaded', function () {
     remotePlayPause: document.getElementById('remote-playpause'),
     remoteStop: document.getElementById('remote-stop'),
     remoteBack: document.getElementById('remote-back'),
-    remoteFwd: document.getElementById('remote-fwd'),
-    remoteUnpair: document.getElementById('remote-unpair')
+    remoteFwd: document.getElementById('remote-fwd')
   };
 
-  function showScreen(id) {
-    ['screen-pairing', 'screen-app'].forEach(function (s) {
-      document.getElementById(s).classList.toggle('cn-active', s === id);
-    });
-  }
-
-  // Pairing is the only hard gate -- casting a link needs no Jellyfin
-  // account at all, so Jellyfin sign-in lives inline in the library
-  // panel instead of blocking the whole app (it used to).
   function route() {
-    if (!relay.isPaired()) {
-      showScreen('screen-pairing');
-      return;
-    }
-    showScreen('screen-app');
     updateLibraryAuthUI();
     if (jellyfin.isAuthenticated() && !currentFolderId) loadLibraryRoot();
   }
@@ -83,16 +65,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
   var relay = createRelayClient(APP_CONFIG, {
     onConnected: function () {
-      setRelayChip(relay.isPaired() ? 'ok' : 'busy', relay.isPaired() ? 'paired' : 'connected');
+      setRelayChip('busy', 'connected');
     },
     onDisconnected: function () {
       setRelayChip('err', 'reconnecting…');
     },
-    onJoined: function (code) {
-      MX.store.set('pairing.lastCode', code);
-      setRelayChip('ok', 'paired · ' + code);
-      MX.toast(true, 'Paired with TV ' + code);
-      setReadout(el.pairingReadout, '', false);
+    onJoined: function () {
+      setRelayChip('ok', 'connected');
       route();
     },
     onStatus: function (msg) {
@@ -100,14 +79,8 @@ document.addEventListener('DOMContentLoaded', function () {
     },
     onError: function (msg) {
       if (msg.code !== 'TV_NOT_FOUND') return;
-      MX.store.set('pairing.lastCode', '');
-      setRelayChip('err', 'not paired');
-      setReadout(
-        el.pairingReadout,
-        'That TV is no longer available — get a fresh code and try again.',
-        true
-      );
-      route();
+      setRelayChip('err', 'no tv');
+      MX.toast(false, 'No TV is connected right now.');
     }
   });
 
@@ -129,18 +102,6 @@ document.addEventListener('DOMContentLoaded', function () {
       el.loginSubmit.disabled = false;
       setReadout(el.loginReadout, err.message, true);
     });
-  });
-
-  // --- pairing ---
-
-  el.pairingSubmit.addEventListener('click', function () {
-    var code = el.pairingCode.value.trim().toUpperCase();
-    if (code.length !== 6) {
-      setReadout(el.pairingReadout, 'Enter the 6-character code shown on the TV.', true);
-      return;
-    }
-    setReadout(el.pairingReadout, '', false);
-    relay.join(code);
   });
 
   // --- library ---
@@ -389,15 +350,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function renderStatus(msg) {
     if (msg.state === 'tv_offline') {
-      // The relay only sends this once, right before tearing the room
-      // down (PROTOCOL.md) -- there's nothing left to stay "paired" to,
-      // so drop back to the pairing screen instead of leaving the app
-      // screen showing stale controls for a TV that's already gone.
       nowCasting = null;
-      MX.store.set('pairing.lastCode', '');
       setRelayChip('err', 'tv offline');
-      MX.toast(false, 'The TV disconnected — pair again to keep casting.');
-      route();
+      MX.toast(false, 'The TV disconnected.');
       return;
     }
 
@@ -493,11 +448,6 @@ document.addEventListener('DOMContentLoaded', function () {
     relay.sendCommand('seek', { positionSec: lastPositionSec + 10 });
   });
 
-  el.remoteUnpair.addEventListener('click', function () {
-    MX.store.set('pairing.lastCode', '');
-    location.reload();
-  });
-
   // --- boot ---
 
   if (jellyfin.isAuthenticated()) {
@@ -505,15 +455,5 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   relay.connect();
-
-  var urlCode = new URLSearchParams(location.search).get('code');
-  if (urlCode) {
-    relay.join(urlCode.toUpperCase());
-    history.replaceState(null, '', location.pathname);
-  } else {
-    var remembered = MX.store.get('pairing.lastCode', null);
-    if (remembered) relay.join(remembered);
-  }
-
   route();
 });
