@@ -27,7 +27,26 @@ needed) to a local MP4, and the resolver serves that file directly.
 Slower, but it means "cast this link" behaves the same way everywhere.
 
 Downloaded files are treated as transient — swept off disk after
-`MEDIA_TTL_MS` (default 6h), not a permanent library.
+`MEDIA_TTL_MS` (default 6h) — **except** the last `RESOLVER_CACHE_SIZE`
+(default 5) distinct source urls, which the LRU cache below keeps
+around regardless of age.
+
+## Rewatch cache
+
+`src/cache.js` keeps the last `RESOLVER_CACHE_SIZE` (default 5)
+distinct source urls' downloaded files on disk, indexed by source url
+in `MEDIA_DIR/cache-index.json`. Recasting a url that's still in the
+cache skips the download entirely — `POST /resolve` resolves straight
+to `status: "ready"` with the existing file's `streamUrl`, no yt-dlp
+invocation at all. Eviction is by *last used*, not insertion order:
+rewatching an older cached video bumps it back to the front, so the
+one that actually gets evicted when a 6th distinct video is cast is
+whichever entry has gone longest untouched. Evicted files are deleted
+immediately (not left for the TTL sweep). This is independent of, and
+takes priority over, `MEDIA_TTL_MS` — a cached file's lifetime is "one
+of the last N distinct things cast," not a timer; the TTL sweep only
+ever touches files the cache isn't tracking (orphaned partial/error
+downloads).
 
 ## Extraction tiers
 
@@ -71,9 +90,11 @@ Downloaded files are treated as transient — swept off disk after
 
 ## API
 
-- `POST /resolve` `{ "url": "https://..." }` → `202 { "id": "...", "status": "starting" }`.
-  Kicks off metadata probe + download in the background; does not block
-  on it (a real download can take anywhere from seconds to minutes).
+- `POST /resolve` `{ "url": "https://..." }` → `202 { "id": "...", "status": "starting" }`
+  (or `status: "ready"` immediately, if this url is a rewatch-cache hit
+  — see above). Otherwise kicks off metadata probe + download in the
+  background; does not block on it (a real download can take anywhere
+  from seconds to minutes).
 - `GET /resolve/:id` → current job state:
   ```json
   { "id": "...", "status": "downloading", "progress": 42.1, "title": "..." }
@@ -97,7 +118,8 @@ Downloaded files are treated as transient — swept off disk after
 | `MEDIA_DIR` | `./media` | where downloaded MP4s land |
 | `MAX_HEIGHT` | `1080` | caps the requested format so a cast doesn't pull an 8K master onto a home LAN |
 | `MAX_FILESIZE` | `2G` | hard stop passed to yt-dlp's `--max-filesize`, protects disk from a runaway download |
-| `MEDIA_TTL_MS` | `21600000` (6h) | sweep interval for deleting old downloaded files and job records |
+| `MEDIA_TTL_MS` | `21600000` (6h) | sweep interval for deleting old downloaded files and job records not tracked by the rewatch cache |
+| `RESOLVER_CACHE_SIZE` | `5` | how many distinct source urls the rewatch cache (see above) keeps on disk at once |
 | `YTDLP_BIN` | `yt-dlp` | override if it's not on `PATH` for the service user |
 
 ## Personal use

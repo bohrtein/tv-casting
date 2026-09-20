@@ -4,6 +4,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { JobRegistry } = require('./jobs');
+const { MediaCache } = require('./cache');
 const ytdlp = require('./ytdlp');
 const { log } = require('./logger');
 
@@ -14,10 +15,12 @@ const MAX_FILESIZE = process.env.MAX_FILESIZE || '2G';
 const MEDIA_TTL_MS = parseInt(process.env.MEDIA_TTL_MS || String(6 * 60 * 60 * 1000), 10); // 6h
 const SWEEP_INTERVAL_MS = 15 * 60 * 1000;
 const ENABLE_GENERIC_FALLBACK = process.env.ENABLE_GENERIC_FALLBACK !== '0';
+const CACHE_MAX_ENTRIES = parseInt(process.env.RESOLVER_CACHE_SIZE || '5', 10);
 
 fs.mkdirSync(MEDIA_DIR, { recursive: true });
 
 const jobs = new JobRegistry();
+const mediaCache = new MediaCache(MEDIA_DIR, CACHE_MAX_ENTRIES);
 
 function sendJson(res, status, body) {
   const data = JSON.stringify(body);
@@ -133,13 +136,24 @@ async function runJob(job, url) {
       onProgress: (pct) => jobs.update(job.id, { progress: pct })
     });
 
+    const fileName = `${job.id}.mp4`;
     jobs.update(job.id, {
       status: 'ready',
       progress: 100,
-      fileName: `${job.id}.mp4`,
+      fileName,
       finishedAt: Date.now()
     });
     log('resolved', job.id, info.title);
+
+    // Register with the LRU cache so recasting this same source url
+    // later is instant instead of re-downloading. Only ever the 5 (by
+    // default) most recently *used* distinct sources survive -- delete
+    // whichever file(s) that bumps out.
+    const evicted = mediaCache.add({ sourceUrl: job.sourceUrl, fileName, title: info.title });
+    evicted.forEach((e) => {
+      fs.unlink(path.join(MEDIA_DIR, e.fileName), () => {});
+      log('cache evicted (LRU cap)', e.fileName, e.title);
+    });
   } catch (err) {
     jobs.update(job.id, { status: 'error', error: err.message, finishedAt: Date.now() });
     log('resolve failed', job.id, err.message);
@@ -220,6 +234,21 @@ const server = http.createServer((req, res) => {
       }
       const job = jobs.create();
       job.sourceUrl = target;
+
+      const cached = mediaCache.find(target);
+      if (cached) {
+        jobs.update(job.id, {
+          status: 'ready',
+          progress: 100,
+          title: cached.title,
+          fileName: cached.fileName,
+          finishedAt: Date.now()
+        });
+        log('resolved from cache', job.id, cached.title);
+        sendJson(res, 202, { id: job.id, status: job.status });
+        return;
+      }
+
       sendJson(res, 202, { id: job.id, status: job.status });
       runJob(job, target);
     }).catch((err) => {
@@ -249,15 +278,18 @@ const server = http.createServer((req, res) => {
   res.end();
 });
 
-// Downloaded files are transient casts, not a media library -- sweep
-// anything past MEDIA_TTL_MS so a home server's disk doesn't slowly fill
-// with every video anyone has ever cast.
+// Sweeps orphaned in-progress/error leftovers past MEDIA_TTL_MS so a
+// home server's disk doesn't slowly fill up. Files the LRU cache is
+// tracking are exempt -- their lifecycle is "one of the last
+// CACHE_MAX_ENTRIES distinct sources cast," not a time limit, so a
+// video you cast once and rewatch a week later is still there.
 setInterval(() => {
   jobs.sweep(MEDIA_TTL_MS);
   fs.readdir(MEDIA_DIR, (err, files) => {
     if (err) return;
     const cutoff = Date.now() - MEDIA_TTL_MS;
     files.forEach((file) => {
+      if (file === 'cache-index.json' || mediaCache.has(file)) return;
       const filePath = path.join(MEDIA_DIR, file);
       fs.stat(filePath, (statErr, stat) => {
         if (!statErr && stat.mtimeMs < cutoff) fs.unlink(filePath, () => {});
