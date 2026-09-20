@@ -334,7 +334,7 @@ document.addEventListener('DOMContentLoaded', function () {
       var label = job.title || job.sourceUrl || job.id;
       var detail;
       if (job.status === 'error') detail = 'failed — ' + job.error;
-      else if (job.status === 'ready') detail = 'ready';
+      else if (job.status === 'ready') detail = job.fromCache ? 'already had it — cast instantly' : 'downloaded fresh';
       else detail = describeResolveProgress(job);
       item.innerHTML =
         '<time>' + formatClock(job.createdAt) + '</time>' +

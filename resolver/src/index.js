@@ -68,6 +68,7 @@ function jobPublicShape(job, req) {
     progress: job.progress,
     title: job.title,
     sourceUrl: job.sourceUrl,
+    fromCache: !!job.fromCache,
     createdAt: job.createdAt,
     finishedAt: job.finishedAt
   };
@@ -245,6 +246,7 @@ const server = http.createServer((req, res) => {
           progress: 100,
           title: cached.title,
           fileName: cached.fileName,
+          fromCache: true,
           finishedAt: Date.now()
         });
         log('resolved from cache', job.id, cached.title);

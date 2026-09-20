@@ -25,7 +25,12 @@ class MediaCache {
   _load() {
     try {
       const parsed = JSON.parse(fs.readFileSync(this.indexPath, 'utf8'));
-      return Array.isArray(parsed) ? parsed : [];
+      if (!Array.isArray(parsed)) return [];
+      // Re-normalize on load so entries written before normalize()
+      // grew tracking-param stripping (or before it existed at all)
+      // still get matched correctly, without a manual migration step.
+      parsed.forEach((e) => { e.sourceUrl = MediaCache.normalize(e.sourceUrl); });
+      return parsed;
     } catch (e) {
       return [];
     }
@@ -37,8 +42,47 @@ class MediaCache {
     fs.renameSync(tmp, this.indexPath);
   }
 
+  // Cache-key normalization, not URL validation -- worst case here is a
+  // missed cache hit (falls back to a real download, same as before this
+  // existed), never a wrong file served, so this stays conservative.
+  //
+  // The concrete bug this fixes: YouTube's share sheet appends a fresh
+  // si= tracking token every single time you hit "Share," even for the
+  // exact same video -- so re-sharing the same link from a phone gave
+  // the resolver a different-looking url each time, which a plain
+  // string-equality cache key treats as a brand new, uncached video.
   static normalize(url) {
-    return url.trim();
+    const trimmed = url.trim();
+    let u;
+    try {
+      u = new URL(trimmed);
+    } catch (e) {
+      return trimmed;
+    }
+
+    const host = u.hostname.replace(/^www\.|^m\.|^music\./, '');
+    if (host === 'youtube.com' || host === 'youtu.be') {
+      let videoId = null;
+      if (host === 'youtu.be') {
+        videoId = u.pathname.split('/').filter(Boolean)[0] || null;
+      } else if (u.pathname === '/watch') {
+        videoId = u.searchParams.get('v');
+      } else {
+        const m = /^\/(shorts|embed)\/([^/]+)/.exec(u.pathname);
+        if (m) videoId = m[2];
+      }
+      // Deliberately drops si/t/list/feature/pp/etc -- the downloaded
+      // file is the same video regardless of which tracking params or
+      // playlist context a particular share link carried.
+      if (videoId) return `https://www.youtube.com/watch?v=${videoId}`;
+    }
+
+    // Generic fallback for everything else: strip well-known tracking
+    // params and any fragment, keep the rest of the url as-is.
+    const TRACKING_PARAMS = ['si', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'gclid', 'igshid', 'feature', 'ref', 'ref_src'];
+    TRACKING_PARAMS.forEach((p) => u.searchParams.delete(p));
+    u.hash = '';
+    return u.toString();
   }
 
   // Returns the cached entry for `url`, or null on a miss -- including
