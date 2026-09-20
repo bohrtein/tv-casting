@@ -1,0 +1,25 @@
+[Unit]
+Description=TV Casting Relay - WebSocket pairing/control relay for TV casting
+After=network.target
+
+[Service]
+Type=simple
+User=bortein
+Group=bortein
+WorkingDirectory=/home/bortein/Desktop/github/tv-casting/relay
+EnvironmentFile=/home/bortein/Desktop/github/tv-casting/relay/.env
+ExecStart=/home/bortein/.nvm/versions/node/v24.21.0/bin/node src/index.js
+Restart=on-failure
+RestartSec=2
+
+# Matches apphub.service's convention on this host (bortein runs both,
+# working directory lives under /home, so ProtectHome is deliberately
+# left unset -- it would hide the WorkingDirectory from the service).
+KillMode=control-group
+TimeoutStopSec=10
+
+NoNewPrivileges=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

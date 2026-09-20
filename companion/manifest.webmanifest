@@ -1,0 +1,14 @@
+{
+  "name": "TV Casting",
+  "short_name": "TV Cast",
+  "description": "Browse Jellyfin and cast to the TV.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#000400",
+  "theme_color": "#000400",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

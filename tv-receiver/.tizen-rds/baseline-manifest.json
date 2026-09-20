@@ -1,0 +1,73 @@
+{
+  "deployId": 1,
+  "projectDir": "c:\\tv-casting\\tv-receiver",
+  "timestamp": "2026-09-20T09:14:02.317Z",
+  "hashAlgorithm": "xxh3-128",
+  "input": {
+    "README.md": {
+      "hash": "d62da698c4bfc58aff1493c1796d2020"
+    },
+    "index.html": {
+      "hash": "4dbd169ac01ac08896b62435d7804061"
+    },
+    "icon.png": {
+      "hash": "bd44cc37e2f9e1f535090ea4b90b0d5f"
+    },
+    "config.xml": {
+      "hash": "e34bb9f028372bbf6a5f0c10fbd67f30"
+    },
+    "css/style.css": {
+      "hash": "0d6ad4e6b9d7994f89aeba0202b31d54"
+    },
+    "js/relay-client.js": {
+      "hash": "4751ece5767e4715adaf328b484b3889"
+    },
+    "js/player.js": {
+      "hash": "3304b367244d58983da8e8300043fcf0"
+    },
+    "js/config.js": {
+      "hash": "e2373b6487f9fb8e21af1bdc9d055724"
+    },
+    "js/app.js": {
+      "hash": "209c6772d0f233afaf003b30a7c4fc37"
+    },
+    "js/vendor/qrcode.js": {
+      "hash": "e90346fbce71a7905a929a71d1ff9a57"
+    }
+  },
+  "output": {
+    "Debug/projects/tv-receiver/README.md": {
+      "hash": "d62da698c4bfc58aff1493c1796d2020"
+    },
+    "Debug/projects/tv-receiver/index.html": {
+      "hash": "4dbd169ac01ac08896b62435d7804061"
+    },
+    "Debug/projects/tv-receiver/icon.png": {
+      "hash": "bd44cc37e2f9e1f535090ea4b90b0d5f"
+    },
+    "Debug/projects/tv-receiver/config.xml": {
+      "hash": "e34bb9f028372bbf6a5f0c10fbd67f30"
+    },
+    "Debug/projects/tv-receiver/js/relay-client.js": {
+      "hash": "4751ece5767e4715adaf328b484b3889"
+    },
+    "Debug/projects/tv-receiver/js/player.js": {
+      "hash": "3304b367244d58983da8e8300043fcf0"
+    },
+    "Debug/projects/tv-receiver/js/config.js": {
+      "hash": "e2373b6487f9fb8e21af1bdc9d055724"
+    },
+    "Debug/projects/tv-receiver/js/app.js": {
+      "hash": "209c6772d0f233afaf003b30a7c4fc37"
+    },
+    "Debug/projects/tv-receiver/.vscode/settings.json": {
+      "hash": "4363d5c883c8ad50eb39176c2df0bdb7"
+    },
+    "Debug/projects/tv-receiver/css/style.css": {
+      "hash": "0d6ad4e6b9d7994f89aeba0202b31d54"
+    },
+    "Debug/projects/tv-receiver/js/vendor/qrcode.js": {
+      "hash": "e90346fbce71a7905a929a71d1ff9a57"
+    }
+  }
+}

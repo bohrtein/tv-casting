@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets"
+        xmlns:tizen="http://tizen.org/ns/widgets"
+        id="http://bohrtein.github.io/tv-casting/tv-receiver"
+        version="0.1.0"
+        viewmodes="fullscreen">
+    <tizen:application id="TvCstRecv1.TVCastingReceiver"
+        package="TvCstRecv1"
+        required_version="4.0"/>
+    <name>TV Casting Receiver</name>
+    <icon src="icon.png"/>
+    <content src="index.html"/>
+    <feature name="http://tizen.org/feature/screen.size.all"/>
+    <tizen:profile name="tv"/>
+    <!-- WebSocket connection to the relay on the home LAN. AVPlay itself
+         is exposed via the Samsung webapis.js bridge (loaded directly in
+         index.html), not gated by a Tizen privilege. -->
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:setting screen-orientation="landscape"
+        context-menu="disable"
+        background-support="disable"
+        encryption="disable"
+        install-location="auto"
+        hwkey-event="enable"/>
+</widget>

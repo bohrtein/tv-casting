@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000400">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="Browse Jellyfin and cast to the TV.">
+<title>TV Casting</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="matrix.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body class="mx">
+
+<canvas id="mx-rain-bloom" aria-hidden="true"></canvas>
+<canvas id="mx-rain" aria-hidden="true"></canvas>
+<div class="mx-vignette" aria-hidden="true"></div>
+<div class="mx-scanlines" aria-hidden="true"></div>
+
+<div class="mx-shell">
+
+  <div class="mx-topbar">
+    <div class="mx-brand">
+      <span class="mx-mark">tv-casting</span>
+      <h1 class="mx-tagline">companion</h1>
+    </div>
+    <span id="relay-chip" class="mx-status-chip mx-glass" data-mx-state="busy">
+      <span class="mx-led" aria-hidden="true"></span><span id="relay-chip-label">connecting</span>
+    </span>
+  </div>
+
+  <section id="screen-pairing" class="cn-screen">
+    <section class="mx-panel mx-glass">
+      <h2 class="mx-panel-title">pair with a tv</h2>
+      <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 16px">
+        Point your phone's camera at the QR on the TV's idle screen, or type the code shown under it.
+      </p>
+      <div class="mx-field-boxed">
+        <div class="mx-field-head"><label class="mx-label" for="pairing-code">room code</label></div>
+        <input class="mx-input" type="text" id="pairing-code" placeholder="ABC123" maxlength="6" autocapitalize="characters" autocomplete="off">
+        <p class="mx-hint">the 6-character code shown under the QR on the TV.</p>
+      </div>
+      <div id="pairing-readout" class="mx-readout" style="display:none"></div>
+      <div class="demo" style="margin-top:14px; display:flex; gap:10px">
+        <button id="pairing-submit" class="mx-btn mx-btn-go" type="button">connect</button>
+      </div>
+    </section>
+  </section>
+
+  <section id="screen-app" class="cn-screen">
+    <nav class="mx-tabs" role="tablist">
+      <button class="mx-tab" data-mx-tab="library" aria-selected="true">library</button>
+      <button class="mx-tab" data-mx-tab="link">link</button>
+      <button class="mx-tab" data-mx-tab="remote">remote</button>
+    </nav>
+
+    <div class="mx-stack">
+      <div class="mx-col">
+        <section class="mx-panel mx-glass" data-mx-panel="library">
+          <h2 class="mx-panel-title">library</h2>
+
+          <div id="library-login">
+            <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 16px">
+              Sign in to Jellyfin to browse your library. Not needed for the "link" tab.
+            </p>
+            <div class="mx-field">
+              <div class="mx-field-head"><label class="mx-label" for="login-server">server url</label></div>
+              <input class="mx-input" type="url" id="login-server" placeholder="http://192.168.2.31:8096" autocomplete="url">
+            </div>
+            <div class="mx-field">
+              <div class="mx-field-head"><label class="mx-label" for="login-user">username</label></div>
+              <input class="mx-input" type="text" id="login-user" autocomplete="username">
+            </div>
+            <div class="mx-field">
+              <div class="mx-field-head"><label class="mx-label" for="login-pass">password</label></div>
+              <input class="mx-input" type="password" id="login-pass" autocomplete="current-password">
+            </div>
+            <div id="login-readout" class="mx-readout" style="display:none"></div>
+            <div class="demo" style="margin-top:14px; display:flex; gap:10px">
+              <button id="login-submit" class="mx-btn mx-btn-go" type="button">sign in</button>
+            </div>
+          </div>
+
+          <div id="library-browser" class="cn-hidden">
+            <div id="library-breadcrumb" class="cn-breadcrumb"></div>
+            <div id="library-list" class="cn-rows"></div>
+          </div>
+        </section>
+      </div>
+
+      <div class="mx-col">
+        <section class="mx-panel mx-glass" data-mx-panel="link">
+          <h2 class="mx-panel-title">cast a link</h2>
+          <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 16px">
+            A direct video URL (.mp4, .m3u8, &hellip;), or a page with a video
+            embedded in it (YouTube, Twitter/X, &hellip;) &mdash; those get
+            resolved to a castable file first, which can take a minute. No
+            Jellyfin needed either way.
+          </p>
+          <div class="mx-field">
+            <div class="mx-field-head"><label class="mx-label" for="link-url">video url</label></div>
+            <input class="mx-input" type="url" id="link-url" placeholder="https://example.com/video.mp4">
+          </div>
+          <div class="mx-field">
+            <div class="mx-field-head"><label class="mx-label" for="link-title">title (optional)</label></div>
+            <input class="mx-input" type="text" id="link-title" placeholder="what's this called?">
+          </div>
+          <div id="link-readout" class="mx-readout" style="display:none"></div>
+          <div class="demo" style="margin-top:14px; display:flex; gap:10px">
+            <button id="link-cast" class="mx-btn mx-btn-go" type="button">cast</button>
+          </div>
+        </section>
+
+        <section class="mx-panel mx-glass" data-mx-panel="remote" style="margin-top:16px">
+          <h2 class="mx-panel-title">remote</h2>
+          <div class="mx-readout" id="remote-readout">nothing casting</div>
+          <div class="cn-seekbar" style="margin-top:14px">
+            <input class="cn-seek-range" id="remote-seek" type="range" min="0" max="0" value="0" step="1" disabled aria-label="seek position">
+            <div class="cn-seek-times">
+              <span id="remote-seek-pos">0:00</span>
+              <span id="remote-seek-dur">0:00</span>
+            </div>
+          </div>
+          <div class="demo" style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap">
+            <button id="remote-playpause" class="mx-btn mx-btn-go" type="button" disabled>play</button>
+            <button id="remote-stop" class="mx-btn" type="button" disabled>stop</button>
+            <button id="remote-back" class="mx-btn" type="button" disabled>&laquo; 10s</button>
+            <button id="remote-fwd" class="mx-btn" type="button" disabled>10s &raquo;</button>
+          </div>
+          <p style="margin-top:20px">
+            <button id="remote-unpair" class="mx-btn" type="button">forget this tv</button>
+          </p>
+        </section>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div class="mx-toasts"></div>
+
+<script src="matrix.js" defer></script>
+<script src="js/config.js" defer></script>
+<script src="js/jellyfin-client.js" defer></script>
+<script src="js/resolver-client.js" defer></script>
+<script src="js/relay-client.js" defer></script>
+<script src="js/app.js" defer></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js');
+    });
+  }
+</script>
+</body>
+</html>

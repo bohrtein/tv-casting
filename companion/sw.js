@@ -1,0 +1,61 @@
+'use strict';
+
+// App-shell cache only. Never caches Jellyfin API responses or media --
+// media never flows through this app to begin with (Jellyfin -> TV
+// directly, root README.md hard rule), and library data goes stale fast,
+// so it's fetched fresh every time rather than served from here.
+var CACHE_NAME = 'tv-casting-shell-v1';
+var SHELL_FILES = [
+  './',
+  'index.html',
+  'manifest.webmanifest',
+  'matrix.css',
+  'matrix.js',
+  'css/app.css',
+  'js/config.js',
+  'js/jellyfin-client.js',
+  'js/relay-client.js',
+  'js/app.js',
+  'icon-192.png',
+  'icon-512.png',
+  'fonts/SpaceMono-Regular.ttf',
+  'fonts/SpaceMono-Bold.ttf',
+  'fonts/UnifrakturMaguntia-Book.ttf'
+];
+
+self.addEventListener('install', function (event) {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(function (cache) { return cache.addAll(SHELL_FILES); })
+      .then(function () { return self.skipWaiting(); })
+  );
+});
+
+self.addEventListener('activate', function (event) {
+  event.waitUntil(
+    caches.keys().then(function (names) {
+      return Promise.all(
+        names.filter(function (name) { return name !== CACHE_NAME; })
+          .map(function (name) { return caches.delete(name); })
+      );
+    }).then(function () { return self.clients.claim(); })
+  );
+});
+
+self.addEventListener('fetch', function (event) {
+  var url = new URL(event.request.url);
+
+  // Only ever intercept same-origin shell files. Jellyfin (a different
+  // origin) and anything else just falls through to the network
+  // untouched -- relay traffic is WebSocket, which fetch/SW never sees.
+  if (url.origin !== self.location.origin) return;
+
+  var path = url.pathname.replace(/^\//, '');
+  if (SHELL_FILES.indexOf(path) === -1 && path !== '') return;
+
+  event.respondWith(
+    caches.match(event.request).then(function (cached) {
+      return cached || fetch(event.request);
+    })
+  );
+});

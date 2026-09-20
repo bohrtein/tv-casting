@@ -1,0 +1,13 @@
+{
+  "name": "tv-casting-relay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Transport-only WebSocket relay pairing a TV receiver with one or more companions. See PROTOCOL.md.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

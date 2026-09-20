@@ -1,0 +1,27 @@
+{
+  "projectDir": "c:\\tv-casting\\tv-receiver",
+  "deploys": {
+    "next": [
+      {
+        "path": "Debug/projects/tv-receiver/js/app.js",
+        "type": "modify"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/js/player.js",
+        "type": "modify"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/README.md",
+        "type": "modify"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/config.xml",
+        "type": "modify"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/.vscode/settings.json",
+        "type": "add"
+      }
+    ]
+  }
+}

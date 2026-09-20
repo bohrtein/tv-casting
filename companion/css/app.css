@@ -1,0 +1,154 @@
+/* Companion-specific additions on top of matrix.css's tokens/components.
+   Everything here derives from the same custom properties -- no new
+   colors, just layout Matrix's base component set doesn't provide. */
+
+.cn-screen {
+  display: none;
+}
+
+.cn-screen.cn-active {
+  display: block;
+}
+
+.cn-hidden {
+  display: none;
+}
+
+.cn-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.cn-crumb {
+  cursor: pointer;
+  border: none;
+  font: inherit;
+}
+
+.cn-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cn-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--mx-tap);
+  padding: 10px 14px;
+  background: var(--mx-raised);
+  border: 1px solid var(--mx-line-soft);
+  border-radius: var(--mx-r-sm);
+  color: var(--mx-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cn-row:hover,
+.cn-row:focus-visible {
+  border-color: var(--mx-green);
+  outline: none;
+}
+
+.cn-row-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- remote seek bar ------------------------------------------------------
+   Native <input type=range>, restyled to match Matrix's sunken-track /
+   glowing-thumb look. Kept a plain range (not a custom drag surface) so
+   touch, mouse, keyboard arrows and screen readers all work for free. */
+
+.cn-seekbar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cn-seek-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: var(--mx-tap);
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+
+.cn-seek-range {
+  --cn-seek-pct: 0%;
+}
+
+.cn-seek-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: var(--mx-r-sm);
+  border: 1px solid var(--mx-line-soft);
+  /* --cn-seek-pct is set from JS on the element itself; custom properties
+     inherit into pseudo-elements, so this is how the WebKit track (which
+     has no native "already played" fill like Firefox's ::-moz-range-progress
+     below) gets a filled portion at all. */
+  background: linear-gradient(
+    to right,
+    var(--mx-green) 0%, var(--mx-green) var(--cn-seek-pct),
+    var(--mx-sunken) var(--cn-seek-pct), var(--mx-sunken) 100%
+  );
+}
+
+.cn-seek-range::-moz-range-track {
+  height: 6px;
+  border-radius: var(--mx-r-sm);
+  background: var(--mx-sunken);
+  border: 1px solid var(--mx-line-soft);
+}
+
+.cn-seek-range::-moz-range-progress {
+  height: 6px;
+  border-radius: var(--mx-r-sm);
+  background: var(--mx-green);
+}
+
+.cn-seek-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: var(--mx-green);
+  box-shadow: var(--mx-glow);
+  border: none;
+}
+
+.cn-seek-range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--mx-green);
+  box-shadow: var(--mx-glow);
+  border: none;
+}
+
+.cn-seek-range:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--mx-green); outline-offset: 2px; }
+.cn-seek-range:focus-visible::-moz-range-thumb { outline: 2px solid var(--mx-green); outline-offset: 2px; }
+
+.cn-seek-range[disabled] {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.cn-seek-times {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 2px;
+  font-size: 11px;
+  color: var(--mx-ink-dim);
+}

@@ -1,0 +1,24 @@
+[Unit]
+Description=TV Casting Resolver - turns embedded-video page urls into castable MP4s
+After=network.target
+
+[Service]
+Type=simple
+User=bortein
+Group=bortein
+WorkingDirectory=/home/bortein/Desktop/github/tv-casting/resolver
+EnvironmentFile=/home/bortein/Desktop/github/tv-casting/resolver/.env
+ExecStart=/home/bortein/.nvm/versions/node/v24.21.0/bin/node src/index.js
+Restart=on-failure
+RestartSec=2
+
+# Matches relay's unit on this host -- ProtectHome left unset because
+# WorkingDirectory and MEDIA_DIR both live under /home.
+KillMode=control-group
+TimeoutStopSec=10
+
+NoNewPrivileges=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target
