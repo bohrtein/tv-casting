@@ -12,7 +12,14 @@ icon = "\U0001F4FA"
 # buffers whole responses in memory, which is a bad fit for serving
 # multi-hundred-MB/GB video. Both run as their own always-on systemd
 # services instead -- see relay/systemd/ and resolver/systemd/.
-command = ["node", "serve.js"]
+# Absolute path, not bare "node" -- the hub spawns this from its own
+# Python venv process, whose PATH doesn't include nvm's node (nvm only
+# gets added to PATH by shell rc files an interactive login shell
+# sources, which this subprocess never goes through). Same reason the
+# relay/resolver systemd units under systemd/ call node by full path
+# instead of relying on PATH. Update this if the node version changes
+# (`nvm which <version>` on the host to get the current path).
+command = ["/home/bortein/.nvm/versions/node/v24.21.0/bin/node", "serve.js"]
 cwd = "companion"
 
 # serve.js has no dedicated /healthz -- GET / returns index.html with a
