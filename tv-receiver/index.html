@@ -9,6 +9,10 @@
 <body>
 
   <div id="idle-screen" class="screen">
+    <canvas id="idle-rain-bloom" aria-hidden="true"></canvas>
+    <canvas id="idle-rain" aria-hidden="true"></canvas>
+    <div class="idle-vignette" aria-hidden="true"></div>
+    <div class="idle-scanlines" aria-hidden="true"></div>
     <div class="idle-panel">
       <div class="brand">tv-casting</div>
       <div id="connection-note" class="connection-note">Connecting to relay&hellip;</div>
@@ -29,6 +33,7 @@
        Only resolves on a real Tizen TV / the Tizen Studio TV emulator. -->
   <script src="$WEBAPIS/webapis/webapis.js"></script>
   <script src="js/config.js"></script>
+  <script src="js/background.js"></script>
   <script src="js/relay-client.js"></script>
   <script src="js/player.js"></script>
   <script src="js/app.js"></script>

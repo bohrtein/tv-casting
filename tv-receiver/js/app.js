@@ -29,14 +29,21 @@
     onError: onPlaybackError
   });
 
+  var idleBackground = createIdleBackground(
+    document.getElementById('idle-rain'),
+    document.getElementById('idle-rain-bloom')
+  );
+
   function showIdleScreen() {
     elements.playerScreen.classList.add('hidden');
     elements.idleScreen.classList.remove('hidden');
+    idleBackground.start();
   }
 
   function showPlayerScreen() {
     elements.idleScreen.classList.add('hidden');
     elements.playerScreen.classList.remove('hidden');
+    idleBackground.stop();
   }
 
   function onRegistered() {

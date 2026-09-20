@@ -186,6 +186,31 @@ loop: browse Jellyfin → pair with TV → cast → control → see live status.
 
 ## Current status
 
+2026-09-20 — Ported the Matrix design system's idle-screen background
+(digital rain + bloom + vignette/scanlines) into `tv-receiver`, by
+request, so the idle screen (shown on boot and whenever nothing is
+playing) matches `companion`'s look. New `tv-receiver/js/background.js`
+is a trimmed copy of `companion/matrix.js`'s `Background()` — same
+algorithm, but hardcoded to this app's fixed 1920x1080 canvas instead of
+the phone/desktop version's resize/devicePixelRatio handling, since a TV
+viewport never changes at runtime. `index.html`/`css/style.css` add the
+two canvases + vignette/scanline layers inside `#idle-screen` only
+(companion's `--mx-` color tokens weren't reused — `--green`/`--ink-hot`
+etc. in `css/style.css` already carry the identical values). `app.js`
+starts the animation in `showIdleScreen()` and stops it in
+`showPlayerScreen()`, so it only runs when there's something to show and
+doesn't burn CPU on the 2018 TV's weaker hardware during actual
+playback. Added a `tv-receiver` entry to `.claude/launch.json` (plain
+`python -m http.server`) to preview this in a browser standing in for
+the TV. Verified the canvas actually paints across the full 1920x1080
+area via direct pixel sampling (an 8x6 grid of `getImageData` reads, hit
+in every region) after the preview pane's own screenshot tool turned out
+to render an oversized emulated viewport unreliably (screenshots showed
+rain confined to a small top-left box that didn't move over time, while
+pixel sampling proved content was correct everywhere) — a preview-tool
+quirk, not a bug in the page. Not verified on the actual Tizen emulator
+or real TV.
+
 2026-09-20 — Removed pairing and QR-code pairing entirely, by request,
 to make TV-app iteration easier (no re-pairing after every reload while
 developing). Supersedes decisions #1 and #2 above. Changes:

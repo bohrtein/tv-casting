@@ -32,6 +32,7 @@ files:
   - icon.png
   - index.html
   - js/app.js
+  - js/background.js
   - js/config.js
   - js/player.js
   - js/relay-client.js

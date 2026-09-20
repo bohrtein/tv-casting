@@ -14,6 +14,12 @@ messages this app sends and receives.
 - `css/style.css` — fixed 1920x1080, 10-foot-UI styling (no dependency on
   the Matrix design system used in `companion/` — that system's
   components target phone/desktop breakpoints, not a TV canvas).
+- `js/background.js` — the one piece of Matrix actually ported here: the
+  idle screen's digital-rain background, trimmed from
+  `companion/matrix.js`'s `Background()` for a fixed 1920x1080 canvas (no
+  resize/DPR handling needed, unlike the phone/desktop version). Exposes
+  `start()`/`stop()` so `app.js` only runs it on the idle screen, not
+  during playback.
 - `js/config.js` — `RELAY_URL`. Edit for your setup.
 - `js/relay-client.js` — WebSocket client: registers as `tv`, reconnects
   with exponential backoff on drop.
