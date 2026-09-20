@@ -4,22 +4,32 @@ After=network.target
 
 [Service]
 Type=simple
-User=bortein
-Group=bortein
-WorkingDirectory=/home/bortein/Desktop/github/tv-casting/relay
-EnvironmentFile=/home/bortein/Desktop/github/tv-casting/relay/.env
-ExecStart=/home/bortein/.nvm/versions/node/v24.21.0/bin/node src/index.js
+User=apphub
+Group=apphub
+WorkingDirectory=/opt/tv-casting/relay
+EnvironmentFile=/opt/tv-casting/relay/.env
+# Adjust this to wherever `node` actually resolves on the host: systemd
+# units don't source .bashrc/.nvm, so a bare `node` (which works fine in
+# an interactive shell where nvm has set PATH) will fail here. If node was
+# installed via nvm, either point this at that install's absolute path
+# (e.g. /home/apphub/.nvm/versions/node/vX.Y.Z/bin/node) or symlink it
+# into /usr/local/bin so it's on systemd's own minimal PATH.
+ExecStart=/usr/bin/node src/index.js
 Restart=on-failure
 RestartSec=2
 
-# Matches apphub.service's convention on this host (bortein runs both,
-# working directory lives under /home, so ProtectHome is deliberately
-# left unset -- it would hide the WorkingDirectory from the service).
+# Matches apphub.service's own convention on this host: same User/Group
+# (the existing apphub service account -- no separate user needed for a
+# service this small), same WorkingDirectory root (/opt), same sandboxing.
+# ProtectHome can stay on (unlike the app-launcher hub's own apps, which
+# the hub spawns itself and doesn't sandbox this way) since nothing this
+# unit needs lives under /home.
 KillMode=control-group
 TimeoutStopSec=10
 
 NoNewPrivileges=true
 ProtectSystem=full
+ProtectHome=true
 
 [Install]
 WantedBy=multi-user.target
