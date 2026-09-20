@@ -84,6 +84,10 @@ function jobPublicShape(job, req) {
 // not the whole resolver -- the original yt-dlp error still surfaces.
 async function tryGenericFallback(url, nativeErr) {
   if (!ENABLE_GENERIC_FALLBACK) return null;
+  if (require('./denylist').isDenied(url)) {
+    log('rendered-page fallback declined (denylisted domain):', url);
+    return null;
+  }
   let genericExtract;
   try {
     ({ extract: genericExtract } = require('./genericExtract'));

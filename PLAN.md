@@ -180,6 +180,41 @@ loop: browse Jellyfin → pair with TV → cast → control → see live status.
 
 ## Current status
 
+2026-09-20 — Deployed the tier-3 fallback (see entry below) to the real
+Ubuntu server, with a denylist added first by request after the live
+systemd journal showed a real `/resolve` request had already been made
+against `https://playmate.to/embed/...` (adult-content embed
+aggregator, unrelated to any test in this project) which failed only
+because yt-dlp has no extractor for it — precisely the gap tier 3
+closes. Declined the user's first ask ("deploy as-is, no site
+restrictions") since that would make the fallback succeed on exactly
+that request next time, the same category of "bypass obfuscation on an
+embed site" this project has declined twice before. Added
+`resolver/src/denylist.js` instead: a manually maintained, subdomain-
+aware hostname denylist (seeded with `playmate.to` plus ~15 widely
+known unauthorized movie/TV-embed hosts — doodstream, streamtape,
+vidsrc, filemoon, etc.), checked before `genericExtract.js` ever
+launches a browser; a denylisted url falls straight through to yt-dlp's
+original error, same as if tier 3 didn't exist. Extensible without a
+code change via `RESOLVER_DENYLIST_EXTRA` (comma-separated hostnames)
+in `.env`. Deployed via the existing `bortein_temp` SSH key (already
+present in this environment, reused rather than re-provisioned):
+copied the four changed/new `src/` files + `package.json` +
+`README.md`, ran `npm install` and `npx playwright install chromium`
+directly on the server, restarted `tv-casting-resolver` via
+`systemctl --user restart`. Verified live, not just deployed: the
+denylist correctly blocked a re-request of the exact `playmate.to` url
+from the journal (no browser launched, same plain "Unsupported URL"
+error as before); a throwaway JS-rendered test page (same one used for
+local verification) confirmed the fallback tier still engages
+correctly end-to-end post-deploy (tier 1 fails → Chromium launches →
+finds the stream request → retried through yt-dlp); headless Chromium
+launches cleanly on this host with no missing system libraries and no
+`sudo`/`playwright install-deps` needed. `/healthz` and
+`systemctl --user is-active` both confirm the service is healthy
+post-restart. Left the two pre-existing `.mp4` files already in
+`media/` untouched (real prior usage, not test artifacts).
+
 2026-09-20 — Added a third extraction tier to `resolver/`, by request
 ("make yt-dlp work on every site"): the resolver already got yt-dlp's
 full native extractor coverage (~1800 sites) plus yt-dlp's own generic
