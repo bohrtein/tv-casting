@@ -8,6 +8,7 @@ const {
   ERROR_CODES,
   parseEnvelope,
   validateRegister,
+  hasValidResume,
   validateJoin,
   validateCommand,
   validateStatus,
@@ -16,6 +17,11 @@ const { log } = require('./logger');
 
 const PORT = process.env.PORT || 8787;
 const HEARTBEAT_INTERVAL_MS = 30000;
+// Comfortably longer than the TV's own reconnect backoff cap
+// (RECONNECT_MAX_DELAY_MS in tv-receiver/js/config.js, 30s) so a few
+// retries can land inside the window before the room is given up on.
+const TV_GRACE_MS = 45000;
+const REAP_INTERVAL_MS = 5000;
 
 const rooms = new RoomRegistry();
 
@@ -56,10 +62,26 @@ function handleFirstMessage(socket, msg) {
       sendError(socket, ERROR_CODES.INVALID_MESSAGE, 'register requires role "tv".');
       return;
     }
-    const code = rooms.createRoom(socket);
+
+    if (hasValidResume(msg)) {
+      const reattached = rooms.reattachTv(msg.resume.code, msg.resume.token, socket);
+      if (reattached) {
+        socket.role = 'tv';
+        socket.roomCode = reattached;
+        const room = rooms.getRoom(reattached);
+        send(socket, { type: TYPES.REGISTERED, role: 'tv', code: reattached, resumeToken: room.resumeToken });
+        log('tv reattached', reattached);
+        return;
+      }
+      // Token didn't match a live room (grace period expired, relay
+      // restarted, code already reaped) -- fall through to a fresh room,
+      // same as a TV with no resume info at all.
+    }
+
+    const { code, resumeToken } = rooms.createRoom(socket);
     socket.role = 'tv';
     socket.roomCode = code;
-    send(socket, { type: TYPES.REGISTERED, role: 'tv', code });
+    send(socket, { type: TYPES.REGISTERED, role: 'tv', code, resumeToken });
     log('tv registered', code);
     return;
   }
@@ -91,7 +113,7 @@ function handleCommand(socket, msg) {
     return;
   }
   const room = rooms.getRoom(socket.roomCode);
-  if (!room || room.tvSocket.readyState !== room.tvSocket.OPEN) {
+  if (!room || !room.tvSocket || room.tvSocket.readyState !== room.tvSocket.OPEN) {
     sendError(socket, ERROR_CODES.TV_NOT_FOUND, 'No TV is connected in this room.');
     return;
   }
@@ -155,10 +177,13 @@ wss.on('connection', (socket) => {
   socket.on('close', () => {
     if (socket.role === 'tv' && socket.roomCode) {
       const room = rooms.getRoom(socket.roomCode);
-      if (room) {
-        broadcastToCompanions(room, { type: TYPES.STATUS, state: 'tv_offline' });
-        rooms.removeTv(socket.roomCode);
-        log('tv disconnected, room torn down', socket.roomCode);
+      // A newer socket may have already reattached to this room (the TV
+      // reconnected before this stale socket's close event fired) --
+      // only mark the room disconnected if this close is still the room's
+      // current TV socket.
+      if (room && room.tvSocket === socket) {
+        rooms.markTvDisconnected(socket.roomCode);
+        log('tv disconnected, room kept for reattach', socket.roomCode, `(${TV_GRACE_MS}ms grace)`);
       }
     } else if (socket.role === 'companion' && socket.roomCode) {
       rooms.removeCompanion(socket.roomCode, socket);
@@ -183,6 +208,23 @@ const heartbeat = setInterval(() => {
 }, HEARTBEAT_INTERVAL_MS);
 
 wss.on('close', () => clearInterval(heartbeat));
+
+// Rooms whose TV has been gone past its grace period are truly dead --
+// only now do their companions get told (matches PROTOCOL.md's
+// "Disconnects" section: one final tv_offline, then the code stops
+// working). A TV that reconnects with a matching resume token before this
+// runs just reclaims the room in place and none of this ever fires.
+const reaper = setInterval(() => {
+  const reaped = rooms.reapStale(TV_GRACE_MS);
+  reaped.forEach(({ code, companions }) => {
+    for (const companion of companions) {
+      send(companion, { type: TYPES.STATUS, state: 'tv_offline' });
+    }
+    log('tv grace period expired, room torn down', code);
+  });
+}, REAP_INTERVAL_MS);
+
+wss.on('close', () => clearInterval(reaper));
 
 server.listen(PORT, () => {
   log(`relay listening on :${PORT} (ws + http GET /healthz)`);

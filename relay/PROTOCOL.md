@@ -27,10 +27,10 @@ first gets an `error` and is dropped.
 { "type": "register", "role": "tv" }
 ```
 
-Relay creates a new room, generates a code, and replies:
+Relay creates a new room, generates a code and a `resumeToken`, and replies:
 
 ```json
-{ "type": "registered", "role": "tv", "code": "K7H4PX" }
+{ "type": "registered", "role": "tv", "code": "K7H4PX", "resumeToken": "..." }
 ```
 
 The relay hands back the raw code only. It does not know or care what the
@@ -41,11 +41,26 @@ baked into the TV app's own config). This keeps QR content a TV/companion
 concern, not a relay concern, consistent with the relay being transport
 only.
 
-A TV gets exactly one room, created fresh on every connection — there is
-no "resume my old code" for the TV (decision #2 in PLAN.md: the companion
-is what remembers, not the relay). If the TV's socket disconnects, the
-room and its code are torn down after a short grace period (see
-"Disconnects" below).
+`resumeToken` is how the TV can reclaim this exact room (same code) after
+a dropped connection, without forcing every paired companion to re-pair
+over a brief network blip. A reconnecting TV includes it:
+
+```json
+{ "type": "register", "role": "tv", "resume": { "code": "K7H4PX", "token": "..." } }
+```
+
+If the room still exists (see "Disconnects" below) and the token matches,
+the relay reattaches this socket as the room's TV and replies with the
+*same* `code` (and a resumeToken, for the next reconnect). Companions in
+the room are never notified — as far as they can tell, nothing happened.
+If the token doesn't match (or the room's already been torn down), the
+relay silently falls back to creating a brand new room, same as a `register`
+with no `resume` at all.
+
+The TV only ever holds `resumeToken` in memory for the life of its app
+process — it isn't written to disk. A genuine app restart has nothing to
+resume with and always gets a fresh room (decision #2 in PLAN.md: the
+companion is what remembers long-term, not the relay).
 
 ### Companion connects
 
@@ -121,15 +136,23 @@ room:
 
 ## Disconnects
 
-- **TV disconnects:** relay broadcasts one final status to all companions
-  in the room, then tears the room down:
+- **TV disconnects:** the room and its code are *not* torn down
+  immediately — the relay keeps them alive for a grace period (45s; see
+  `TV_GRACE_MS` in `relay/src/index.js`, comfortably longer than the TV's
+  own reconnect backoff cap) in case the TV reconnects and reclaims the
+  room with its `resumeToken` (see "TV connects" above). Companions
+  already in the room get no notification during this window — a command
+  sent while the TV is mid-reconnect just gets `TV_NOT_FOUND` for that one
+  request, same as a room with no TV would.
+
+  Only once the grace period elapses with no successful reattach does the
+  relay give up: it broadcasts one final status to all companions in the
+  room, then tears the room down for good:
   ```json
   { "type": "status", "state": "tv_offline" }
   ```
   Any companion `join` against that room's code after this point gets
-  `TV_NOT_FOUND`. (A short grace period before teardown is an
-  implementation detail for Phase 1, to survive brief network blips
-  without forcing every companion to re-pair.)
+  `TV_NOT_FOUND`.
 - **Companion disconnects:** relay silently drops it from the room's
   companion set. No notification to the TV or other companions — the TV
   doesn't need to know how many companions are watching.
