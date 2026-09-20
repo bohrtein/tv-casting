@@ -4,7 +4,14 @@
 // media never flows through this app to begin with (Jellyfin -> TV
 // directly, root README.md hard rule), and library data goes stale fast,
 // so it's fetched fresh every time rather than served from here.
-var CACHE_NAME = 'tv-casting-shell-v1';
+// Bump this whenever any file in SHELL_FILES changes -- it's the only
+// thing that makes the browser notice sw.js itself is "different" and
+// actually re-install (this file's own bytes are otherwise unchanged by
+// most shell edits), which is what triggers install/activate below to
+// re-fetch everything and drop the old cache. Forgetting this bump is
+// exactly how a phone ends up stuck on an old cached index.html/app.js
+// forever, cache-first, no matter what ships to the server.
+var CACHE_NAME = 'tv-casting-shell-v2';
 var SHELL_FILES = [
   './',
   'index.html',
@@ -14,6 +21,7 @@ var SHELL_FILES = [
   'css/app.css',
   'js/config.js',
   'js/jellyfin-client.js',
+  'js/resolver-client.js',
   'js/relay-client.js',
   'js/app.js',
   'icon-192.png',
