@@ -7,6 +7,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
@@ -22,8 +23,56 @@ const MIME = {
   '.txt': 'text/plain; charset=utf-8'
 };
 
+// sw.js hardcodes __CACHE_VERSION__ as a placeholder; fill it in here
+// with a hash of the actual shell files' contents so the cache name
+// changes exactly when a shell file changes, instead of relying on
+// someone to remember to bump it (see: activity tab going stale/missing
+// for anyone with an old service worker installed).
+function serveServiceWorker(res) {
+  const swPath = path.join(ROOT, 'sw.js');
+  fs.readFile(swPath, 'utf8', (err, source) => {
+    if (err) {
+      res.writeHead(404);
+      res.end();
+      return;
+    }
+    const match = /SHELL_FILES\s*=\s*\[([\s\S]*?)\]/.exec(source);
+    const files = match
+      ? match[1].split(',').map((s) => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean)
+      : [];
+    const hash = crypto.createHash('sha256');
+    files.forEach((f) => {
+      const rel = f === './' ? 'index.html' : f;
+      try {
+        hash.update(fs.readFileSync(path.join(ROOT, rel)));
+      } catch (e) {
+        // Missing file -- still fold its name in so a rename/removal
+        // changes the hash rather than silently keeping the old one.
+        hash.update(rel);
+      }
+    });
+    const version = hash.digest('hex').slice(0, 10);
+    // Global replace: sw.js's own comment about this placeholder also
+    // contains the literal token, and a plain (non-regex) replace only
+    // touches the first occurrence.
+    const body = source.replace(/__CACHE_VERSION__/g, version);
+    res.writeHead(200, {
+      'Content-Type': MIME['.js'],
+      // The service worker script itself must never be cached by the
+      // browser's HTTP cache -- that's a second place staleness could
+      // hide behind, on top of the Cache Storage sw.js manages itself.
+      'Cache-Control': 'no-cache'
+    });
+    res.end(body);
+  });
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://internal');
+  if (url.pathname === '/sw.js') {
+    serveServiceWorker(res);
+    return;
+  }
   // ?code=XXXXXX (the TV's QR payload) is handled client-side by
   // app.js reading location.search -- always serve index.html for a
   // bare path or /pair, never a 404, so that link always works.
