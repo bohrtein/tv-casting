@@ -21,9 +21,18 @@ set SSH_KEY=%USERPROFILE%\.ssh\bortein_temp
 set SSH_HOST=bortein@192.168.2.31
 set APPHUB_CLONE=/home/bortein/Desktop/github/apphub/apps/tv-casting
 set MAIN_CLONE=/home/bortein/Desktop/github/tv-casting
+set LOCAL_REPO=C:\tv-casting
 
 echo === tv-casting deploy ===
 echo.
+
+rem Hardcoded, not %~dp0 -- this script also lives as a Desktop shortcut
+rem copy, which would otherwise try to git-push from the Desktop folder.
+cd /d "%LOCAL_REPO%" || (
+    echo Couldn't find the repo at %LOCAL_REPO% -- edit LOCAL_REPO at the top of this script.
+    pause
+    exit /b 1
+)
 
 echo [1/3] Pushing local commits to GitHub...
 git push origin main
