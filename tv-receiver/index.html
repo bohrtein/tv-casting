@@ -18,13 +18,19 @@
          -- idle screen is never plain black either way. Baseline-profile
          H.264 at 1280x720, no B-frames/multi-ref: this TV's plain <video>
          decoder is pickier than webapis.avplay (see README.md). -->
-    <video id="idle-bg-video" src="media/idle-background.mp4" poster="media/idle-background-poster.jpg"
-           autoplay loop muted playsinline webkit-playsinline aria-hidden="true"></video>
+    <video id="idle-bg-video" poster="media/idle-background-poster.jpg"
+           autoplay loop muted playsinline webkit-playsinline aria-hidden="true">
+      <source src="media/idle-background.mp4" type='video/mp4; codecs="avc1.42C01F"'>
+    </video>
     <div class="idle-vignette" aria-hidden="true"></div>
     <div class="idle-scanlines" aria-hidden="true"></div>
     <div class="idle-panel">
       <div class="brand">tv-casting</div>
       <div id="connection-note" class="connection-note">Connecting to relay&hellip;</div>
+      <!-- Empty and invisible unless idle-bg-video actually fails --
+           the only feedback channel available for debugging this on a
+           real TV with no attached devtools. -->
+      <div id="idle-bg-debug" class="idle-bg-debug"></div>
     </div>
   </div>
 

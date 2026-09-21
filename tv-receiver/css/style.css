@@ -126,6 +126,14 @@ html, body {
   min-height: 1.2em;
 }
 
+.idle-bg-debug {
+  font-family: var(--mono);
+  font-size: 16px;
+  color: var(--amber);
+  max-width: 900px;
+  text-align: center;
+}
+
 /* --- Player screen --- */
 
 #player-screen {

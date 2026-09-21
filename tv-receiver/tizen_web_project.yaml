@@ -61,6 +61,7 @@ excludes:
   - \.tproject
   - \.wgt
   - tizen_web_project.yaml
+  - tools/*
   - webUnitTest/*
 
 # project dependencies

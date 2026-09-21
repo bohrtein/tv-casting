@@ -186,6 +186,46 @@ loop: browse Jellyfin → pair with TV → cast → control → see live status.
 
 ## Current status
 
+2026-09-21 — The conservative re-encode (previous entry) still didn't
+show anything on the real TV: user report is "just some green hue"
+behind the idle text, which is almost certainly the `.idle-vignette`
+CSS layer's green-tinted radial gradient painting over what's otherwise
+a plain black `<video>` box — i.e. neither the video *nor even the
+poster JPEG* are rendering, not just a codec rejection. Two changes,
+since a third blind guess without new information isn't a good use of
+another round-trip:
+1. **Instrumentation**, since there's no devtools attached to a
+   production TV: `#idle-bg-debug`, an empty/invisible text line under
+   the idle panel, now gets filled in by `app.js` on the video's
+   `error`/`stalled` events (decoded `MediaError` code name +
+   `networkState`/`readyState`) *and* on a plain 4-second timeout check
+   regardless of whether any event fires at all — an engine that just
+   silently no-ops the whole `<video>` tag wouldn't necessarily fire an
+   `error` event to hang a fix on. Whatever it prints next test is real
+   signal instead of another guess.
+2. **One more plausible mitigation**: swapped the bare `src` attribute
+   for a `<source>` child with an explicit
+   `type='video/mp4; codecs="avc1.42C01F"'` (Constrained Baseline,
+   level 3.1, read via `ffprobe`) — some older embedded WebKit builds
+   don't reliably sniff a bare `src`'s playability and need the codec
+   spelled out to decide `canPlayType` at all.
+Also found and fixed while investigating: `tizen_web_project.yaml`'s
+`files:` list turns out not to be a real allowlist — the actual `.wgt`
+(inspected directly with `unzip -l`) contained `tools/render-idle-background.js`
+even though it was never added to that list, meaning the real Tizen
+packager bundles the whole project directory minus `excludes:` patterns,
+and `files:` is closer to an IDE-maintained manifest snapshot. Added
+`tools/*` to `excludes:` so the dev-only renderer (and its now-broken-once-packaged
+relative reference to `companion/matrix.js`) stops shipping inside the
+app. Still unresolved: the actual root cause. If the debug line reads
+`MEDIA_ERR_SRC_NOT_SUPPORTED` next test, the codec string didn't help
+and plain `<video>` may just not be usable at all on this TV's WebKit —
+next step would be reusing `webapis.avplay` (the same object already
+proven to work for real casting) for the idle loop too, which is a
+bigger change (needs to suppress relay status reporting while it's just
+the idle loop playing, not real content) deliberately not attempted yet
+without confirming that's actually the failure mode first.
+
 2026-09-20 — Fixed the pre-rendered idle background (previous entry
 below) after the user tested it on the real TV: text/panel rendered
 fine, relay connected fine, but the video itself never showed anything
