@@ -36,10 +36,9 @@ messages this app sends and receives.
   head so `<video loop>` doesn't hard-cut) plus the poster frame. Not
   part of the shipped app — rerun it and re-save the outputs if the
   design changes, or if a device turns out to need even more
-  conservative encode settings. Needs `playwright` (already a dependency
-  of `resolver/` — no separate install here, just point `NODE_PATH` at
-  it: `NODE_PATH=../../resolver/node_modules node render-idle-background.js [seconds]`
-  from this folder) and `ffmpeg`/`ffprobe` on `PATH`.
+  conservative encode settings. Needs `playwright` (`npm install
+  playwright` from this folder, or point `NODE_PATH` at an existing
+  install elsewhere) and `ffmpeg`/`ffprobe` on `PATH`.
 - `js/config.js` — `RELAY_URL`. Edit for your setup.
 - `js/relay-client.js` — WebSocket client: registers as `tv`, reconnects
   with exponential backoff on drop.

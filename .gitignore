@@ -24,8 +24,3 @@ tv-receiver/.tproject/
 
 # PWA / bundler output
 companion/dist/
-
-# Transient downloaded casts -- never a permanent library, see
-# resolver/README.md
-resolver/media/*
-!resolver/media/.gitkeep

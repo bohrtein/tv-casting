@@ -2,16 +2,16 @@
 setlocal
 
 rem tv-casting deploy: push local commits to GitHub, then pull + restart
-rem relay/resolver/companion on the home Ubuntu server. Does NOT touch
+rem relay/companion on the home Ubuntu server. Does NOT touch
 rem tv-receiver -- that still needs a manual rebuild + resideload via the
 rem Tizen VS Code extension (no Tizen CLI tooling on this machine to
 rem script it).
 rem
 rem Server layout this script assumes (checked live on 2026-09-21):
-rem   relay + resolver run from the App Hub-imported clone at
+rem   relay runs from the App Hub-imported clone at
 rem     /home/bortein/Desktop/github/apphub/apps/tv-casting
-rem     (systemd units tv-casting-relay / tv-casting-resolver, restarted
-rem     via a NOPASSWD sudoers rule already scoped to just these units)
+rem     (systemd unit tv-casting-relay, restarted via a NOPASSWD sudoers
+rem     rule already scoped to just this unit)
 rem   companion runs from the separate primary clone at
 rem     /home/bortein/Desktop/github/tv-casting
 rem     (systemd --user unit tv-casting-companion, no sudo needed)
@@ -44,11 +44,11 @@ if errorlevel 1 (
 )
 
 echo.
-echo [2/3] Pulling on the server and restarting relay + resolver...
-ssh -i "%SSH_KEY%" %SSH_HOST% "cd %APPHUB_CLONE% && git pull && sudo systemctl restart --no-block tv-casting-relay && sudo systemctl restart --no-block tv-casting-resolver"
+echo [2/3] Pulling on the server and restarting relay...
+ssh -i "%SSH_KEY%" %SSH_HOST% "cd %APPHUB_CLONE% && git pull && sudo systemctl restart --no-block tv-casting-relay"
 if errorlevel 1 (
     echo.
-    echo Something failed pulling/restarting relay or resolver -- see above.
+    echo Something failed pulling/restarting relay -- see above.
     pause
     exit /b 1
 )
@@ -65,7 +65,7 @@ if errorlevel 1 (
 
 echo.
 echo === Done ===
-echo relay, resolver, and companion are updated and restarted on the server.
+echo relay and companion are updated and restarted on the server.
 echo.
 echo NOTE: tv-receiver was NOT touched. If tv-receiver/ changed, rebuild +
 echo resideload it yourself via the Tizen VS Code extension (Build Project,

@@ -1,11 +1,11 @@
 # TV receiver (Tizen)
 
-A Tizen TV web app: idle screen with a pairing QR code + plain code,
-connects to the relay, plays whatever it's told to via Samsung's AVPlay
-API, reports status back. See root [README.md](../README.md) and
-[PLAN.md](../PLAN.md) for the wider picture, and
-[relay/PROTOCOL.md](../relay/PROTOCOL.md) for the exact messages this
-app sends and receives.
+A Tizen TV web app: connects to the relay, plays whatever it's told to
+via Samsung's AVPlay API, reports status back. No pairing — the relay
+forwards commands from whatever companion is connected. See root
+[README.md](../README.md) and [PLAN.md](../PLAN.md) for the wider
+picture, and [relay/PROTOCOL.md](../relay/PROTOCOL.md) for the exact
+messages this app sends and receives.
 
 ## Layout
 
@@ -14,14 +14,34 @@ app sends and receives.
 - `css/style.css` — fixed 1920x1080, 10-foot-UI styling (no dependency on
   the Matrix design system used in `companion/` — that system's
   components target phone/desktop breakpoints, not a TV canvas).
-- `js/vendor/qrcode.js` — [kazuhikoarase/qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator)
-  (MIT), vendored whole, no build step. Generates the idle-screen QR as
-  inline SVG.
-- `js/config.js` — `RELAY_URL` and `COMPANION_BASE_URL`. Edit these for
-  your setup.
+- `media/idle-background.mp4` (+ `idle-background-poster.jpg`) — the
+  idle screen's digital-rain background, matching the look of
+  `companion/matrix.js`'s animation but **pre-rendered to video**, not
+  run live: a first attempt ran the real canvas animation on-device and
+  it was unusably slow on this TV's own CPU. `app.js` just plays this on
+  loop with a plain `<video>` tag, which the TV decodes in hardware like
+  any other stream. Encoded conservatively (H.264 Baseline, level 3.1,
+  no B-frames, one reference frame, 1280x720) because this TV's plain
+  `<video>` element turned out to be much pickier than `webapis.avplay`
+  about profile/level — the first encode (High profile, level 5.0)
+  played fine in a desktop browser but didn't play at all on the real
+  TV. The poster JPEG is a still frame of the same background, shown
+  immediately and left in place if the video ever fails to play for any
+  reason, so the idle screen is never plain black. See
+  `tools/render-idle-background.js` for how both are generated.
+- `tools/render-idle-background.js`, `tools/render-harness.html` — the
+  generator for `media/idle-background.*`: loads `companion/matrix.js`'s
+  animation unmodified in a real headless browser (Playwright), records
+  it, and encodes a seamless-looking loop (crossfades the tail into the
+  head so `<video loop>` doesn't hard-cut) plus the poster frame. Not
+  part of the shipped app — rerun it and re-save the outputs if the
+  design changes, or if a device turns out to need even more
+  conservative encode settings. Needs `playwright` (`npm install
+  playwright` from this folder, or point `NODE_PATH` at an existing
+  install elsewhere) and `ffmpeg`/`ffprobe` on `PATH`.
+- `js/config.js` — `RELAY_URL`. Edit for your setup.
 - `js/relay-client.js` — WebSocket client: registers as `tv`, reconnects
-  with exponential backoff on drop, always takes whatever fresh room
-  code comes back (a TV never reclaims an old code — see PROTOCOL.md).
+  with exponential backoff on drop.
 - `js/player.js` — thin wrapper around `webapis.avplay`: play/pause/
   resume/seek/seekBy/stop.
 - `js/app.js` — wires the above together: idle screen ⇄ player screen,
@@ -53,25 +73,24 @@ in signature.:<-3>` on install.
 4. Create a Samsung Certificate for that emulator (see above), set it
    active.
 5. Edit `js/config.js`: `RELAY_URL` (defaults to the relay deployed in
-   Phase 1) and `COMPANION_BASE_URL` (still a placeholder until the
-   companion is actually hosted somewhere — Phase 5).
+   Phase 1).
 6. Build Project → Run Project with the emulator selected.
 
 ## What's actually been verified
 
 Confirmed live, on a real `tv-samsung-10.0-x86_64` emulator (not just a
-plain-browser stand-in): idle screen renders a real scannable QR + room
-code and registers with the relay; a real HLS stream (Apple's public
-`bipbop_16x9` test asset) was cast to it and **actually played** —
-visually confirmed on screen and via continuous `buffering` → `playing`
-status broadcasts with `positionSec` ticking up through the relay; the
-new hardware-key wiring (Play/Pause/Stop/Rewind/Fast-Forward) was
-verified with a mocked `webapis.avplay`/`tizen.tvinputdevice` standing
-in for the real device — every key fired the exact right AVPlay call
-(pause/resume toggle by current playback state, `seekTo` computed from
-`getCurrentTime() ± 10s`, stop → stop+close) — but not yet pressed on
-the actual running emulator with a real remote/keyboard, since that
-needs someone at the keyboard rather than a scripted test.
+plain-browser stand-in): idle screen renders and registers with the
+relay; a real HLS stream (Apple's public `bipbop_16x9` test asset) was
+cast to it and **actually played** — visually confirmed on screen and
+via continuous `buffering` → `playing` status broadcasts with
+`positionSec` ticking up through the relay; the new hardware-key wiring
+(Play/Pause/Stop/Rewind/Fast-Forward) was verified with a mocked
+`webapis.avplay`/`tizen.tvinputdevice` standing in for the real device —
+every key fired the exact right AVPlay call (pause/resume toggle by
+current playback state, `seekTo` computed from `getCurrentTime() ±
+10s`, stop → stop+close) — but not yet pressed on the actual running
+emulator with a real remote/keyboard, since that needs someone at the
+keyboard rather than a scripted test.
 
 **Still not verified:** hardware-key handling on the real running
 emulator (mocked-AVPlay test above stands in for it) or a real TV, and

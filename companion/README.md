@@ -1,12 +1,11 @@
 # Companion (PWA)
 
 Phone/desktop app: browse Jellyfin, cast, control playback, see live
-status — or skip Jellyfin entirely and cast any video URL, direct file
-or a page with a video embedded in it. Connects to the relay
-automatically, no pairing step. See root [README.md](../README.md) and
-[PLAN.md](../PLAN.md) for the wider picture, [relay/PROTOCOL.md](../relay/PROTOCOL.md)
-for the exact relay messages, and [resolver/README.md](../resolver/README.md)
-for how an embed-page URL becomes a castable file.
+status — or skip Jellyfin entirely and cast a direct video URL. Connects
+to the relay automatically, no pairing step. See root
+[README.md](../README.md) and [PLAN.md](../PLAN.md) for the wider
+picture, and [relay/PROTOCOL.md](../relay/PROTOCOL.md) for the exact
+relay messages.
 
 ## Three tabs
 
@@ -16,10 +15,10 @@ here that actually needs it:
 
 - **Library** — browse Jellyfin (shows an inline sign-in form first if
   not authenticated yet).
-- **Link** — paste a direct video URL and it casts straight to the
-  paired TV; paste a page with an embedded video (YouTube, Twitter/X,
-  …) and it's resolved to a castable file first, via `resolver/`. No
-  Jellyfin involved either way.
+- **Link** — paste a direct media URL (`.mp4`, `.m3u8`, …) and it casts
+  straight to the TV. No resolving, no scraping a page for an embedded
+  video — direct URL in, direct URL out, same relay `play` message the
+  Library tab uses. No Jellyfin involved either way.
 - **Remote** — now-playing status and transport controls, for whatever
   got cast from either of the above.
 
@@ -31,12 +30,9 @@ here that actually needs it:
   of things the base component set doesn't cover (screen routing, the
   library row/breadcrumb list), built from the same CSS custom
   properties rather than new colors.
-- `js/config.js` — `RELAY_URL`, `RESOLVER_URL`.
+- `js/config.js` — `RELAY_URL`.
 - `js/jellyfin-client.js` — auth, library browsing, stream URL
   construction. Talks to Jellyfin directly, never through the relay.
-- `js/resolver-client.js` — starts a resolve job for a non-direct link
-  and polls it to completion. Talks to the resolver directly, same
-  "never through the relay" rule as Jellyfin.
 - `js/relay-client.js` — companion-side relay client: connects and joins
   immediately, reconnect-with-backoff on drop.
 - `js/app.js` — all the DOM wiring for the app screen and its tabs.

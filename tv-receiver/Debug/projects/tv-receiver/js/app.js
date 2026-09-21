@@ -4,8 +4,6 @@
   var elements = {
     idleScreen: document.getElementById('idle-screen'),
     playerScreen: document.getElementById('player-screen'),
-    qrHolder: document.getElementById('qr-holder'),
-    roomCode: document.getElementById('room-code'),
     connectionNote: document.getElementById('connection-note'),
     nowPlayingTitle: document.getElementById('now-playing-title'),
     nowPlayingState: document.getElementById('now-playing-state'),
@@ -31,28 +29,71 @@
     onError: onPlaybackError
   });
 
-  function renderQr(code) {
-    var url = APP_CONFIG.COMPANION_BASE_URL + '?code=' + encodeURIComponent(code);
-    var qr = qrcode(0, 'M'); // typeNumber 0 = auto-pick the smallest size that fits
-    qr.addData(url);
-    qr.make();
-    elements.qrHolder.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2 });
+  var idleBgVideo = document.getElementById('idle-bg-video');
+  var idleBgDebug = document.getElementById('idle-bg-debug');
+
+  // No devtools/console reachable on a production TV -- this is the only
+  // feedback channel available for debugging idle-bg-video failures, so
+  // surface everything we can get our hands on directly on screen.
+  var MEDIA_ERROR_NAMES = {
+    1: 'MEDIA_ERR_ABORTED',
+    2: 'MEDIA_ERR_NETWORK',
+    3: 'MEDIA_ERR_DECODE',
+    4: 'MEDIA_ERR_SRC_NOT_SUPPORTED'
+  };
+
+  function describeVideoError() {
+    if (!idleBgVideo) return 'idle-bg-video: element missing';
+    var err = idleBgVideo.error;
+    var bits = [
+      'networkState=' + idleBgVideo.networkState,
+      'readyState=' + idleBgVideo.readyState
+    ];
+    if (err) bits.unshift('error=' + (MEDIA_ERROR_NAMES[err.code] || err.code));
+    return 'idle-bg-video: ' + bits.join(' ');
+  }
+
+  if (idleBgVideo && idleBgDebug) {
+    idleBgVideo.addEventListener('error', function () {
+      idleBgDebug.textContent = describeVideoError();
+    });
+    idleBgVideo.addEventListener('stalled', function () {
+      idleBgDebug.textContent = describeVideoError();
+    });
+    // canplay means the browser is confident it can decode this file --
+    // clear any earlier error text once/if that actually happens.
+    idleBgVideo.addEventListener('canplay', function () {
+      idleBgDebug.textContent = '';
+    });
   }
 
   function showIdleScreen() {
     elements.playerScreen.classList.add('hidden');
     elements.idleScreen.classList.remove('hidden');
+    // Resumes decoding the idle background; harmless if it's already
+    // playing (autoplay) or if the element isn't there in some
+    // stripped-down test harness. play() returns a Promise on modern
+    // engines but not on older WebKit builds -- guard the .catch().
+    if (idleBgVideo) {
+      var playResult = idleBgVideo.play();
+      if (playResult && playResult.catch) {
+        playResult.catch(function (err) {
+          if (idleBgDebug) idleBgDebug.textContent = describeVideoError() + ' play() rejected: ' + err;
+        });
+      }
+    }
   }
 
   function showPlayerScreen() {
     elements.idleScreen.classList.add('hidden');
     elements.playerScreen.classList.remove('hidden');
+    // No reason to keep decoding the idle background while a real
+    // stream is playing.
+    if (idleBgVideo) idleBgVideo.pause();
   }
 
-  function onRegistered(code) {
-    elements.roomCode.textContent = code;
-    elements.connectionNote.textContent = '';
-    renderQr(code);
+  function onRegistered() {
+    elements.connectionNote.textContent = 'Waiting for a companion…';
   }
 
   function onDisconnected() {
@@ -201,4 +242,17 @@
   registerHardwareKeys();
   showIdleScreen();
   relay.connect();
+
+  // No 'error' event necessarily means nothing went wrong -- an engine
+  // that just silently no-ops the <video> tag entirely wouldn't fire one
+  // either. Report actual state a few seconds in regardless, so a
+  // "nothing happened at all" failure is visible too, not just explicit
+  // decode/network errors.
+  if (idleBgVideo && idleBgDebug) {
+    setTimeout(function () {
+      if (idleBgVideo.readyState < 2 || idleBgVideo.paused) {
+        idleBgDebug.textContent = describeVideoError() + ' paused=' + idleBgVideo.paused;
+      }
+    }, 4000);
+  }
 })();

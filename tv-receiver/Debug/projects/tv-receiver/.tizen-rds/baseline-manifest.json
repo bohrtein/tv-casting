@@ -1,7 +1,7 @@
 {
   "deployId": 1,
   "projectDir": "c:\\tv-casting\\tv-receiver",
-  "timestamp": "2026-09-21T15:40:58.929Z",
+  "timestamp": "2026-09-21T17:24:17.907Z",
   "hashAlgorithm": "xxh3-128",
   "input": {
     "README.md": {
@@ -16,8 +16,11 @@
     "config.xml": {
       "hash": "e34bb9f028372bbf6a5f0c10fbd67f30"
     },
-    "css/style.css": {
-      "hash": "0d6ad4e6b9d7994f89aeba0202b31d54"
+    "media/idle-background.mp4": {
+      "hash": "3d443fc4d8c6ffd70a87ef9ec60c55d5"
+    },
+    "media/idle-background-poster.jpg": {
+      "hash": "6d08eb7830b3222bbeba2c706c635eba"
     },
     "js/relay-client.js": {
       "hash": "a062ab9ace571521ce6b3d1a65f1d035"
@@ -31,11 +34,8 @@
     "js/app.js": {
       "hash": "42800f44c5b78ffeaa487dd3f0f01f3e"
     },
-    "media/idle-background.mp4": {
-      "hash": "3d443fc4d8c6ffd70a87ef9ec60c55d5"
-    },
-    "media/idle-background-poster.jpg": {
-      "hash": "6d08eb7830b3222bbeba2c706c635eba"
+    "css/style.css": {
+      "hash": "0d6ad4e6b9d7994f89aeba0202b31d54"
     },
     "js/vendor/qrcode.js": {
       "hash": "dfe4366ad84bb697cc30ad2298ccd1af"
@@ -60,6 +60,9 @@
     "Debug/projects/tv-receiver/media/idle-background-poster.jpg": {
       "hash": "6d08eb7830b3222bbeba2c706c635eba"
     },
+    "Debug/projects/tv-receiver/css/style.css": {
+      "hash": "0d6ad4e6b9d7994f89aeba0202b31d54"
+    },
     "Debug/projects/tv-receiver/js/relay-client.js": {
       "hash": "a062ab9ace571521ce6b3d1a65f1d035"
     },
@@ -71,9 +74,6 @@
     },
     "Debug/projects/tv-receiver/js/app.js": {
       "hash": "42800f44c5b78ffeaa487dd3f0f01f3e"
-    },
-    "Debug/projects/tv-receiver/css/style.css": {
-      "hash": "0d6ad4e6b9d7994f89aeba0202b31d54"
     },
     "Debug/projects/tv-receiver/.vscode/settings.json": {
       "hash": "4363d5c883c8ad50eb39176c2df0bdb7"

@@ -18,7 +18,6 @@ var SHELL_FILES = [
   'css/app.css',
   'js/config.js',
   'js/jellyfin-client.js',
-  'js/resolver-client.js',
   'js/relay-client.js',
   'js/app.js',
   'icon-192.png',
