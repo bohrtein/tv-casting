@@ -12,10 +12,13 @@
     <content src="index.html"/>
     <feature name="http://tizen.org/feature/screen.size.all"/>
     <tizen:profile name="tv"/>
-    <!-- WebSocket connection to the relay on the home LAN. AVPlay itself
-         is exposed via the Samsung webapis.js bridge (loaded directly in
-         index.html), not gated by a Tizen privilege. -->
+    <!-- WebSocket connection to the relay on the home LAN. -->
     <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <!-- Required for webapis.avplay to be exposed at all -- without this,
+         webapis.js still loads but the avplay sub-object is undefined,
+         which is exactly the "webapis.avplay is not available on this
+         device" error player.js reports. -->
+    <tizen:privilege name="http://tizen.org/privilege/tv.avplay"/>
     <tizen:setting screen-orientation="landscape"
         context-menu="disable"
         background-support="disable"

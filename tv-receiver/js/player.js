@@ -3,6 +3,8 @@
 // Thin wrapper around Samsung's webapis.avplay (loaded via the
 // $WEBAPIS/webapis/webapis.js bridge in index.html — only resolves on a
 // real Tizen TV or the Tizen Studio TV emulator, not a desktop browser).
+// Requires the tv.avplay privilege in config.xml -- without it, webapis.js
+// still loads but webapis.avplay is undefined.
 function createPlayer(handlers) {
   var currentUrl = null;
 
