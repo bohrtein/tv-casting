@@ -32,25 +32,7 @@
     </span>
   </div>
 
-  <section id="screen-pairing" class="cn-screen">
-    <section class="mx-panel mx-glass">
-      <h2 class="mx-panel-title">pair with a tv</h2>
-      <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 16px">
-        Point your phone's camera at the QR on the TV's idle screen, or type the code shown under it.
-      </p>
-      <div class="mx-field-boxed">
-        <div class="mx-field-head"><label class="mx-label" for="pairing-code">room code</label></div>
-        <input class="mx-input" type="text" id="pairing-code" placeholder="ABC123" maxlength="6" autocapitalize="characters" autocomplete="off">
-        <p class="mx-hint">the 6-character code shown under the QR on the TV.</p>
-      </div>
-      <div id="pairing-readout" class="mx-readout" style="display:none"></div>
-      <div class="demo" style="margin-top:14px; display:flex; gap:10px">
-        <button id="pairing-submit" class="mx-btn mx-btn-go" type="button">connect</button>
-      </div>
-    </section>
-  </section>
-
-  <section id="screen-app" class="cn-screen">
+  <section id="screen-app">
     <nav class="mx-tabs" role="tablist">
       <button class="mx-tab" data-mx-tab="library" aria-selected="true">library</button>
       <button class="mx-tab" data-mx-tab="link">link</button>
@@ -146,9 +128,6 @@
             <button id="remote-back" class="mx-btn" type="button" disabled>&laquo; 10s</button>
             <button id="remote-fwd" class="mx-btn" type="button" disabled>10s &raquo;</button>
           </div>
-          <p style="margin-top:20px">
-            <button id="remote-unpair" class="mx-btn" type="button">forget this tv</button>
-          </p>
         </section>
       </div>
 

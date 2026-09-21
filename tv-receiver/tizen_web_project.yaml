@@ -35,7 +35,8 @@ files:
   - js/config.js
   - js/player.js
   - js/relay-client.js
-  - js/vendor/qrcode.js
+  - media/idle-background.mp4
+  - media/idle-background-poster.jpg
 
 # list of files to exclude based on the matched patterns
 excludes:
@@ -60,8 +61,8 @@ excludes:
   - \.tproject
   - \.wgt
   - tizen_web_project.yaml
+  - tools/*
   - webUnitTest/*
 
 # project dependencies
 deps: []
-

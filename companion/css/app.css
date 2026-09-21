@@ -2,14 +2,6 @@
    Everything here derives from the same custom properties -- no new
    colors, just layout Matrix's base component set doesn't provide. */
 
-.cn-screen {
-  display: none;
-}
-
-.cn-screen.cn-active {
-  display: block;
-}
-
 .cn-hidden {
   display: none;
 }

@@ -5,12 +5,13 @@
 Four independent pieces, one repo, four top-level folders:
 
 - **`relay/`** — Node.js + `ws`, runs on the home Ubuntu server alongside the
-  app-launcher hub. Handles device pairing (room codes) and forwards
-  play/pause/stop/status JSON messages. Transport only — no media logic, no
-  direct calls to the media server.
-- **`tv-receiver/`** — Samsung Tizen (HTML/CSS/JS + AVPlay API). Idle screen
-  shows the pairing code, connects to the relay, plays whatever stream URL
-  it's sent, reports status back.
+  app-launcher hub. No pairing — tracks at most one connected TV and any
+  number of companions, forwards play/pause/stop/status JSON messages
+  between them. Transport only — no media logic, no direct calls to the
+  media server.
+- **`tv-receiver/`** — Samsung Tizen (HTML/CSS/JS + AVPlay API). Connects to
+  the relay on boot, plays whatever stream URL it's sent, reports status
+  back.
 - **`companion/`** — phone/computer PWA. Talks to Jellyfin directly for
   library browsing and stream URLs, and to the resolver for non-direct
   links, styled with the existing design system, connects to the relay
@@ -30,14 +31,21 @@ Hard rules (from project conventions, keep enforcing these in review):
 
 ## Decisions (locked in)
 
-1. **Room code** — TV generates a short code and renders it as a QR code
+1. ~~**Room code** — TV generates a short code and renders it as a QR code
    (primary path for phone companions) with the plain code printed
    underneath (fallback for desktop companions, which can't scan their
-   own screen). One relay pairing mechanism, two entry paths.
-2. **Pairing lifecycle** — companion remembers the last paired TV
+   own screen). One relay pairing mechanism, two entry paths.~~
+   **Superseded twice now (see status log)** — pairing/QR was removed,
+   restored, and has now been removed again for good: the relay tracks
+   at most one TV and any number of companions with no gating at all,
+   and nothing needs to survive a TV app restart because there's nothing
+   to lose.
+2. ~~**Pairing lifecycle** — companion remembers the last paired TV
    (room code / TV id) in local storage and auto-reconnects on next
    launch if that TV/room is still live. TV still gets a new code on
-   every app restart; the *companion* is what remembers, not the relay.
+   every app restart; the *companion* is what remembers, not the relay.~~
+   **Superseded** — nothing to remember or reconnect to now that there's
+   no room/code concept.
 3. **Relay message schema** — still needs to be nailed down at the start
    of Phase 1 (exact JSON shape for `play`/`pause`/`stop`/`status`/errors),
    but no open product question left — this is just implementation detail
@@ -179,6 +187,52 @@ loop: browse Jellyfin → pair with TV → cast → control → see live status.
   network (or wherever the design intends).
 
 ## Current status
+
+2026-09-21 — Removed pairing and QR-code pairing entirely, again, by
+request: the room-code restore from the entry below reintroduced the
+exact problem it was meant to fix — the resume token that lets a TV
+reclaim its room only lives in an in-memory JS variable, so any real app
+restart (not just a relay hiccup) mints a fresh code, strands the
+companion's remembered one, and the phone can't reconnect until someone
+re-scans/re-types a new code off the TV. That's a fundamentally bad fit
+for a single-TV home setup with no real access-control need (decision #4
+already accepted "anyone on this LAN" as the trust boundary), so this
+reverts to the same design as the first "remove pairing" pass: relay
+tracks at most one TV (the most recent to register) and any number of
+companions, no codes/tokens/resume logic at all; `relay/src/rooms.js` →
+back to `clients.js`'s flat `ClientRegistry`; TV idle screen no longer
+renders anything pairing-related; companion connects and joins
+automatically on load. Supersedes decisions #1/#2 again.
+
+Also found and fixed a real regression while doing this: the room-code
+restore commit didn't just re-add pairing, it silently reverted
+`tv-receiver/index.html`/`css/style.css`/`js/app.js` to versions that
+predate the idle-background-video work (3 commits, ~2026-09-20) — the
+pre-rendered digital-rain `<video>` background, its debug
+instrumentation, and the `tools/render-idle-background.js` generator
+were all gone from the working tree even though `media/idle-background.mp4`
+and its poster were still sitting on disk, unreferenced. That work took
+several real iterations to get right on the actual TV hardware (canvas
+animation too slow → pre-rendered video → wrong H.264 profile → codec
+debugging), so losing it silently would have been a real step backward.
+Restored it from the last commit before the regression (`1b5ae75`) as
+part of this same pass, since it touches the same files. Also deleted
+`tv-receiver/js/vendor/qrcode.js` (and confirmed the Tizen `Debug/`
+build-mirror project never had its own copy, so nothing to clean up
+there) and the now-empty `relay/src/codes.js` dependency — the working
+tree had actually been broken (relay would crash on `require('./codes')`,
+since that file didn't exist despite `rooms.js` requiring it) going into
+this change, which is now moot since `rooms.js` itself is gone.
+
+Verified locally: relay starts cleanly (`node relay/src/index.js`,
+`GET /healthz` returns `tvConnected`/`companions` counts, no room
+concept in the response). Not yet deployed to the real Ubuntu server or
+tested against the real TV/phone — the wire protocol changed again
+(register/join no longer carry `code`/`resume`), so an old TV or
+companion build in the field won't speak it; redeploy relay first, then
+the companion, then rebuild/resideload `tv-receiver` via the Tizen VS
+Code extension so it picks up both the no-pairing change and the
+restored idle-background video.
 
 2026-09-20 — Deployed the tier-3 fallback (see entry below) to the real
 Ubuntu server, with a denylist added first by request after the live

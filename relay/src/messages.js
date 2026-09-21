@@ -49,18 +49,8 @@ function validateRegister(msg) {
   return msg.role === 'tv';
 }
 
-// `resume` is optional on a register message -- a TV reconnecting mid
-// app-session includes it to reclaim its existing room (see rooms.js
-// reattachTv). Malformed/absent resume just means "treat this as a fresh
-// registration," not a validation failure of the register itself.
-function hasValidResume(msg) {
-  return !!msg.resume
-    && typeof msg.resume.code === 'string' && msg.resume.code.length > 0
-    && typeof msg.resume.token === 'string' && msg.resume.token.length > 0;
-}
-
 function validateJoin(msg) {
-  return msg.role === 'companion' && typeof msg.code === 'string' && msg.code.length > 0;
+  return msg.role === 'companion';
 }
 
 function validateCommand(msg) {
@@ -85,7 +75,6 @@ module.exports = {
   ERROR_CODES,
   parseEnvelope,
   validateRegister,
-  hasValidResume,
   validateJoin,
   validateCommand,
   validateStatus,
