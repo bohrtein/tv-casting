@@ -1,5 +1,5 @@
 [Unit]
-Description=TV Casting Relay - WebSocket control relay for TV casting
+Description=TV Casting Relay - WebSocket pairing/control relay for TV casting
 After=network.target
 
 [Service]

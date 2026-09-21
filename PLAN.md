@@ -5,13 +5,12 @@
 Four independent pieces, one repo, four top-level folders:
 
 - **`relay/`** — Node.js + `ws`, runs on the home Ubuntu server alongside the
-  app-launcher hub. No pairing — tracks at most one connected TV and any
-  number of companions, forwards play/pause/stop/status JSON messages
-  between them. Transport only — no media logic, no direct calls to the
-  media server.
-- **`tv-receiver/`** — Samsung Tizen (HTML/CSS/JS + AVPlay API). Connects to
-  the relay on boot, plays whatever stream URL it's sent, reports status
-  back.
+  app-launcher hub. Handles device pairing (room codes) and forwards
+  play/pause/stop/status JSON messages. Transport only — no media logic, no
+  direct calls to the media server.
+- **`tv-receiver/`** — Samsung Tizen (HTML/CSS/JS + AVPlay API). Idle screen
+  shows the pairing code, connects to the relay, plays whatever stream URL
+  it's sent, reports status back.
 - **`companion/`** — phone/computer PWA. Talks to Jellyfin directly for
   library browsing and stream URLs, and to the resolver for non-direct
   links, styled with the existing design system, connects to the relay
@@ -31,19 +30,14 @@ Hard rules (from project conventions, keep enforcing these in review):
 
 ## Decisions (locked in)
 
-1. ~~**Room code** — TV generates a short code and renders it as a QR code
+1. **Room code** — TV generates a short code and renders it as a QR code
    (primary path for phone companions) with the plain code printed
    underneath (fallback for desktop companions, which can't scan their
-   own screen). One relay pairing mechanism, two entry paths.~~
-   **Superseded (see status log)** — pairing/QR removed entirely for
-   easier iteration on the TV app. The relay now tracks at most one TV
-   and any number of companions with no gating at all.
-2. ~~**Pairing lifecycle** — companion remembers the last paired TV
+   own screen). One relay pairing mechanism, two entry paths.
+2. **Pairing lifecycle** — companion remembers the last paired TV
    (room code / TV id) in local storage and auto-reconnects on next
    launch if that TV/room is still live. TV still gets a new code on
-   every app restart; the *companion* is what remembers, not the relay.~~
-   **Superseded** — nothing to remember or reconnect to now that there's
-   no room/code concept.
+   every app restart; the *companion* is what remembers, not the relay.
 3. **Relay message schema** — still needs to be nailed down at the start
    of Phase 1 (exact JSON shape for `play`/`pause`/`stop`/`status`/errors),
    but no open product question left — this is just implementation detail
@@ -185,160 +179,6 @@ loop: browse Jellyfin → pair with TV → cast → control → see live status.
   network (or wherever the design intends).
 
 ## Current status
-
-2026-09-21 — The conservative re-encode (previous entry) still didn't
-show anything on the real TV: user report is "just some green hue"
-behind the idle text, which is almost certainly the `.idle-vignette`
-CSS layer's green-tinted radial gradient painting over what's otherwise
-a plain black `<video>` box — i.e. neither the video *nor even the
-poster JPEG* are rendering, not just a codec rejection. Two changes,
-since a third blind guess without new information isn't a good use of
-another round-trip:
-1. **Instrumentation**, since there's no devtools attached to a
-   production TV: `#idle-bg-debug`, an empty/invisible text line under
-   the idle panel, now gets filled in by `app.js` on the video's
-   `error`/`stalled` events (decoded `MediaError` code name +
-   `networkState`/`readyState`) *and* on a plain 4-second timeout check
-   regardless of whether any event fires at all — an engine that just
-   silently no-ops the whole `<video>` tag wouldn't necessarily fire an
-   `error` event to hang a fix on. Whatever it prints next test is real
-   signal instead of another guess.
-2. **One more plausible mitigation**: swapped the bare `src` attribute
-   for a `<source>` child with an explicit
-   `type='video/mp4; codecs="avc1.42C01F"'` (Constrained Baseline,
-   level 3.1, read via `ffprobe`) — some older embedded WebKit builds
-   don't reliably sniff a bare `src`'s playability and need the codec
-   spelled out to decide `canPlayType` at all.
-Also found and fixed while investigating: `tizen_web_project.yaml`'s
-`files:` list turns out not to be a real allowlist — the actual `.wgt`
-(inspected directly with `unzip -l`) contained `tools/render-idle-background.js`
-even though it was never added to that list, meaning the real Tizen
-packager bundles the whole project directory minus `excludes:` patterns,
-and `files:` is closer to an IDE-maintained manifest snapshot. Added
-`tools/*` to `excludes:` so the dev-only renderer (and its now-broken-once-packaged
-relative reference to `companion/matrix.js`) stops shipping inside the
-app. Still unresolved: the actual root cause. If the debug line reads
-`MEDIA_ERR_SRC_NOT_SUPPORTED` next test, the codec string didn't help
-and plain `<video>` may just not be usable at all on this TV's WebKit —
-next step would be reusing `webapis.avplay` (the same object already
-proven to work for real casting) for the idle loop too, which is a
-bigger change (needs to suppress relay status reporting while it's just
-the idle loop playing, not real content) deliberately not attempted yet
-without confirming that's actually the failure mode first.
-
-2026-09-20 — Fixed the pre-rendered idle background (previous entry
-below) after the user tested it on the real TV: text/panel rendered
-fine, relay connected fine, but the video itself never showed anything
-— plain black behind the "waiting for a companion" text. The first
-encode used H.264 High profile, level 5.0, with B-frames and 5 reference
-frames; it played perfectly in a desktop browser (which is all the
-previous entry's verification could check) but this TV's plain `<video>`
-element apparently rejected it outright. This project already learned
-this exact lesson once for real casting — `player.js` uses
-`webapis.avplay` rather than a `<video>` tag specifically because
-Tizen's built-in HTML5 video decoder is far pickier than AVPlay about
-profile/level/resolution — and the idle background hit the same wall.
-Re-encoded via `tools/render-idle-background.js` with H.264 Baseline
-profile, level 3.1, zero B-frames, one reference frame, and downscaled
-to 1280x720 (this is a decorative background, not primary content, and
-the smaller frame further reduces decode load). Also added a poster
-frame (`media/idle-background-poster.jpg`, extracted from the encoded
-video) so the idle screen shows a static image of the same background
-immediately and stays on it if the video still doesn't play on some
-device, instead of ever falling back to plain black. Verified the new
-encode plays in the browser preview (correct `videoWidth`/`videoHeight`,
-`readyState`, no `.error`) — still not verified on the actual TV itself,
-which is the only real test for exactly the kind of decoder-support gap
-this fix targets.
-
-2026-09-20 — Replaced the live-canvas idle background (previous entry
-below) with a pre-rendered video, after the user tested the canvas
-version on the real TV and reported it "not rendering at all" with a
-terrible frame rate. Root causes: (1) the canvas/vignette/scanline CSS
-used the `inset: 0` shorthand, which is a relatively recent addition
-(Chromium ~87, 2020) that this TV's much older WebKit almost certainly
-doesn't parse, likely collapsing those elements to zero size; (2) even
-fixed, live canvas rendering (per-glyph `shadowBlur`, a full quarter-res
-bloom pass + CSS blur filter, 25fps across a 1920x1080 grid) was simply
-too expensive for this 2018 TV's CPU — the entire approach of computing
-the effect on-device was the wrong call for this hardware, not just a
-tunable performance bug. Deleted `js/background.js` entirely. New
-`tools/render-idle-background.js` + `tools/render-harness.html` load
-`companion/matrix.js`'s real animation, unmodified, in a headless
-Playwright/Chromium browser on a real computer, record it, and encode
-`media/idle-background.mp4` (H.264, ~5.8MB for an 18s loop) with a
-crossfade between the tail and head so `<video loop>` doesn't hard-cut.
-`index.html` now just has `<video id="idle-bg-video" ... autoplay loop
-muted>`; `app.js` calls `.play()`/`.pause()` on it in
-`showIdleScreen()`/`showPlayerScreen()` instead of starting/stopping a
-JS loop. This offloads the actual decoding to the TV's hardware video
-pipeline, the same one that plays every cast stream, instead of
-software canvas scripting. Also switched the vignette/scanline overlay
-CSS to explicit longhand `top/right/bottom/left` instead of `inset`, for
-the same old-WebKit reason. Caught a real bug while building the
-renderer: the first version's recording included the ~3s the rain takes
-to fill in from its scattered initial state at the *front* of the kept
-clip (never trimmed), so frame 0 was nearly solid black — fixed by
-trimming that lead-in with `-ss` before encoding, verified by extracting
-frame 0 as a PNG and confirming it's fully populated. Verified in the
-browser preview via direct video-element inspection (`paused`,
-`currentTime` advancing, `videoWidth`/`videoHeight`, no `.error`) rather
-than screenshots, since the preview pane's screenshot tool had already
-proven unreliable for this app's oversized fixed 1920x1080 layout in the
-previous entry. Not yet verified on the actual Tizen emulator or TV —
-that's the real test this was tuned for and the browser preview can't
-fully stand in for it.
-
-2026-09-20 — Ported the Matrix design system's idle-screen background
-(digital rain + bloom + vignette/scanlines) into `tv-receiver`, by
-request, so the idle screen (shown on boot and whenever nothing is
-playing) matches `companion`'s look. New `tv-receiver/js/background.js`
-is a trimmed copy of `companion/matrix.js`'s `Background()` — same
-algorithm, but hardcoded to this app's fixed 1920x1080 canvas instead of
-the phone/desktop version's resize/devicePixelRatio handling, since a TV
-viewport never changes at runtime. `index.html`/`css/style.css` add the
-two canvases + vignette/scanline layers inside `#idle-screen` only
-(companion's `--mx-` color tokens weren't reused — `--green`/`--ink-hot`
-etc. in `css/style.css` already carry the identical values). `app.js`
-starts the animation in `showIdleScreen()` and stops it in
-`showPlayerScreen()`, so it only runs when there's something to show and
-doesn't burn CPU on the 2018 TV's weaker hardware during actual
-playback. Added a `tv-receiver` entry to `.claude/launch.json` (plain
-`python -m http.server`) to preview this in a browser standing in for
-the TV. Verified the canvas actually paints across the full 1920x1080
-area via direct pixel sampling (an 8x6 grid of `getImageData` reads, hit
-in every region) after the preview pane's own screenshot tool turned out
-to render an oversized emulated viewport unreliably (screenshots showed
-rain confined to a small top-left box that didn't move over time, while
-pixel sampling proved content was correct everywhere) — a preview-tool
-quirk, not a bug in the page. Not verified on the actual Tizen emulator
-or real TV.
-
-2026-09-20 — Removed pairing and QR-code pairing entirely, by request,
-to make TV-app iteration easier (no re-pairing after every reload while
-developing). Supersedes decisions #1 and #2 above. Changes:
-- `relay/`: `rooms.js` → `clients.js`, replacing the room registry
-  (code → {tv, companions}) with a flat `ClientRegistry` (at most one TV
-  socket, a set of companion sockets, no codes/tokens at all).
-  `codes.js` deleted. `register`/`join` no longer take or return a code;
-  a second TV registering just replaces the first. `PROTOCOL.md`
-  rewritten to match.
-- `tv-receiver/`: idle screen no longer renders a QR or room code —
-  `js/vendor/qrcode.js` deleted, `js/app.js`/`relay-client.js` simplified
-  to register with no resume/code handling, idle screen just shows a
-  "waiting for a companion…" note. `COMPANION_BASE_URL` dropped from
-  `js/config.js` (nothing points at it anymore).
-- `companion/`: no more pairing screen — `js/app.js` shows the app
-  screen unconditionally instead of gating on `relay.isPaired()`;
-  `js/relay-client.js` joins immediately on connect instead of waiting
-  for a code; dropped the `?code=` URL handling, the typed-code field,
-  and the "forget this tv" button along with `pairing.lastCode` local
-  storage.
-Not deployed to the real Ubuntu server or tested against the real TV —
-this was a local code change only; the next real-hardware test will also
-need the relay redeployed since the wire protocol changed (old TV/
-companion builds won't speak it). The user is planning further updates
-to `tv-receiver` on top of this.
 
 2026-09-20 — Deployed the tier-3 fallback (see entry below) to the real
 Ubuntu server, with a denylist added first by request after the live

@@ -73,7 +73,10 @@ const server = http.createServer((req, res) => {
     serveServiceWorker(res);
     return;
   }
-  let reqPath = url.pathname === '/' ? '/index.html' : url.pathname;
+  // ?code=XXXXXX (the TV's QR payload) is handled client-side by
+  // app.js reading location.search -- always serve index.html for a
+  // bare path or /pair, never a 404, so that link always works.
+  let reqPath = url.pathname === '/' || url.pathname === '/pair' ? '/index.html' : url.pathname;
 
   const filePath = path.join(ROOT, path.normalize(reqPath).replace(/^(\.\.[/\\])+/, ''));
   if (!filePath.startsWith(ROOT)) {

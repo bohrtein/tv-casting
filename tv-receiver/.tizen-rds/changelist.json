@@ -21,6 +21,54 @@
       {
         "path": "Debug/projects/tv-receiver/.vscode/settings.json",
         "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/css/style.css",
+        "type": "modify"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/index.html",
+        "type": "modify"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/js/config.js",
+        "type": "modify"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/js/relay-client.js",
+        "type": "modify"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/js/vendor",
+        "type": "delete"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/media/idle-background.mp4",
+        "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/tools/render-harness.html",
+        "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/tools/render-idle-background.js",
+        "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/media",
+        "type": "delete"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/tools",
+        "type": "delete"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/media/idle-background-poster.jpg",
+        "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/js/vendor/qrcode.js",
+        "type": "add"
       }
     ]
   }

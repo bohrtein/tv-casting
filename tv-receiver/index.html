@@ -9,28 +9,14 @@
 <body>
 
   <div id="idle-screen" class="screen">
-    <!-- Pre-rendered on a real computer (tools/render-idle-background.js),
-         not computed live: canvas-scripted rain was unusably slow on this
-         TV's own hardware. A plain <video> loop is decoded by the TV's
-         hardware video pipeline instead, same as any other cast stream.
-         `poster` shows a static frame of the same background immediately
-         and stays put if this <video> ever fails to play for any reason
-         -- idle screen is never plain black either way. Baseline-profile
-         H.264 at 1280x720, no B-frames/multi-ref: this TV's plain <video>
-         decoder is pickier than webapis.avplay (see README.md). -->
-    <video id="idle-bg-video" poster="media/idle-background-poster.jpg"
-           autoplay loop muted playsinline webkit-playsinline aria-hidden="true">
-      <source src="media/idle-background.mp4" type='video/mp4; codecs="avc1.42C01F"'>
-    </video>
-    <div class="idle-vignette" aria-hidden="true"></div>
-    <div class="idle-scanlines" aria-hidden="true"></div>
     <div class="idle-panel">
       <div class="brand">tv-casting</div>
+      <div id="qr-holder" class="qr-holder"></div>
+      <div class="code-row">
+        <span class="code-label">Code</span>
+        <span id="room-code" class="room-code">------</span>
+      </div>
       <div id="connection-note" class="connection-note">Connecting to relay&hellip;</div>
-      <!-- Empty and invisible unless idle-bg-video actually fails --
-           the only feedback channel available for debugging this on a
-           real TV with no attached devtools. -->
-      <div id="idle-bg-debug" class="idle-bg-debug"></div>
     </div>
   </div>
 
@@ -47,6 +33,7 @@
   <!-- Samsung device API bridge: provides window.webapis (AVPlay, etc).
        Only resolves on a real Tizen TV / the Tizen Studio TV emulator. -->
   <script src="$WEBAPIS/webapis/webapis.js"></script>
+  <script src="js/vendor/qrcode.js"></script>
   <script src="js/config.js"></script>
   <script src="js/relay-client.js"></script>
   <script src="js/player.js"></script>

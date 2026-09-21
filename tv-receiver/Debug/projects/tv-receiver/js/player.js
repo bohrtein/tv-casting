@@ -95,6 +95,18 @@ function createPlayer(handlers) {
     webapis.avplay.seekTo(positionSec * 1000);
   }
 
+  // Only valid once prepareAsync's success callback has fired -- AVPlay
+  // throws if asked before a stream is loaded, so treat that as "unknown"
+  // rather than letting it break status reporting.
+  function getDurationSec() {
+    if (!isAvailable() || !currentUrl) return 0;
+    try {
+      return Math.floor(webapis.avplay.getDuration() / 1000);
+    } catch (e) {
+      return 0;
+    }
+  }
+
   // Rewind/fast-forward from the TV remote's own media keys, relative to
   // wherever playback actually is right now (getCurrentTime is a plain
   // synchronous AVPlay getter, no need to track position ourselves).
@@ -121,6 +133,7 @@ function createPlayer(handlers) {
     resume: resume,
     seek: seek,
     seekBy: seekBy,
-    stop: stop
+    stop: stop,
+    getDurationSec: getDurationSec
   };
 }

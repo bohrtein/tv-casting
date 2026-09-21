@@ -7,17 +7,18 @@ pieces in one repo. Full background and open decisions live in
 ## Pieces
 
 - **[`relay/`](relay/)** — Node.js + `ws` server that runs on the home
-  Ubuntu server (alongside the app-launcher hub). No pairing — it tracks
-  at most one connected TV and any number of companions, and forwards
-  `play`/`pause`/`stop`/`status` JSON messages between them. See
-  [`relay/PROTOCOL.md`](relay/PROTOCOL.md) for the exact message schema.
+  Ubuntu server (alongside the app-launcher hub). Handles device pairing
+  (room codes) and forwards `play`/`pause`/`stop`/`status` JSON messages
+  between a TV and its companion(s). See [`relay/PROTOCOL.md`](relay/PROTOCOL.md)
+  for the exact message schema.
 - **[`tv-receiver/`](tv-receiver/)** — Samsung Tizen app (HTML/CSS/JS +
-  AVPlay). Connects to the relay on boot, plays whatever stream URL it's
-  sent, and reports playback status back through the relay.
+  AVPlay). Idle screen shows a pairing QR code and plain-text code,
+  connects to the relay, plays whatever stream URL it's sent, and reports
+  playback status back through the relay.
 - **[`companion/`](companion/)** — Phone/desktop PWA. Talks to Jellyfin
   directly for library browsing and to obtain stream URLs, and to the
-  resolver for non-direct links. Connects to the relay automatically on
-  load to send play/pause/stop commands and receive status. Styled
+  resolver for non-direct links. Connects to the relay only to pair with
+  a TV and to send play/pause/stop commands and receive status. Styled
   with the [Matrix](https://github.com/bohrtein/matrix_design) design
   system (`matrix.css`, `matrix.js`, `fonts/`, vendored in this folder).
 - **[`resolver/`](resolver/)** — Node.js HTTP service, also on the home

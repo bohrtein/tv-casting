@@ -98,14 +98,20 @@
   function onPlaybackStateChange(state) {
     currentPlaybackState = state;
     elements.nowPlayingState.textContent = state;
-    relay.sendStatus({ state: state, title: currentTitle });
+    var durationSec = player.getDurationSec();
+    var status = { state: state, title: currentTitle };
+    if (durationSec > 0) status.durationSec = durationSec;
+    relay.sendStatus(status);
     if (state === 'stopped') {
       showIdleScreen();
     }
   }
 
   function onPlayTime(positionSec) {
-    relay.sendStatus({ state: 'playing', title: currentTitle, positionSec: positionSec });
+    var status = { state: 'playing', title: currentTitle, positionSec: positionSec };
+    var durationSec = player.getDurationSec();
+    if (durationSec > 0) status.durationSec = durationSec;
+    relay.sendStatus(status);
   }
 
   function onPlaybackError(error) {

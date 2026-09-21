@@ -6,12 +6,6 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["companion/serve.js"],
       "port": 8080
-    },
-    {
-      "name": "tv-receiver",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "4500", "--directory", "tv-receiver"],
-      "port": 4500
     }
   ]
 }

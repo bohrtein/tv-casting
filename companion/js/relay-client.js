@@ -1,12 +1,15 @@
 'use strict';
 
 // WebSocket client for the relay (see relay/PROTOCOL.md), companion
-// side. No pairing: the companion joins as soon as it connects, and
-// stays joined to whatever TV the relay currently has.
+// side. Unlike the TV, a companion doesn't register on connect -- it
+// only joins a room once it has a code, either from a scanned/typed code
+// or a remembered one from a previous session (decision #2 in PLAN.md).
 function createRelayClient(config, handlers) {
   var socket = null;
   var reconnectAttempts = 0;
   var reconnectTimer = null;
+  var pendingCode = null; // requested but not yet confirmed by 'joined'
+  var joinedCode = null; // confirmed by the relay
 
   function send(message) {
     if (socket && socket.readyState === WebSocket.OPEN) {
@@ -35,7 +38,11 @@ function createRelayClient(config, handlers) {
     socket.onopen = function () {
       reconnectAttempts = 0;
       handlers.onConnected();
-      send({ type: 'join', role: 'companion' });
+      // A dropped connection needs to rejoin the room it thinks it's
+      // still in -- there's no session to resume server-side, just a
+      // fresh 'join' with the same code.
+      var rejoin = pendingCode || joinedCode;
+      if (rejoin) send({ type: 'join', role: 'companion', code: rejoin });
     };
 
     socket.onmessage = function (event) {
@@ -61,12 +68,16 @@ function createRelayClient(config, handlers) {
   function handleMessage(msg) {
     switch (msg.type) {
       case 'joined':
-        handlers.onJoined();
+        joinedCode = msg.code;
+        pendingCode = null;
+        handlers.onJoined(msg.code);
         break;
       case 'status':
+        if (msg.state === 'tv_offline') joinedCode = null;
         handlers.onStatus(msg);
         break;
       case 'error':
+        if (msg.code === 'TV_NOT_FOUND') joinedCode = null;
         handlers.onError(msg);
         break;
       default:
@@ -74,10 +85,24 @@ function createRelayClient(config, handlers) {
     }
   }
 
+  function join(code) {
+    pendingCode = code;
+    joinedCode = null;
+    if (!send({ type: 'join', role: 'companion', code: code })) {
+      // Not connected yet -- connect() sends the join once the socket
+      // opens, via pendingCode.
+      connect();
+    }
+  }
+
   function sendCommand(action, payload) {
     var message = { type: 'command', action: action };
     if (payload) message.payload = payload;
     send(message);
+  }
+
+  function isPaired() {
+    return !!joinedCode;
   }
 
   // Mobile browsers throttle timers (including our backoff setTimeout)
@@ -91,6 +116,8 @@ function createRelayClient(config, handlers) {
 
   return {
     connect: connect,
-    sendCommand: sendCommand
+    join: join,
+    sendCommand: sendCommand,
+    isPaired: isPaired
   };
 }

@@ -1,15 +1,18 @@
 'use strict';
 
-// WebSocket client for the relay (see relay/PROTOCOL.md). Always
-// registers fresh as a TV on every connection/reconnect — the relay
-// never lets a TV reclaim an old room code (decision #2 in PLAN.md), so
-// there's nothing to resume here, just reconnect-with-backoff and take
-// whatever new code comes back.
+// WebSocket client for the relay (see relay/PROTOCOL.md). Registers as a
+// TV on every connection, but carries a resumeToken (handed out with the
+// first 'registered' reply) across reconnects within the same app
+// session, so a wifi blip or relay hiccup reclaims the *same* room code
+// instead of stranding the companion with a stale one -- it's a plain JS
+// variable, not persisted anywhere, so a genuine app restart still starts
+// with none and gets a brand new code, same as decision #2 in PLAN.md.
 function createRelayClient(config, handlers) {
   var socket = null;
   var reconnectAttempts = 0;
   var reconnectTimer = null;
   var closedByApp = false;
+  var resume = null; // { code, token } from the most recent 'registered'
 
   function scheduleReconnect() {
     if (closedByApp) return;
@@ -31,6 +34,7 @@ function createRelayClient(config, handlers) {
   function handleMessage(msg) {
     switch (msg.type) {
       case 'registered':
+        resume = { code: msg.code, token: msg.resumeToken };
         handlers.onRegistered(msg.code);
         break;
       case 'command':
@@ -52,7 +56,9 @@ function createRelayClient(config, handlers) {
 
     socket.onopen = function () {
       reconnectAttempts = 0;
-      send({ type: 'register', role: 'tv' });
+      var message = { type: 'register', role: 'tv' };
+      if (resume) message.resume = resume;
+      send(message);
     };
 
     socket.onmessage = function (event) {
