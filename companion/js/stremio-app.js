@@ -30,6 +30,10 @@ document.addEventListener('DOMContentLoaded', function () {
     detailTitle: document.getElementById('detail-title'),
     detailInfo: document.getElementById('detail-info'),
     detailDesc: document.getElementById('detail-desc'),
+    detailFacts: document.getElementById('detail-facts'),
+    detailPosterBtn: document.getElementById('detail-poster-btn'),
+    detailBackdropBtn: document.getElementById('detail-backdrop-btn'),
+    viewerImg: document.getElementById('image-viewer-img'),
     episodesPanel: document.getElementById('episodes-panel'),
     episodesSeason: document.getElementById('episodes-season'),
     episodesList: document.getElementById('episodes-list'),
@@ -132,13 +136,13 @@ document.addEventListener('DOMContentLoaded', function () {
     tile.type = 'button';
     tile.className = 'mx-tile cn-poster';
     var lead = meta.poster
-      ? '<span class="mx-media"><img loading="lazy" alt="" src="' + escapeHtml(meta.poster) + '"></span>'
+      ? '<span class="mx-media"><img loading="lazy" alt="" src="' + escapeHtml(stremio.largeImage(meta.poster)) + '"></span>'
       : '<span class="cn-poster-blank">' + escapeHtml((meta.name || '?').charAt(0)) + '</span>';
     tile.innerHTML =
       '<span class="mx-slot-lead">' + lead + '</span>' +
       '<span class="mx-slot-main">' +
         '<span class="mx-slot-title">' + escapeHtml(meta.name) + '</span>' +
-        '<span class="mx-slot-meta">' + escapeHtml([yearOf(meta), meta.type].filter(Boolean).join(' · ')) + '</span>' +
+        '<span class="mx-slot-meta">' + escapeHtml([yearOf(meta), meta.type, meta.imdbRating ? '★ ' + meta.imdbRating : ''].filter(Boolean).join(' · ')) + '</span>' +
       '</span>';
     tile.addEventListener('click', function () { openDetail(meta.type, meta.id, meta, true); });
     return tile;
@@ -260,20 +264,59 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // --- detail ---
 
+  function listOf(value, max) {
+    var list = Array.isArray(value) ? value : value ? String(value).split(/\s*,\s*/) : [];
+    return list.filter(Boolean).slice(0, max).join(', ');
+  }
+
+  // Cinemeta's metas carry these; other meta addons fill in what they have.
+  function fillFacts(meta) {
+    var facts = [
+      ['director', listOf(meta.director, 3)],
+      ['writers', listOf(meta.writer, 3)],
+      ['cast', listOf(meta.cast, 6)],
+      ['country', listOf(meta.country, 3)],
+      ['language', listOf(meta.language, 3)],
+      ['awards', meta.awards],
+      ['status', meta.status]
+    ];
+    el.detailFacts.innerHTML = facts.filter(function (f) { return f[1]; }).map(function (f) {
+      return '<div><dt>' + escapeHtml(f[0]) + '</dt><dd>' + escapeHtml(f[1]) + '</dd></div>';
+    }).join('');
+  }
+
+  function openViewer(src) {
+    if (!src) return;
+    el.viewerImg.src = src;
+    MX.sheet.open('image-viewer');
+  }
+
+  el.detailPosterBtn.addEventListener('click', function () {
+    openViewer(el.detailPoster.getAttribute('src'));
+  });
+  el.detailBackdropBtn.addEventListener('click', function () {
+    openViewer(el.detailBackdropBtn.getAttribute('data-src'));
+  });
+
   function fillHero(meta) {
     el.detailTitle.textContent = meta.name || '';
     var info = [yearOf(meta), meta.runtime, (meta.genres || meta.genre || []).slice(0, 3).join(', ')];
     if (meta.imdbRating) info.push('IMDb ' + meta.imdbRating);
     el.detailInfo.textContent = info.filter(Boolean).join(' · ');
     el.detailDesc.textContent = meta.description || '';
-    if (meta.poster) {
-      el.detailPoster.src = meta.poster;
-      el.detailPoster.style.display = '';
+    fillFacts(meta);
+    var poster = stremio.largeImage(meta.poster);
+    if (poster) {
+      el.detailPoster.src = poster;
+      el.detailPosterBtn.style.display = '';
     } else {
       el.detailPoster.removeAttribute('src');
-      el.detailPoster.style.display = 'none';
+      el.detailPosterBtn.style.display = 'none';
     }
-    var bg = meta.background || meta.poster;
+    var backdrop = stremio.largeImage(meta.background);
+    el.detailBackdropBtn.classList.toggle('cn-hidden', !backdrop);
+    if (backdrop) el.detailBackdropBtn.setAttribute('data-src', backdrop);
+    var bg = backdrop || poster;
     el.detailBg.style.backgroundImage = bg ? 'url("' + bg.replace(/"/g, '%22') + '")' : 'none';
   }
 
@@ -409,10 +452,29 @@ document.addEventListener('DOMContentLoaded', function () {
     var seedBadge = seeds == null ? ''
       : '<span class="mx-badge cn-seeds' + (seeds === 0 ? ' cn-seeds-dead' : seeds < LOW_SEEDERS ? ' cn-seeds-low' : '') + '"' +
         ' title="' + (seeds < LOW_SEEDERS ? 'few seeders: may not start' : 'seeders') + '">👤 ' + seeds + '</span>';
+    var info = stremio.describeStream(stream);
+    var chips = [info.resolution, info.source, info.codec]
+      .concat(info.hdr, info.audio, info.size ? ['💾 ' + info.size] : [])
+      .concat(info.languages.length ? ['🗣 ' + info.languages.join(' ')] : [])
+      .filter(Boolean);
+    // With the release name pulled out, what's left of the addon's text
+    // is only the 👤/💾/⚙️ line and flags, all shown above; without one
+    // (other addons), keep their text as they wrote it.
+    var lines = info.release
+      ? [info.release, info.filename && info.filename !== info.release ? '📄 ' + info.filename : '']
+      : [desc];
+    if (castable.kind === 'unsupported' && info.release) lines.push('✕ ' + castable.reason);
+    var source = [info.site ? '⚙️ ' + info.site : '', info.group ? 'by ' + info.group : '',
+      info.infoHash ? '#' + info.infoHash.slice(0, 8).toLowerCase() + (info.fileIdx != null ? ' · file ' + info.fileIdx : '') : '']
+      .filter(Boolean).join(' · ');
     row.innerHTML =
       '<span class="cn-stream-main">' +
         '<span class="cn-row-name">' + escapeHtml(name) + '</span>' +
-        '<span class="cn-stream-desc">' + escapeHtml(desc) + '</span>' +
+        (chips.length ? '<span class="cn-stream-tags">' + chips.map(function (c) {
+          return '<span class="cn-tag">' + escapeHtml(c) + '</span>';
+        }).join('') + '</span>' : '') +
+        '<span class="cn-stream-desc">' + escapeHtml(lines.filter(Boolean).join('\n')) + '</span>' +
+        (source ? '<span class="cn-stream-source">' + escapeHtml(source) + '</span>' : '') +
       '</span>' +
       '<span class="cn-stream-badges">' + seedBadge +
         '<span class="mx-badge">' + escapeHtml(kind) + '</span>' +

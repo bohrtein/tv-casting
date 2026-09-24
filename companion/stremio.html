@@ -63,11 +63,15 @@
     <section class="mx-hero">
       <div id="detail-bg" class="mx-hero-bg"></div>
       <div class="mx-hero-body">
-        <img id="detail-poster" class="mx-hero-media cn-hero-poster" alt="">
+        <button id="detail-poster-btn" class="cn-hero-poster-btn" type="button" aria-label="show the full picture">
+          <img id="detail-poster" class="mx-hero-media cn-hero-poster" alt="">
+        </button>
         <div class="mx-hero-text">
           <h2 id="detail-title" class="mx-title"></h2>
           <p id="detail-info"></p>
           <p id="detail-desc" class="cn-desc"></p>
+          <dl id="detail-facts" class="cn-facts"></dl>
+          <button id="detail-backdrop-btn" class="mx-btn mx-sm cn-hidden" type="button" style="margin-top:10px">backdrop</button>
         </div>
       </div>
     </section>
@@ -143,6 +147,14 @@
       </p>
       <button id="addons-server-save" class="mx-btn" type="button" style="margin-top:10px">save server</button>
     </div>
+  </div>
+</div>
+
+<!-- Full picture: the poster (or backdrop) at its own size, uncropped. -->
+<div class="mx-overlay cn-viewer" id="image-viewer">
+  <div class="cn-viewer-body" role="dialog" aria-label="picture">
+    <img id="image-viewer-img" alt="">
+    <button class="mx-btn mx-sm cn-viewer-close" type="button" data-mx-close>close</button>
   </div>
 </div>
 
