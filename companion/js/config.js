@@ -10,7 +10,7 @@ var APP_CONFIG = {
   // Same host as the relay, different port/process (resolver/README.md).
   RESOLVER_URL: 'http://192.168.2.31:8788',
   // stremio.html's starting addons, until the user changes the list there
-  // (it's then kept per browser). Cinemeta is Stremio's official catalog
+  // (it's then saved by serve.js and shared by every device). Cinemeta is Stremio's official catalog
   // + metadata addon; it has no streams -- those come from whatever stream
   // addons get added on that page.
   STREMIO_ADDONS: ['https://v3-cinemeta.strem.io/manifest.json'],

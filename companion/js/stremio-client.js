@@ -17,7 +17,8 @@ function createStremioClient(config) {
   // finds peers over DHT anyway, so trackers are a hint, not a need.
   var MAX_TRACKERS = 12;
 
-  // --- settings (per browser, like the Jellyfin session) ---
+  // --- settings (the streaming server is per browser, like the Jellyfin
+  // session; the addon list is shared, see syncAddons) ---
 
   function readStore(key, fallback) {
     try {
@@ -49,6 +50,81 @@ function createStremioClient(config) {
 
   function getAddonUrls() {
     return readStore(ADDONS_KEY, null) || (config.STREMIO_ADDONS || []).slice();
+  }
+
+  // --- shared addon list (serve.js keeps one copy for every device) ---
+  //
+  // localStorage above is now just this browser's cached copy, used when
+  // serve.js can't be reached. Relative URL so it works under whatever
+  // path the page is served from.
+  var SETTINGS_URL = 'api/stremio-settings';
+  // Set once this browser's pre-sharing list has been folded into the
+  // shared one, so addons added on each device before the switch all
+  // survive, but an addon removed later doesn't come back from an old
+  // browser copy.
+  var MERGED_KEY = 'tvc.stremio.addonsShared';
+
+  function settingsRequest(body) {
+    var controller = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = setTimeout(function () { if (controller) controller.abort(); }, 5000);
+    return fetch(SETTINGS_URL, {
+      method: body ? 'POST' : 'GET',
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+      cache: 'no-store',
+      signal: controller ? controller.signal : undefined
+    }).then(function (res) {
+      clearTimeout(timer);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }, function (err) {
+      clearTimeout(timer);
+      throw err;
+    });
+  }
+
+  function pushAddonUrls(urls) {
+    return settingsRequest({ addons: urls }).then(function (saved) {
+      writeStore(ADDONS_KEY, saved.addons);
+      return saved.addons;
+    });
+  }
+
+  // Pulls the shared list into this browser. Resolves true if it changed
+  // this browser's list. Rejects if serve.js can't be reached; callers
+  // then carry on with the cached copy.
+  function syncAddons() {
+    var before = JSON.stringify(getAddonUrls());
+    return settingsRequest(null).then(function (shared) {
+      var local = readStore(ADDONS_KEY, null);
+      var alreadyMerged = readStore(MERGED_KEY, false);
+      if (!shared.addons) {
+        // First device since the switch: its list becomes the shared one.
+        return pushAddonUrls(getAddonUrls());
+      }
+      if (!alreadyMerged && local) {
+        var extra = local.filter(function (u) { return shared.addons.indexOf(u) === -1; });
+        if (extra.length) return pushAddonUrls(shared.addons.concat(extra));
+      }
+      writeStore(ADDONS_KEY, shared.addons);
+      return shared.addons;
+    }).then(function (urls) {
+      writeStore(MERGED_KEY, true);
+      return JSON.stringify(urls) !== before;
+    });
+  }
+
+  // Read-modify-write against the shared list, so a change made on
+  // another device since this page loaded isn't overwritten. Falls back
+  // to this browser only if serve.js is unreachable; resolves with
+  // whether the change reached the shared list.
+  function changeAddonUrls(change) {
+    return syncAddons().then(function () {
+      return pushAddonUrls(change(getAddonUrls())).then(function () { return true; });
+    }).catch(function () {
+      writeStore(ADDONS_KEY, change(getAddonUrls()));
+      return false;
+    });
   }
 
   function getServerUrl() {
@@ -126,6 +202,10 @@ function createStremioClient(config) {
   // load comes back with .error set instead of failing the whole list,
   // so one dead addon doesn't blank the page.
   function loadAddons() {
+    return syncAddons().catch(function () {}).then(loadCachedAddons);
+  }
+
+  function loadCachedAddons() {
     return Promise.all(getAddonUrls().map(function (url) {
       return fetchManifest(url).then(function (m) {
         return toAddon(url, m);
@@ -142,13 +222,21 @@ function createStremioClient(config) {
     var urls = getAddonUrls();
     if (urls.indexOf(url) !== -1) return Promise.reject(new Error('That addon is already added.'));
     return fetchManifest(url).then(function (m) {
-      writeStore(ADDONS_KEY, urls.concat([url]));
-      return toAddon(url, m);
+      return changeAddonUrls(function (current) {
+        return current.indexOf(url) === -1 ? current.concat([url]) : current;
+      }).then(function (shared) {
+        var addon = toAddon(url, m);
+        addon.shared = shared;
+        return addon;
+      });
     });
   }
 
+  // Resolves with whether the removal reached the shared list.
   function removeAddon(url) {
-    writeStore(ADDONS_KEY, getAddonUrls().filter(function (u) { return u !== url; }));
+    return changeAddonUrls(function (current) {
+      return current.filter(function (u) { return u !== url; });
+    });
   }
 
   function findResource(manifest, name) {
@@ -364,6 +452,7 @@ function createStremioClient(config) {
     normalizeManifestUrl: normalizeManifestUrl,
     getAddonUrls: getAddonUrls,
     loadAddons: loadAddons,
+    syncAddons: syncAddons,
     addAddon: addAddon,
     removeAddon: removeAddon,
     getServerUrl: getServerUrl,

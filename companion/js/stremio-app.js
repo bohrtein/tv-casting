@@ -506,6 +506,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // --- addons sheet ---
 
+  var NOT_SHARED = "Couldn't reach the companion server, so this change is only on this device for now.";
+
   function renderAddonsList() {
     el.addonsList.innerHTML = '';
     if (!addons.length) {
@@ -528,8 +530,10 @@ document.addEventListener('DOMContentLoaded', function () {
       remove.className = 'mx-btn mx-sm';
       remove.textContent = 'remove';
       remove.addEventListener('click', function () {
-        stremio.removeAddon(addon.url);
-        reloadAddons();
+        stremio.removeAddon(addon.url).then(function (shared) {
+          if (!shared) MX.toast(false, NOT_SHARED);
+          reloadAddons();
+        });
       });
       row.appendChild(remove);
       el.addonsList.appendChild(row);
@@ -547,7 +551,8 @@ document.addEventListener('DOMContentLoaded', function () {
       el.addonsAdd.disabled = false;
       el.addonsUrl.value = '';
       setReadout(el.addonsReadout, '', false);
-      MX.toast(true, 'Added ' + addon.manifest.name);
+      if (addon.shared) MX.toast(true, 'Added ' + addon.manifest.name);
+      else MX.toast(false, 'Added ' + addon.manifest.name + '. ' + NOT_SHARED);
       reloadAddons();
     }).catch(function (err) {
       el.addonsAdd.disabled = false;
@@ -590,6 +595,17 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     return whenAddonsReady;
   }
+
+  // Pick up addons added on another device while this page sat in the
+  // background (e.g. the phone left open on this page).
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible' || !whenAddonsReady) return;
+    whenAddonsReady.then(function () {
+      return stremio.syncAddons();
+    }).then(function (changed) {
+      if (changed) reloadAddons();
+    }).catch(function () {});
+  });
 
   relay.connect();
   reloadAddons();
