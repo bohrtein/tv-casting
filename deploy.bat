@@ -44,13 +44,24 @@ if errorlevel 1 (
 )
 
 echo.
-echo [2/3] Pulling on the server and restarting relay + resolver...
+echo [2/3] Pulling on the server and restarting relay + resolver + torrent server...
 ssh -i "%SSH_KEY%" %SSH_HOST% "cd %APPHUB_CLONE% && git pull && sudo systemctl restart --no-block tv-casting-relay && sudo systemctl restart --no-block tv-casting-resolver"
 if errorlevel 1 (
     echo.
     echo Something failed pulling/restarting relay or resolver -- see above.
     pause
     exit /b 1
+)
+rem The torrent server rebuilds its Docker image from the pulled code on
+rem restart. sudo -n: if the sudoers rule doesn't cover this unit yet
+rem (see torrent-server/README.md, "Deploy"), say so instead of hanging
+rem on a password prompt, and carry on -- it's not worth failing the
+rem whole deploy over.
+ssh -i "%SSH_KEY%" %SSH_HOST% "sudo -n systemctl restart --no-block tv-casting-torrent"
+if errorlevel 1 (
+    echo.
+    echo Couldn't restart tv-casting-torrent -- add it to the sudoers rule
+    echo ^(torrent-server/README.md, "Deploy"^), or restart it by hand.
 )
 
 echo.
@@ -65,7 +76,7 @@ if errorlevel 1 (
 
 echo.
 echo === Done ===
-echo relay, resolver, and companion are updated and restarted on the server.
+echo relay, resolver, torrent server and companion are updated and restarted on the server.
 echo.
 echo NOTE: tv-receiver was NOT touched. If tv-receiver/ changed, rebuild +
 echo resideload it yourself via the Tizen VS Code extension (Build Project,

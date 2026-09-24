@@ -104,7 +104,7 @@ async function explainFailure(url, stderr) {
   }
   const waited = Math.round(TORRENT_START_TIMEOUT_MS / 1000);
   if (!reachable) {
-    return `Couldn't reach the Stremio server at ${u.origin} (${detail || 'no answer'}). Is it running, and is its VPN connected?`;
+    return `Couldn't reach the torrent server at ${u.origin} (${detail || 'no answer'}). Is it running, and is its VPN connected?`;
   }
   if (stats && typeof stats.peers === 'number') {
     if (stats.peers === 0) {

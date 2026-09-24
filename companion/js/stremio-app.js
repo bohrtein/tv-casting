@@ -489,25 +489,30 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function castStream(castable, title) {
+    // Torrents skip the Stremio server check: the resolver reads them from
+    // its own torrent server when it has one (TORRENT_SERVER_URL), and
+    // says so itself when whichever server it uses can't be reached.
+    if (castable.torrent) {
+      // The resolver saves the film on the server and answers once
+      // the TV can start; the download carries on there after that.
+      // Its progress shows in the "downloads on the server" panel.
+      setReadout(el.streamsReadout, 'starting the download on the server…', false);
+      var refreshed = false;
+      resolver.resolveTorrent(castable.url, title, function () {
+        if (!refreshed) { refreshed = true; refreshSaving(); }
+      }).then(function (result) {
+        setReadout(el.streamsReadout, '', false);
+        castToTv(result.streamUrl, title);
+      }).catch(function (err) {
+        setReadout(el.streamsReadout, err.message, true);
+      });
+      return;
+    }
     if (castable.kind === 'direct' && castable.viaServer) {
       setReadout(el.streamsReadout, 'checking the Stremio server…', false);
       stremio.checkServer().then(function () {
-        if (!castable.torrent) {
-          setReadout(el.streamsReadout, '', false);
-          castToTv(castable.url, title);
-          return;
-        }
-        // The resolver saves the film on the server and answers once
-        // the TV can start; the download carries on there after that.
-        // Its progress shows in the "downloads on the server" panel.
-        setReadout(el.streamsReadout, 'starting the download on the server…', false);
-        var refreshed = false;
-        return resolver.resolveTorrent(castable.url, title, function () {
-          if (!refreshed) { refreshed = true; refreshSaving(); }
-        }).then(function (result) {
-          setReadout(el.streamsReadout, '', false);
-          castToTv(result.streamUrl, title);
-        });
+        setReadout(el.streamsReadout, '', false);
+        castToTv(castable.url, title);
       }).catch(function (err) {
         setReadout(el.streamsReadout, err.message, true);
       });

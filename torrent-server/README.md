@@ -66,6 +66,27 @@ The unit builds the image from
 `/home/bortein/Desktop/github/apphub/apps/tv-casting/torrent-server`.
 Update that path in `tv-casting-torrent.service` if the checkout moves.
 
+## Deploy
+
+`deploy.bat` restarts `tv-casting-torrent` after pulling, which rebuilds
+the image from the new code. That needs the same passwordless sudo rule
+relay and resolver already have. Once, on the server:
+
+```bash
+sudo grep -rl tv-casting-resolver /etc/sudoers.d/     # the file with the existing rule
+sudo visudo -f /etc/sudoers.d/<that file>
+```
+
+and add this command to the rule's list, after a comma:
+
+```
+/usr/bin/systemctl restart --no-block tv-casting-torrent
+```
+
+Without it the deploy still runs; it just says it couldn't restart the
+torrent server. `sudo systemctl restart tv-casting-torrent` by hand does
+the same.
+
 ## Check it
 
 ```bash
