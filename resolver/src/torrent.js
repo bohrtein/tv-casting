@@ -47,19 +47,25 @@ function httpInputArgs() {
   ];
 }
 
-function probe(url) {
+function probe(url, signal) {
   return new Promise((resolve, reject) => {
     const child = spawn(FFPROBE_BIN, [
       '-v', 'error', ...httpInputArgs(),
       '-show_entries', 'format=duration:stream=index,codec_type,codec_name',
       '-of', 'json', url
-    ]);
+    ], { signal });
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', (c) => { stdout += c; });
     child.stderr.on('data', (c) => { stderr += c; });
-    child.on('error', (err) => reject(new Error(`Could not start ffprobe (${FFPROBE_BIN}): ${err.message}`)));
+    child.on('error', (err) => {
+      if (err.name !== 'AbortError') reject(new Error(`Could not start ffprobe (${FFPROBE_BIN}): ${err.message}`));
+    });
     child.on('close', (code) => {
+      if (signal && signal.aborted) {
+        reject(new Error('Cancelled.'));
+        return;
+      }
       if (code !== 0) {
         const last = stderr.trim().split('\n').pop();
         reject(new Error(`The Stremio server couldn't open that torrent${last ? ` (${last})` : ''}. It may have no peers.`));
@@ -128,11 +134,14 @@ function countSegments(playlistPath) {
 // Resolves when the whole file is saved; rejects on failure (outDir is
 // left for the caller to delete).
 //
+// signal (an AbortSignal) cancels it: ffprobe/ffmpeg are killed and the
+// promise rejects.
+//
 // onProgress gets { pct, savedSec, bytes }: how far into the film is on
 // disk, and how many bytes that is. pct is null when the file doesn't
 // say how long it is.
-async function download(url, outDir, { onProbed, onReady, onProgress }) {
-  const info = await probe(url);
+async function download(url, outDir, { onProbed, onReady, onProgress, signal }) {
+  const info = await probe(url, signal);
   if (!info.video) throw new Error('That torrent file has no video in it.');
   onProbed({ durationSec: info.duration });
 
@@ -161,7 +170,7 @@ async function download(url, outDir, { onProbed, onReady, onProgress }) {
   ];
 
   return new Promise((resolve, reject) => {
-    const child = spawn(FFMPEG_BIN, args);
+    const child = spawn(FFMPEG_BIN, args, { signal });
     let stderr = '';
     let ready = false;
     let buffer = '';
@@ -188,8 +197,14 @@ async function download(url, outDir, { onProbed, onReady, onProgress }) {
         }
       });
     });
-    child.on('error', (err) => reject(new Error(`Could not start ffmpeg (${FFMPEG_BIN}): ${err.message}`)));
+    child.on('error', (err) => {
+      if (err.name !== 'AbortError') reject(new Error(`Could not start ffmpeg (${FFMPEG_BIN}): ${err.message}`));
+    });
     child.on('close', (code) => {
+      if (signal && signal.aborted) {
+        reject(new Error('Cancelled.'));
+        return;
+      }
       if (code !== 0) {
         const last = stderr.trim().split('\n').pop();
         reject(new Error(`Torrent download stopped${last ? ` (${last})` : ` (ffmpeg exit ${code})`}.`));

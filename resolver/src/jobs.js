@@ -14,7 +14,7 @@ class JobRegistry {
     const id = crypto.randomBytes(8).toString('hex');
     const job = {
       id,
-      status: 'starting', // starting -> downloading -> ready | error
+      status: 'starting', // starting -> downloading -> ready | error | cancelled
       progress: 0,
       title: null,
       sourceUrl: null,

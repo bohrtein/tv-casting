@@ -291,19 +291,9 @@ document.addEventListener('DOMContentLoaded', function () {
     return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
   }
 
-  function renderDownloads(allJobs) {
-    var active = allJobs.filter(function (j) {
-      return j.status === 'starting' || j.status === 'downloading';
-    });
-    el.remoteDownloads.classList.toggle('cn-hidden', active.length === 0);
-    el.remoteDownloadsList.innerHTML = '';
-    active.forEach(function (job) {
-      var row = document.createElement('div');
-      row.className = 'cn-row';
-      row.innerHTML = '<span class="cn-row-name">' + escapeHtml(describeResolveProgress(job)) + '</span>';
-      el.remoteDownloadsList.appendChild(row);
-    });
-  }
+  // Progress bars + cancel, same view as the Stremio page's.
+  var downloadsView = createDownloadsView(resolver, el.remoteDownloads, el.remoteDownloadsList);
+  downloadsView.onRefreshNeeded(function () { pollJobs(); });
 
   function renderActivity(allJobs) {
     el.activityList.innerHTML = '';
@@ -313,10 +303,13 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     allJobs.slice(0, 30).forEach(function (job) {
       var item = document.createElement('div');
-      item.className = 'mx-log-item' + (job.status === 'ready' ? ' mx-ok' : job.status === 'error' ? ' mx-err' : '');
+      item.className = 'mx-log-item' + (job.status === 'ready' ? ' mx-ok' : job.status === 'error' || job.status === 'cancelled' ? ' mx-err' : '');
       var label = job.title || job.sourceUrl || job.id;
       var detail;
       if (job.status === 'error') detail = 'failed — ' + job.error;
+      else if (job.status === 'cancelled') detail = 'cancelled';
+      else if (job.kind === 'torrent' && !job.complete) detail = 'torrent — playing, still saving on the server';
+      else if (job.kind === 'torrent') detail = job.fromCache ? 'torrent — already saved, cast instantly' : 'torrent — saved on the server';
       else if (job.status === 'ready') detail = job.fromCache ? 'already had it — cast instantly' : 'downloaded fresh';
       else detail = describeResolveProgress(job);
       item.innerHTML =
@@ -328,7 +321,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function pollJobs() {
     resolver.listJobs().then(function (allJobs) {
-      renderDownloads(allJobs);
+      downloadsView.render(allJobs);
       renderActivity(allJobs);
     }).catch(function () {
       // Resolver unreachable -- leave whatever was last rendered up
