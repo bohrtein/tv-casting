@@ -92,11 +92,12 @@
   --mx-rail-w:         84px;
   --mx-sidebar-w:      232px;
   --mx-kb:             0px;
+  --mx-top-inset:      0px;
   --mx-ease:           cubic-bezier(0.4, 0, 0.2, 1);
   --mx-dur-fast:       0.14s;
   --mx-dur:            0.22s;
   --mx-dur-slow:       0.28s;
-  --mx-rain-opacity:   0.45;
+  --mx-rain-opacity:   0.85;
   --mx-green:          #00ff5a;
   --mx-green-low:      rgba(0, 255, 90, 0.08);
   --mx-amber:          #ffc94a;
