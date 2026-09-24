@@ -73,7 +73,9 @@ function cleanupPartials(outPathNoExt) {
 // via ffmpeg) to exactly `<outPathNoExt>.mp4`. Capped at maxHeight so a
 // casual cast doesn't pull down an 8K master, and at maxFilesize as a
 // hard stop against a runaway download filling the server's disk.
-function download(url, outPathNoExt, { maxHeight = 1080, maxFilesize = '2G', referer, userAgent, onProgress } = {}) {
+// signal (an AbortSignal) cancels it: yt-dlp is killed and its partial
+// files deleted, same as a failed download.
+function download(url, outPathNoExt, { maxHeight = 1080, maxFilesize = '2G', referer, userAgent, onProgress, signal } = {}) {
   // Prefer H.264 video + AAC/MP3 audio explicitly -- Tizen AVPlay's H.264
   // support is what the rest of this project was actually validated
   // against (see PLAN.md's AVPlay status log), while VP9/AV1 (yt-dlp's
@@ -96,7 +98,7 @@ function download(url, outPathNoExt, { maxHeight = 1080, maxFilesize = '2G', ref
   ];
 
   return new Promise((resolve, reject) => {
-    const child = spawn(YTDLP_BIN, args);
+    const child = spawn(YTDLP_BIN, args, { signal });
     let stderr = '';
 
     child.stdout.on('data', (chunk) => {
@@ -106,10 +108,11 @@ function download(url, outPathNoExt, { maxHeight = 1080, maxFilesize = '2G', ref
     });
     child.stderr.on('data', (chunk) => { stderr += chunk; });
     child.on('error', (err) => {
+      if (err.name === 'AbortError') return; // 'close' follows and cleans up
       reject(new Error(`Could not start yt-dlp (${YTDLP_BIN}): ${err.message}`));
     });
     child.on('close', (code) => {
-      if (code === 0) {
+      if (code === 0 && !(signal && signal.aborted)) {
         resolve(`${outPathNoExt}.mp4`);
       } else {
         cleanupPartials(outPathNoExt);

@@ -75,8 +75,9 @@ page builds) and saves that film on this server while the TV watches it:
 - Torrent jobs in `/jobs` and `/resolve/:id` also carry `kind: "torrent"`,
   `phase` (`connecting` → `saving` → `done`), `savedSec`, `durationSec`,
   `bytes` (on disk so far) and `bytesPerSec` (over the last ~5 s). The
-  companion's Stremio page shows them as a "saving on the server" progress
-  bar, which keeps updating after the TV starts playing.
+  companion shows them as progress bars (the "downloads" tab, and the Stremio page)
+  (`companion/js/downloads-view.js`), which
+  keep updating after the TV starts playing and have a cancel button.
 
 Seeking works within what's saved so far; jumping past it has to wait for
 the download to get there.
@@ -145,6 +146,10 @@ the download to get there.
   → same job shape as `/resolve` (see "Torrents"). Once `ready`,
   `streamUrl` is `http://<this-host>/media/torrents/<key>/index.m3u8`,
   and `complete` says whether the download is still running.
+- `POST /resolve/:id/cancel` — stops a download that's still running
+  (yt-dlp, or a torrent's ffmpeg) and deletes what it saved so far; the
+  job's `status` becomes `cancelled`. `409` if it already finished. A
+  torrent the TV is playing stops playing too.
 - `GET /cache` → `{ "entries": [{ "sourceUrl", "title", "streamUrl", "lastUsedAt" }, ...] }`,
   most-recently-used first. The still-on-disk rewatch cache (up to
   `RESOLVER_CACHE_SIZE` entries) — lets a client offer "cast something

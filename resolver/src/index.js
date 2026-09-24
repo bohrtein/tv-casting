@@ -151,7 +151,16 @@ async function tryGenericFallback(url, nativeErr) {
 // Kicks the whole resolve+download pipeline off in the background; the
 // HTTP handler only waits long enough to hand back a job id, since a
 // real download can take anywhere from a few seconds to a few minutes.
+// Cancelling (POST /resolve/:id/cancel) aborts job.controller, which
+// kills whatever yt-dlp/ffmpeg the job is running.
+function finishCancelled(job) {
+  jobs.update(job.id, { status: 'cancelled', error: 'Cancelled.', complete: true, bytesPerSec: 0, finishedAt: Date.now() });
+  log('cancelled', job.id, job.title || job.sourceUrl);
+}
+
 async function runJob(job, url) {
+  job.controller = new AbortController();
+  const { signal } = job.controller;
   try {
     let downloadUrl = url;
     let headerOpts = {};
@@ -165,6 +174,7 @@ async function runJob(job, url) {
       headerOpts = { referer: fallback.referer, userAgent: fallback.userAgent };
       info = await ytdlp.getInfo(downloadUrl, headerOpts);
     }
+    if (signal.aborted) throw new Error('Cancelled.');
     jobs.update(job.id, { title: info.title, status: 'downloading' });
 
     const outPathNoExt = path.join(MEDIA_DIR, job.id);
@@ -172,6 +182,7 @@ async function runJob(job, url) {
       maxHeight: MAX_HEIGHT,
       maxFilesize: MAX_FILESIZE,
       ...headerOpts,
+      signal,
       onProgress: (pct) => jobs.update(job.id, { progress: pct })
     });
 
@@ -194,6 +205,10 @@ async function runJob(job, url) {
       log('cache evicted (LRU cap)', e.fileName, e.title);
     });
   } catch (err) {
+    if (signal.aborted) {
+      finishCancelled(job);
+      return;
+    }
     jobs.update(job.id, { status: 'error', error: err.message, finishedAt: Date.now() });
     log('resolve failed', job.id, err.message);
   }
@@ -204,6 +219,8 @@ async function runJob(job, url) {
 // downloading into the same folder while it watches.
 async function runTorrentJob(job, url, key) {
   const outDir = path.join(TORRENT_DIR, key);
+  job.controller = new AbortController();
+  const { signal } = job.controller;
   activeTorrents.set(key, job);
   jobs.update(job.id, { status: 'downloading', phase: 'connecting', torrentKey: key, complete: false, bytes: 0 });
   // Speed over roughly the last 5 seconds, so one burst of pieces doesn't
@@ -211,6 +228,7 @@ async function runTorrentJob(job, url, key) {
   const samples = [];
   try {
     await torrent.download(url, outDir, {
+      signal,
       onProbed: ({ durationSec }) => jobs.update(job.id, { phase: 'saving', durationSec }),
       onReady: () => {
         jobs.update(job.id, { status: 'ready' });
@@ -245,6 +263,10 @@ async function runTorrentJob(job, url, key) {
     });
   } catch (err) {
     fs.rm(outDir, { recursive: true, force: true }, () => {});
+    if (signal.aborted) {
+      finishCancelled(job);
+      return;
+    }
     jobs.update(job.id, { status: 'error', error: err.message, complete: true, finishedAt: Date.now() });
     log('torrent failed', key, err.message);
   } finally {
@@ -448,6 +470,26 @@ const server = http.createServer((req, res) => {
       lastUsedAt: entry.lastUsedAt
     }));
     sendJson(res, 200, { entries: list });
+    return;
+  }
+
+  // Stops a download that's still running and deletes what it saved so
+  // far. A torrent the TV is playing stops playing too.
+  const cancelMatch = /^\/resolve\/([0-9a-f]{16})\/cancel$/.exec(url.pathname);
+  if (req.method === 'POST' && cancelMatch) {
+    const job = jobs.get(cancelMatch[1]);
+    if (!job) {
+      sendJson(res, 404, { error: 'Unknown job id (resolver may have restarted).' });
+      return;
+    }
+    const running = job.controller && !job.controller.signal.aborted &&
+      (job.status === 'starting' || job.status === 'downloading' || (job.torrentKey && job.complete === false));
+    if (!running) {
+      sendJson(res, 409, { error: 'That download already finished.' });
+      return;
+    }
+    job.controller.abort();
+    sendJson(res, 202, jobPublicShape(job, req));
     return;
   }
 

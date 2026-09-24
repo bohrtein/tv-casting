@@ -20,6 +20,7 @@ var SHELL_FILES = [
   'js/config.js',
   'js/jellyfin-client.js',
   'js/resolver-client.js',
+  'js/downloads-view.js',
   'js/relay-client.js',
   'js/stremio-client.js',
   'js/stremio-app.js',

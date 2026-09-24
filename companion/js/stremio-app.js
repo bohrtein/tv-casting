@@ -437,7 +437,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         // The resolver saves the film on the server and answers once
         // the TV can start; the download carries on there after that.
-        // Its progress shows in the "saving on the server" panel.
+        // Its progress shows in the "downloads on the server" panel.
         setReadout(el.streamsReadout, 'starting the download on the server…', false);
         var refreshed = false;
         return resolver.resolveTorrent(castable.url, title, function () {
@@ -516,80 +516,21 @@ document.addEventListener('DOMContentLoaded', function () {
     nowCasting = null;
   });
 
-  // --- saving on the server (torrent downloads) ---
+  // --- downloads on the server (torrents, and anything else the
+  // resolver is fetching), see downloads-view.js ---
 
   var SAVING_FAST_MS = 2000;   // while something is downloading
   var SAVING_SLOW_MS = 15000;  // otherwise, to notice one started elsewhere
-  var SAVING_KEEP_MS = 120000; // how long a finished one stays listed
   var savingTimer = null;
-
-  function formatClock(totalSec) {
-    var s = Math.floor(totalSec || 0);
-    var h = Math.floor(s / 3600);
-    var m = Math.floor((s % 3600) / 60);
-    var sec = s % 60;
-    return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
-  }
-
-  function formatBytes(n) {
-    if (!n) return '0 MB';
-    if (n >= 1e9) return (n / 1e9).toFixed(2) + ' GB';
-    return Math.round(n / 1e6) + ' MB';
-  }
-
-  function saveDetail(job) {
-    if (job.status === 'error') return 'failed: ' + (job.error || 'unknown error');
-    if (job.complete) {
-      return (job.fromCache ? 'already saved' : 'fully saved') +
-        (job.bytes ? ' · ' + formatBytes(job.bytes) : '') +
-        (job.durationSec ? ' · ' + formatClock(job.durationSec) : '');
-    }
-    if (job.phase !== 'saving') return 'finding peers…';
-    var parts = [];
-    if (typeof job.progress === 'number' && job.durationSec) {
-      parts.push(Math.floor(job.progress) + '%');
-      parts.push(formatClock(job.savedSec) + ' of ' + formatClock(job.durationSec));
-    } else {
-      parts.push(formatClock(job.savedSec) + ' saved');
-    }
-    parts.push(formatBytes(job.bytes));
-    parts.push((job.bytesPerSec ? (job.bytesPerSec / 1e6).toFixed(1) : '0.0') + ' MB/s');
-    if (job.status === 'ready') parts.push('playable');
-    return parts.join(' · ');
-  }
-
-  function renderSaving(jobs) {
-    var now = Date.now();
-    var seen = {};
-    // Newest first, so a film cast twice shows only its latest job.
-    var shown = jobs.filter(function (job) {
-      if (job.kind !== 'torrent' || seen[job.torrentKey]) return false;
-      seen[job.torrentKey] = true;
-      if (!job.complete) return true;
-      return now - (job.finishedAt || job.createdAt || 0) < SAVING_KEEP_MS;
-    });
-    el.savingPanel.classList.toggle('cn-hidden', !shown.length);
-    el.savingList.innerHTML = shown.map(function (job) {
-      var known = job.complete || (job.phase === 'saving' && typeof job.progress === 'number' && job.durationSec);
-      var pct = job.complete ? 100 : known ? job.progress : 0;
-      return '<div class="cn-save-item' + (job.status === 'error' ? ' cn-save-err' : '') + '">' +
-        '<div class="cn-save-title">' + escapeHtml(job.title || 'torrent') + '</div>' +
-        '<div class="cn-save-track' + (known || job.status === 'error' ? '' : ' cn-indeterminate') + '"' +
-          ' role="progressbar" aria-valuemin="0" aria-valuemax="100"' + (known ? ' aria-valuenow="' + Math.round(pct) + '"' : '') + '>' +
-          '<div class="cn-save-fill" style="width:' + (known || job.status === 'error' ? pct.toFixed(1) + '%' : '') + '"></div>' +
-        '</div>' +
-        '<div class="cn-save-detail">' + escapeHtml(saveDetail(job)) + '</div>' +
-      '</div>';
-    }).join('');
-    return shown.some(function (job) { return !job.complete; });
-  }
+  var downloads = createDownloadsView(resolver, el.savingPanel, el.savingList);
 
   function refreshSaving() {
     clearTimeout(savingTimer);
-    resolver.listJobs().then(renderSaving, function () { return false; }).then(function (busy) {
+    resolver.listJobs().then(downloads.render, function () { return false; }).then(function (busy) {
       savingTimer = setTimeout(refreshSaving, busy ? SAVING_FAST_MS : SAVING_SLOW_MS);
     });
   }
+  downloads.onRefreshNeeded(refreshSaving);
 
   // --- addons sheet ---
 

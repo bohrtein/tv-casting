@@ -28,8 +28,8 @@ document.addEventListener('DOMContentLoaded', function () {
     linkCast: document.getElementById('link-cast'),
     linkDownloaded: document.getElementById('link-downloaded'),
     linkDownloadedList: document.getElementById('link-downloaded-list'),
-    remoteDownloads: document.getElementById('remote-downloads'),
-    remoteDownloadsList: document.getElementById('remote-downloads-list'),
+    downloadsList: document.getElementById('downloads-list'),
+    downloadsEmpty: document.getElementById('downloads-empty'),
     activityList: document.getElementById('activity-list'),
     remoteReadout: document.getElementById('remote-readout'),
     remoteSeek: document.getElementById('remote-seek'),
@@ -291,18 +291,26 @@ document.addEventListener('DOMContentLoaded', function () {
     return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
   }
 
-  function renderDownloads(allJobs) {
-    var active = allJobs.filter(function (j) {
-      return j.status === 'starting' || j.status === 'downloading';
+  // The downloads tab: progress bars + cancel, same view as the Stremio
+  // page's.
+  var downloadsView = createDownloadsView(resolver, el.downloadsEmpty, el.downloadsList, { emptyNotice: true });
+  downloadsView.onRefreshNeeded(function () { pollJobs(); });
+
+  // A download that started while another tab is open puts Matrix's
+  // update dot on the downloads tab. The first poll only records what's
+  // already there.
+  var seenDownloads = null;
+
+  function markNewDownloads(allJobs) {
+    var fresh = false;
+    var first = !seenDownloads;
+    seenDownloads = seenDownloads || {};
+    allJobs.forEach(function (job) {
+      if (job.status !== 'starting' && job.status !== 'downloading') return;
+      if (!seenDownloads[job.id] && !first) fresh = true;
+      seenDownloads[job.id] = true;
     });
-    el.remoteDownloads.classList.toggle('cn-hidden', active.length === 0);
-    el.remoteDownloadsList.innerHTML = '';
-    active.forEach(function (job) {
-      var row = document.createElement('div');
-      row.className = 'cn-row';
-      row.innerHTML = '<span class="cn-row-name">' + escapeHtml(describeResolveProgress(job)) + '</span>';
-      el.remoteDownloadsList.appendChild(row);
-    });
+    if (fresh && MX.view && !MX.view.visible('downloads')) MX.view.mark('downloads');
   }
 
   function renderActivity(allJobs) {
@@ -313,10 +321,13 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     allJobs.slice(0, 30).forEach(function (job) {
       var item = document.createElement('div');
-      item.className = 'mx-log-item' + (job.status === 'ready' ? ' mx-ok' : job.status === 'error' ? ' mx-err' : '');
+      item.className = 'mx-log-item' + (job.status === 'ready' ? ' mx-ok' : job.status === 'error' || job.status === 'cancelled' ? ' mx-err' : '');
       var label = job.title || job.sourceUrl || job.id;
       var detail;
       if (job.status === 'error') detail = 'failed — ' + job.error;
+      else if (job.status === 'cancelled') detail = 'cancelled';
+      else if (job.kind === 'torrent' && !job.complete) detail = 'torrent — playing, still saving on the server';
+      else if (job.kind === 'torrent') detail = job.fromCache ? 'torrent — already saved, cast instantly' : 'torrent — saved on the server';
       else if (job.status === 'ready') detail = job.fromCache ? 'already had it — cast instantly' : 'downloaded fresh';
       else detail = describeResolveProgress(job);
       item.innerHTML =
@@ -328,7 +339,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function pollJobs() {
     resolver.listJobs().then(function (allJobs) {
-      renderDownloads(allJobs);
+      downloadsView.render(allJobs);
+      markNewDownloads(allJobs);
       renderActivity(allJobs);
     }).catch(function () {
       // Resolver unreachable -- leave whatever was last rendered up
@@ -456,6 +468,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
   relay.connect();
   route();
-  // stremio.html's "remote" link lands here.
-  if (location.hash === '#remote' && MX.view) MX.view.show('remote');
+  // stremio.html's "remote" and "downloads" links land here.
+  if ((location.hash === '#remote' || location.hash === '#downloads') && MX.view) MX.view.show(location.hash.slice(1));
 });

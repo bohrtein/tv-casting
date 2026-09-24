@@ -277,54 +277,34 @@
   margin-top: 16px;
 }
 
-.cn-save-item + .cn-save-item {
+.cn-dl-item + .cn-dl-item {
   margin-top: 14px;
 }
 
-.cn-save-title {
+.cn-dl-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cn-dl-title {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.cn-save-track {
-  height: 8px;
-  margin: 6px 0 4px;
-  border: 1px solid var(--mx-border);
-  border-radius: 999px;
-  overflow: hidden;
-  background: var(--mx-accent-low);
+.cn-dl-head .mx-btn[hidden] {
+  display: none;
 }
 
-.cn-save-fill {
-  height: 100%;
-  width: 0;
-  background: var(--mx-accent);
-  box-shadow: 0 0 8px var(--mx-accent-glow);
-  transition: width 0.6s ease;
+.cn-dl-item .mx-progress {
+  margin-top: 6px;
 }
 
-/* No length known yet (still finding peers, or the file doesn't say):
-   a moving stripe instead of a made-up percentage. */
-.cn-save-track.cn-indeterminate .cn-save-fill {
-  width: 30%;
-  animation: cn-save-slide 1.4s ease-in-out infinite;
-}
-
-@keyframes cn-save-slide {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(340%); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cn-save-track.cn-indeterminate .cn-save-fill { animation: none; width: 100%; opacity: 0.4; }
-}
-
-.cn-save-item.cn-save-err .cn-save-fill {
-  background: var(--mx-danger);
-}
-
-.cn-save-detail {
+.cn-dl-detail {
+  margin-top: 4px;
   font-size: 0.85em;
   opacity: 0.8;
 }

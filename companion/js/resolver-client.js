@@ -60,6 +60,8 @@ function createResolverClient(config) {
               ok({ streamUrl: state.streamUrl, title: state.title });
             } else if (state.status === 'error') {
               fail(new Error(state.error || 'Could not resolve that url.'));
+            } else if (state.status === 'cancelled') {
+              fail(new Error('Cancelled.'));
             } else {
               setTimeout(tick, POLL_MS);
             }
@@ -96,7 +98,18 @@ function createResolverClient(config) {
     });
   }
 
+  // Stops a running download on the server and deletes what it saved.
+  function cancel(id) {
+    return fetch(config.RESOLVER_URL + '/resolve/' + id + '/cancel', { method: 'POST' }).then(function (res) {
+      if (res.ok) return res.json();
+      return res.json().catch(function () { return {}; }).then(function (body) {
+        throw new Error(body.error || 'Could not cancel (HTTP ' + res.status + ')');
+      });
+    });
+  }
+
   return {
+    cancel: cancel,
     isDirectMediaUrl: isDirectMediaUrl,
     resolve: resolve,
     resolveTorrent: resolveTorrent,
