@@ -13,8 +13,8 @@ var SHELL_FILES = [
   './',
   'index.html',
   'manifest.webmanifest',
-  'matrix.css',
-  'matrix.js',
+  'matrix/matrix.css',
+  'matrix/matrix.js',
   'css/app.css',
   'js/config.js',
   'js/jellyfin-client.js',
@@ -22,10 +22,14 @@ var SHELL_FILES = [
   'js/app.js',
   'icon-192.png',
   'icon-512.png',
-  'fonts/SpaceMono-Regular.ttf',
-  'fonts/SpaceMono-Bold.ttf',
-  'fonts/UnifrakturMaguntia-Book.ttf'
+  'matrix/fonts/SpaceMono-Regular.ttf',
+  'matrix/fonts/SpaceMono-Bold.ttf',
+  'matrix/fonts/UnifrakturMaguntia-Book.ttf'
 ];
+// The live copy of Matrix (/ds/1/, served by the app hub) is deliberately
+// NOT in this list: it always comes from the network, so a change to the
+// design system shows up without a service-worker update. The synced copy
+// above is what the remote falls back to offline.
 
 self.addEventListener('install', function (event) {
   event.waitUntil(

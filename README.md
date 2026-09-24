@@ -20,7 +20,7 @@ in [PLAN.md](PLAN.md).
   relay automatically on load to send play/pause/stop commands and
   receive status. Styled with the
   [Matrix](https://github.com/bohrtein/matrix_design) design system
-  (`matrix.css`, `matrix.js`, `fonts/`, vendored in this folder).
+  (live from the app hub at `/ds/1/`, with a synced copy in `matrix/`).
 
 ## Hard rules
 
