@@ -29,3 +29,6 @@ companion/dist/
 # resolver/README.md
 resolver/media/*
 !resolver/media/.gitkeep
+
+# companion/serve.js's saved settings (the shared Stremio addon list)
+.companion-data/
