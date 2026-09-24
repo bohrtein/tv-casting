@@ -14,7 +14,7 @@
     <tizen:profile name="tv"/>
     <!-- WebSocket connection to the relay on the home LAN. -->
     <tizen:privilege name="http://tizen.org/privilege/internet"/>
-    <!-- Required for webapis.avplay to be exposed at all -- without this,
+    <!-- Required for webapis.avplay to be exposed at all. Without this,
          webapis.js still loads but the avplay sub-object is undefined,
          which is exactly the "webapis.avplay is not available on this
          device" error player.js reports. -->

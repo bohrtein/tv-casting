@@ -1,11 +1,11 @@
 {
   "deployId": 1,
   "projectDir": "c:\\tv-casting\\tv-receiver",
-  "timestamp": "2026-09-21T17:59:57.449Z",
+  "timestamp": "2026-09-24T09:17:22.077Z",
   "hashAlgorithm": "xxh3-128",
   "input": {
     "README.md": {
-      "hash": "a0fc98c066f2be7cf3483faf1ca28ee6"
+      "hash": "79fb97d410a081de2e8af6cf0cc5c868"
     },
     "index.html": {
       "hash": "191cf4cf2a193ec64e053692f1b1f978"
@@ -14,7 +14,10 @@
       "hash": "bd44cc37e2f9e1f535090ea4b90b0d5f"
     },
     "config.xml": {
-      "hash": "e34bb9f028372bbf6a5f0c10fbd67f30"
+      "hash": "afdc94a211f8772b9f72b59d95d8b590"
+    },
+    "css/style.css": {
+      "hash": "aeb518f20f84fb0c8025e89756f76f00"
     },
     "media/idle-background.mp4": {
       "hash": "3d443fc4d8c6ffd70a87ef9ec60c55d5"
@@ -26,21 +29,18 @@
       "hash": "e910243d675902eefd504a5be8eba9a0"
     },
     "js/player.js": {
-      "hash": "2a3e037d465a922bcd1ac762c40f016f"
+      "hash": "3082ee8c41ef56ed0035f02ad5e0716b"
     },
     "js/config.js": {
       "hash": "be51ea212d6c6bf0ba92a816fd00cce5"
     },
     "js/app.js": {
       "hash": "8355885693d8fd98eadb1c5a62f735c5"
-    },
-    "css/style.css": {
-      "hash": "aeb518f20f84fb0c8025e89756f76f00"
     }
   },
   "output": {
     "Debug/projects/tv-receiver/README.md": {
-      "hash": "a0fc98c066f2be7cf3483faf1ca28ee6"
+      "hash": "79fb97d410a081de2e8af6cf0cc5c868"
     },
     "Debug/projects/tv-receiver/index.html": {
       "hash": "191cf4cf2a193ec64e053692f1b1f978"
@@ -49,7 +49,7 @@
       "hash": "bd44cc37e2f9e1f535090ea4b90b0d5f"
     },
     "Debug/projects/tv-receiver/config.xml": {
-      "hash": "e34bb9f028372bbf6a5f0c10fbd67f30"
+      "hash": "afdc94a211f8772b9f72b59d95d8b590"
     },
     "Debug/projects/tv-receiver/media/idle-background.mp4": {
       "hash": "3d443fc4d8c6ffd70a87ef9ec60c55d5"
@@ -61,7 +61,7 @@
       "hash": "e910243d675902eefd504a5be8eba9a0"
     },
     "Debug/projects/tv-receiver/js/player.js": {
-      "hash": "2a3e037d465a922bcd1ac762c40f016f"
+      "hash": "3082ee8c41ef56ed0035f02ad5e0716b"
     },
     "Debug/projects/tv-receiver/js/config.js": {
       "hash": "be51ea212d6c6bf0ba92a816fd00cce5"

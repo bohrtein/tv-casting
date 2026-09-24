@@ -184,6 +184,17 @@ loop: browse Jellyfin or input direct media URL → pair with TV → cast → co
 
 ## Current status
 
+2026-09-24 — Dropped the idle screen's looping `<video>` background for
+good. On the real TV it never played: it showed the first frame, then
+disappeared, across every encode tried. The idle screen now shows a
+static still of the digital rain (`media/idle-background.jpg`, formerly
+the video's poster) as a plain CSS background. Removed the `.mp4`, the
+on-screen `idle-bg-debug` instrumentation, and the
+`tools/render-idle-background.js` generator. Don't retry a video
+background. Also added console logging across `tv-receiver` (relay,
+player, app, uncaught errors) via `js/log.js`, so it all shows up in
+devtools.
+
 2026-09-21 — Removed `resolver/` and all web-stream extraction/downloading services.
 Restored architecture to a clean, 3-tier structure (`relay/`, `tv-receiver/`, `companion/`).
 Media delivery is strictly direct-pass-through: the companion app fetches direct media stream

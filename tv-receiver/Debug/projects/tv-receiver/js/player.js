@@ -3,8 +3,12 @@
 // Thin wrapper around Samsung's webapis.avplay (loaded via the
 // $WEBAPIS/webapis/webapis.js bridge in index.html — only resolves on a
 // real Tizen TV or the Tizen Studio TV emulator, not a desktop browser).
+// Requires the tv.avplay privilege in config.xml -- without it, webapis.js
+// still loads but webapis.avplay is undefined.
 function createPlayer(handlers) {
   var currentUrl = null;
+  var log = createLogger('player');
+  var lastLoggedPlayTimeSec = -1;
 
   function isAvailable() {
     return typeof webapis !== 'undefined' && !!webapis.avplay;
@@ -13,34 +17,57 @@ function createPlayer(handlers) {
   function attachListeners() {
     webapis.avplay.setListener({
       onbufferingstart: function () {
+        log.info('buffering start');
         handlers.onStateChange('buffering');
       },
-      onbufferingprogress: function () {},
+      onbufferingprogress: function (percent) {
+        log.info('buffering ' + percent + '%');
+      },
       onbufferingcomplete: function () {
+        log.info('buffering complete');
         handlers.onStateChange('playing');
       },
       onstreamcompleted: function () {
+        log.info('stream completed');
         stop();
         handlers.onStateChange('stopped');
       },
       oncurrentplaytime: function (currentTime) {
-        handlers.onPlayTime(Math.floor(currentTime / 1000));
+        var sec = Math.floor(currentTime / 1000);
+        // Fires every ~500ms -- one line per 10s of playback is plenty
+        // to confirm it's advancing without flooding the console.
+        if (lastLoggedPlayTimeSec < 0 || Math.abs(sec - lastLoggedPlayTimeSec) >= 10) {
+          log.info('play time ' + sec + 's');
+          lastLoggedPlayTimeSec = sec;
+        }
+        handlers.onPlayTime(sec);
       },
       onerror: function (eventType) {
+        log.error('onerror', eventType);
         handlers.onError({ code: 'PLAYBACK_FAILED', message: String(eventType) });
       },
-      onevent: function () {},
-      ondrmevent: function () {}
+      onevent: function (eventType, eventData) {
+        log.info('onevent', eventType, eventData);
+      },
+      onsubtitlechange: function (duration, text) {
+        log.info('onsubtitlechange', duration, text);
+      },
+      ondrmevent: function (drmEvent, drmData) {
+        log.info('ondrmevent', drmEvent, drmData);
+      }
     });
   }
 
   function openAndPlay(url, startPositionSec) {
     currentUrl = url;
+    lastLoggedPlayTimeSec = -1;
+    log.info('open', url, 'start=' + (startPositionSec || 0) + 's');
     webapis.avplay.open(url);
     attachListeners();
     webapis.avplay.setDisplayRect(0, 0, 1920, 1080);
     webapis.avplay.prepareAsync(
       function () {
+        log.info('prepared, duration=' + getDurationSec() + 's');
         if (startPositionSec) {
           webapis.avplay.seekTo(startPositionSec * 1000);
         }
@@ -48,6 +75,7 @@ function createPlayer(handlers) {
         handlers.onStateChange('playing');
       },
       function (err) {
+        log.error('prepareAsync failed', err);
         currentUrl = null;
         handlers.onError({ code: 'PREPARE_FAILED', message: String(err) });
       }
@@ -56,6 +84,7 @@ function createPlayer(handlers) {
 
   function play(url, startPositionSec) {
     if (!isAvailable()) {
+      log.error('webapis.avplay unavailable (webapis=' + typeof webapis + ')');
       handlers.onError({ code: 'AVPLAY_UNAVAILABLE', message: 'webapis.avplay is not available on this device.' });
       return;
     }
@@ -65,6 +94,7 @@ function createPlayer(handlers) {
     // position and add latency, so treat "same url, already loaded" as
     // resume instead of a fresh open.
     if (currentUrl === url) {
+      log.info('same url already loaded -- resuming instead of reopening');
       webapis.avplay.play();
       handlers.onStateChange('playing');
       return;
@@ -74,7 +104,11 @@ function createPlayer(handlers) {
   }
 
   function pause() {
-    if (!isAvailable() || !currentUrl) return;
+    if (!isAvailable() || !currentUrl) {
+      log.warn('pause ignored: nothing loaded');
+      return;
+    }
+    log.info('pause');
     webapis.avplay.pause();
     handlers.onStateChange('paused');
   }
@@ -85,13 +119,21 @@ function createPlayer(handlers) {
   // "play" with the url because it has no other way to identify the
   // stream (see the comment on play() above).
   function resume() {
-    if (!isAvailable() || !currentUrl) return;
+    if (!isAvailable() || !currentUrl) {
+      log.warn('resume ignored: nothing loaded');
+      return;
+    }
+    log.info('resume');
     webapis.avplay.play();
     handlers.onStateChange('playing');
   }
 
   function seek(positionSec) {
-    if (!isAvailable() || !currentUrl) return;
+    if (!isAvailable() || !currentUrl) {
+      log.warn('seek ignored: nothing loaded');
+      return;
+    }
+    log.info('seek to ' + positionSec + 's');
     webapis.avplay.seekTo(positionSec * 1000);
   }
 
@@ -103,6 +145,7 @@ function createPlayer(handlers) {
     try {
       return Math.floor(webapis.avplay.getDuration() / 1000);
     } catch (e) {
+      log.warn('getDuration threw', e);
       return 0;
     }
   }
@@ -111,18 +154,25 @@ function createPlayer(handlers) {
   // wherever playback actually is right now (getCurrentTime is a plain
   // synchronous AVPlay getter, no need to track position ourselves).
   function seekBy(deltaSec) {
-    if (!isAvailable() || !currentUrl) return;
+    if (!isAvailable() || !currentUrl) {
+      log.warn('seekBy ignored: nothing loaded');
+      return;
+    }
     var current = webapis.avplay.getCurrentTime();
-    webapis.avplay.seekTo(Math.max(0, current + deltaSec * 1000));
+    var target = Math.max(0, current + deltaSec * 1000);
+    log.info('seekBy ' + deltaSec + 's: ' + Math.floor(current / 1000) + 's -> ' + Math.floor(target / 1000) + 's');
+    webapis.avplay.seekTo(target);
   }
 
   function stop() {
     if (!isAvailable() || !currentUrl) return;
+    log.info('stop + close');
     try {
       webapis.avplay.stop();
       webapis.avplay.close();
     } catch (e) {
       // Already stopped/closed -- nothing to clean up.
+      log.warn('stop/close threw (already stopped?)', e);
     }
     currentUrl = null;
   }

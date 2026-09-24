@@ -8,6 +8,7 @@ function createRelayClient(config, handlers) {
   var reconnectAttempts = 0;
   var reconnectTimer = null;
   var closedByApp = false;
+  var log = createLogger('relay');
 
   function scheduleReconnect() {
     if (closedByApp) return;
@@ -16,13 +17,21 @@ function createRelayClient(config, handlers) {
       config.RECONNECT_MAX_DELAY_MS
     );
     reconnectAttempts += 1;
+    log.info('reconnecting in ' + delay + 'ms (attempt ' + reconnectAttempts + ')');
     handlers.onReconnecting(delay);
     reconnectTimer = setTimeout(connect, delay);
   }
 
   function send(message) {
     if (socket && socket.readyState === WebSocket.OPEN) {
+      // Playback position ticks go out every ~500ms while playing --
+      // logging each one would bury everything else.
+      if (!(message.type === 'status' && message.positionSec !== undefined)) {
+        log.info('-> send', message);
+      }
       socket.send(JSON.stringify(message));
+    } else {
+      log.warn('dropped (socket not open)', message);
     }
   }
 
@@ -38,6 +47,7 @@ function createRelayClient(config, handlers) {
         handlers.onRelayError(msg);
         break;
       default:
+        log.warn('unknown message type', msg);
         break;
     }
   }
@@ -46,9 +56,11 @@ function createRelayClient(config, handlers) {
     clearTimeout(reconnectTimer);
     closedByApp = false;
 
+    log.info('connecting to ' + config.RELAY_URL);
     socket = new WebSocket(config.RELAY_URL);
 
     socket.onopen = function () {
+      log.info('connected');
       reconnectAttempts = 0;
       send({ type: 'register', role: 'tv' });
     };
@@ -58,17 +70,21 @@ function createRelayClient(config, handlers) {
       try {
         msg = JSON.parse(event.data);
       } catch (e) {
+        log.warn('ignoring non-JSON message', event.data);
         return;
       }
+      log.info('<- recv', msg);
       handleMessage(msg);
     };
 
-    socket.onclose = function () {
+    socket.onclose = function (event) {
+      log.warn('closed code=' + event.code + ' reason=' + (event.reason || '(none)') + ' clean=' + event.wasClean);
       handlers.onDisconnected();
       scheduleReconnect();
     };
 
     socket.onerror = function () {
+      log.error('socket error (close follows)');
       // The browser always follows an 'error' event with 'close' for a
       // WebSocket, so reconnect scheduling lives in onclose only.
     };
@@ -85,6 +101,7 @@ function createRelayClient(config, handlers) {
   }
 
   function close() {
+    log.info('closing (by app)');
     closedByApp = true;
     clearTimeout(reconnectTimer);
     if (socket) socket.close();

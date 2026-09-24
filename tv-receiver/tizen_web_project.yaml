@@ -33,10 +33,10 @@ files:
   - index.html
   - js/app.js
   - js/config.js
+  - js/log.js
   - js/player.js
   - js/relay-client.js
-  - media/idle-background.mp4
-  - media/idle-background-poster.jpg
+  - media/idle-background.jpg
 
 # list of files to exclude based on the matched patterns
 excludes:

@@ -43,10 +43,6 @@
         "type": "delete"
       },
       {
-        "path": "Debug/projects/tv-receiver/media/idle-background.mp4",
-        "type": "add"
-      },
-      {
         "path": "Debug/projects/tv-receiver/tools/render-harness.html",
         "type": "add"
       },
@@ -63,11 +59,15 @@
         "type": "delete"
       },
       {
-        "path": "Debug/projects/tv-receiver/media/idle-background-poster.jpg",
+        "path": "Debug/projects/tv-receiver/js/vendor/qrcode.js",
         "type": "add"
       },
       {
-        "path": "Debug/projects/tv-receiver/js/vendor/qrcode.js",
+        "path": "Debug/projects/tv-receiver/js/log.js",
+        "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/media/idle-background.jpg",
         "type": "add"
       }
     ]
