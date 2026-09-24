@@ -1,0 +1,32 @@
+[Unit]
+Description=TV Casting VPN - gluetun (PIA) that the Stremio server's traffic goes through
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+# Started by the Stremio server (which BindsTo this unit), and stopped and
+# restarted along with it, so App Hub's Stremio Server card drives both.
+# No [Install] section: it never runs on its own.
+PartOf=tv-casting-stremio.service
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/docker pull qmcgaw/gluetun:latest
+ExecStartPre=-/usr/bin/docker rm -f tv-casting-vpn
+# PIA login and region come from /etc/tv-casting/vpn.env (root-only, see
+# vpn.env.example). The Stremio server shares this container's network,
+# so its ports are published here, not on the Stremio container. gluetun's
+# firewall blocks all internet traffic outside the VPN tunnel, so if the
+# VPN drops, torrents stop instead of falling back to the home IP.
+ExecStart=/usr/bin/docker run --rm --name tv-casting-vpn \
+  --cap-add=NET_ADMIN --device /dev/net/tun \
+  --env-file /etc/tv-casting/vpn.env \
+  -p 11470:11470 -p 12470:12470 \
+  -v tv-casting-vpn:/gluetun \
+  qmcgaw/gluetun:latest
+ExecStop=/usr/bin/docker stop tv-casting-vpn
+# No automatic restart: gluetun reconnects the VPN by itself inside the
+# container. If the container itself dies, the Stremio server stops with
+# it, and Start on its card brings both back.
+Restart=no
+TimeoutStartSec=600
+TimeoutStopSec=30

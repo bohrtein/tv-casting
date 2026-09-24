@@ -1,8 +1,10 @@
 [Unit]
-Description=TV Casting Stremio server - Stremio's streaming server (stremio/server) in Docker
+Description=TV Casting Stremio server - Stremio's streaming server (stremio/server) in Docker, through the VPN
 Requires=docker.service
-After=docker.service network-online.target
-Wants=network-online.target
+# All of its traffic goes through tv-casting-vpn: starting this starts the
+# VPN, and if the VPN stops, this stops too.
+BindsTo=tv-casting-vpn.service
+After=docker.service tv-casting-vpn.service
 
 [Service]
 Type=simple
@@ -14,19 +16,25 @@ ExecStartPre=-/usr/bin/docker pull stremio/server:latest
 # by hand with `docker run --name stremio-server`, which would otherwise
 # make the name clash below.
 ExecStartPre=-/usr/bin/docker rm -f stremio-server
+# Wait until gluetun reports the VPN connected (its Docker healthcheck).
+# Joining its network any earlier fails, since the container may not exist
+# yet. Gives up after 4 minutes.
+ExecStartPre=/bin/sh -c 'for i in $$(seq 120); do [ "$$(/usr/bin/docker inspect -f "{{.State.Health.Status}}" tv-casting-vpn 2>/dev/null)" = healthy ] && exit 0; sleep 2; done; echo "VPN never connected, see: journalctl -u tv-casting-vpn" >&2; exit 1'
 # Runs in the foreground (no -d), so systemd tracks the container itself
 # and its output lands in the journal, which is where App Hub's log
-# viewer reads from. The named volume keeps the server's settings across
-# restarts and image updates.
+# viewer reads from. --network container:... puts it inside the VPN
+# container's network, so every connection it makes goes through PIA.
+# The named volume keeps the server's settings across restarts and image
+# updates.
 ExecStart=/usr/bin/docker run --rm --name stremio-server \
-  -p 11470:11470 -p 12470:12470 \
+  --network container:tv-casting-vpn \
   -v stremio-server:/root/.stremio-server \
   stremio/server:latest
 ExecStop=/usr/bin/docker stop stremio-server
 Restart=on-failure
 RestartSec=5
-# The first start pulls a few hundred MB.
-TimeoutStartSec=600
+# The first start pulls a few hundred MB, and then waits for the VPN.
+TimeoutStartSec=900
 TimeoutStopSec=30
 
 [Install]
