@@ -12,6 +12,15 @@ const crypto = require('crypto');
 const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
 
+// stremio.html's addon list, kept here instead of only in each browser's
+// localStorage so the computer and the phone see the same addons. Lives
+// outside ROOT so the static handler below can never serve or overwrite
+// it by path.
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', '.companion-data');
+const STREMIO_SETTINGS_FILE = path.join(DATA_DIR, 'stremio-settings.json');
+const MAX_BODY_BYTES = 64 * 1024;
+const MAX_ADDONS = 100;
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -67,8 +76,82 @@ function serveServiceWorker(res) {
   });
 }
 
+function sendJson(res, status, body) {
+  res.writeHead(status, { 'Content-Type': MIME['.json'], 'Cache-Control': 'no-store' });
+  res.end(JSON.stringify(body));
+}
+
+function readStremioSettings() {
+  try {
+    const saved = JSON.parse(fs.readFileSync(STREMIO_SETTINGS_FILE, 'utf8'));
+    return { addons: Array.isArray(saved.addons) ? saved.addons : null };
+  } catch (e) {
+    // Nothing saved yet (or a corrupt file): null tells the page to seed
+    // it from its own list rather than wipe that list out.
+    return { addons: null };
+  }
+}
+
+// GET returns { addons: [manifest urls] | null }; POST replaces the list
+// with { addons: [...] }. Whole-list replace, last write wins -- the page
+// re-reads right before every change, and there's one household of users.
+function handleStremioSettings(req, res) {
+  if (req.method === 'GET') {
+    sendJson(res, 200, readStremioSettings());
+    return;
+  }
+  if (req.method !== 'POST') {
+    res.writeHead(405, { Allow: 'GET, POST' });
+    res.end();
+    return;
+  }
+  let size = 0;
+  const chunks = [];
+  req.on('data', (chunk) => {
+    size += chunk.length;
+    if (size > MAX_BODY_BYTES) {
+      sendJson(res, 413, { error: 'too large' });
+      req.destroy();
+      return;
+    }
+    chunks.push(chunk);
+  });
+  req.on('end', () => {
+    if (size > MAX_BODY_BYTES) return;
+    let addons;
+    try {
+      addons = JSON.parse(Buffer.concat(chunks).toString('utf8')).addons;
+    } catch (e) {
+      sendJson(res, 400, { error: 'body must be JSON' });
+      return;
+    }
+    const valid = Array.isArray(addons) && addons.length <= MAX_ADDONS &&
+      addons.every((u) => typeof u === 'string' && /^https?:\/\/\S+$/i.test(u) && u.length <= 2048);
+    if (!valid) {
+      sendJson(res, 400, { error: 'addons must be a list of http(s) URLs' });
+      return;
+    }
+    // Write-then-rename so a crash mid-write can't leave half a file.
+    const tmp = STREMIO_SETTINGS_FILE + '.tmp';
+    fs.mkdir(DATA_DIR, { recursive: true }, (mkErr) => {
+      if (mkErr) return sendJson(res, 500, { error: mkErr.message });
+      fs.writeFile(tmp, JSON.stringify({ addons }, null, 2), (wErr) => {
+        if (wErr) return sendJson(res, 500, { error: wErr.message });
+        fs.rename(tmp, STREMIO_SETTINGS_FILE, (rErr) => {
+          if (rErr) return sendJson(res, 500, { error: rErr.message });
+          sendJson(res, 200, { addons });
+        });
+      });
+    });
+  });
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://internal');
+  if (url.pathname === '/api/stremio-settings') {
+    handleStremioSettings(req, res);
+    return;
+  }
   if (url.pathname === '/sw.js') {
     serveServiceWorker(res);
     return;

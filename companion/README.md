@@ -39,7 +39,15 @@ directly from the browser, the same way Stremio does:
   and it casts.
 - **Addons** (sheet): add any addon by its manifest link
   (`https://…/manifest.json` or `stremio://…`), remove them, and set
-  the streaming server. The list is kept per browser. Cinemeta has no
+  the streaming server. The addon list is shared by every device:
+  `serve.js` saves it (`GET`/`POST /api/stremio-settings`, stored in
+  `.companion-data/stremio-settings.json` at the repo root, or
+  `$DATA_DIR`), and each browser keeps a copy for when `serve.js` can't
+  be reached. An addon added on the computer shows up on the phone the
+  next time the page loads or comes back to the foreground. The first
+  time each browser loads this version, any addons it had saved on its
+  own are added to the shared list, so nothing added before is lost.
+  The streaming server setting is still per browser. Cinemeta has no
   streams, so nothing plays until at least one stream addon is added.
 
 How each kind of stream reaches the TV (mirrors stremio-core's own
@@ -95,7 +103,8 @@ works. Codecs inside the file (MKV/HEVC/DTS etc.) still depend on the TV.
   conversion. Talks to addons directly, never through the relay.
 - `js/stremio-app.js` — DOM wiring for `stremio.html`.
 - `serve.js` — plain static file server (no deps), for hosting this
-  folder as-is (Phase 5). Blocks path traversal by resolving every
+  folder as-is (Phase 5), plus the one small `/api/stremio-settings`
+  endpoint that holds the shared Stremio addon list. Blocks path traversal by resolving every
   request path against the folder root and rejecting anything that
   escapes it.
 - `manifest.webmanifest`, `sw.js` — installable PWA shell. The service
