@@ -128,6 +128,15 @@ class MediaCache {
     return entry;
   }
 
+  // Adds fields to one entry (e.g. a film's measured height) and saves.
+  update(fileName, patch) {
+    const entry = this.entries.find((e) => e.fileName === fileName);
+    if (!entry) return null;
+    Object.assign(entry, patch);
+    this._save();
+    return entry;
+  }
+
   // Registers a freshly downloaded file, replacing any stale entry for
   // the same source url, then evicts least-recently-used entries beyond
   // maxEntries. Returns the evicted entries so the caller can delete

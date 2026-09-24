@@ -5,7 +5,9 @@
 // Each has a thumbnail (a frame from 10% in, made by the resolver),
 // its size, a cast button and a delete button. A film that was
 // converted down for the TV (4K) also has "copy 4K link": the untouched
-// original, to open in VLC or another player. Delete asks for a second
+// original, to open in VLC or another player. A 4K film saved before
+// conversions existed has "optimize for TV (1080p)" instead, which makes
+// that copy from the file on disk, no download. Delete asks for a second
 // tap before it deletes, since there's no undo.
 //
 // Items are kept and updated in place, keyed per video, so polling
@@ -70,6 +72,7 @@ function createSavedView(resolver, container, opts) {
         '<div class="cn-saved-actions">' +
           '<button class="mx-btn mx-sm mx-primary" type="button">cast</button>' +
           '<button class="mx-btn mx-sm" type="button" hidden>copy 4K link</button>' +
+          '<button class="mx-btn mx-sm" type="button" hidden>optimize for TV (1080p)</button>' +
           '<button class="mx-btn mx-sm" type="button">delete</button>' +
         '</div>' +
       '</div>';
@@ -82,7 +85,8 @@ function createSavedView(resolver, container, opts) {
       meta: item.querySelector('.cn-saved-meta'),
       cast: buttons[0],
       original: buttons[1],
-      del: buttons[2],
+      optimize: buttons[2],
+      del: buttons[3],
       entry: null,
       confirmTimer: null
     };
@@ -97,6 +101,20 @@ function createSavedView(resolver, container, opts) {
     });
     it.original.addEventListener('click', function () {
       copyLink(it.entry.originalUrl);
+    });
+    it.optimize.addEventListener('click', function () {
+      var entry = it.entry;
+      it.optimize.disabled = true;
+      resolver.optimizeSaved(entry.key).then(function (state) {
+        MX.toast(true, 'Optimizing for TV: ' + (entry.title || 'film'));
+        entry.canOptimize = false;
+        entry.optimize = state;
+        update(it, entry);
+      }).catch(function (err) {
+        MX.toast(false, err.message);
+      }).then(function () {
+        it.optimize.disabled = false;
+      });
     });
     it.del.addEventListener('click', function () {
       if (!it.del.classList.contains('cn-confirm')) {
@@ -151,10 +169,17 @@ function createSavedView(resolver, container, opts) {
     it.title.textContent = entry.title || entry.sourceUrl || 'video';
     it.title.title = entry.title || entry.sourceUrl || '';
     var meta = [formatBytes(entry.bytes)];
+    if (entry.height) meta.unshift(entry.height + 'p' + (entry.originalUrl ? ' (TV: 1080p)' : ''));
+    var opt = entry.optimize;
+    if (opt && opt.state === 'running') meta.push('optimizing for TV ' + Math.floor(opt.pct || 0) + '%');
+    else if (opt && opt.state === 'queued') meta.push('optimizing for TV: queued');
+    else if (opt && opt.state === 'error') meta.push('optimize failed: ' + opt.error);
     var date = formatDate(entry.createdAt);
     if (date) meta.push('saved ' + date);
     it.meta.textContent = meta.join(' · ');
     it.original.hidden = !entry.originalUrl;
+    it.optimize.hidden = !(entry.canOptimize || (opt && opt.state === 'error'));
+    it.optimize.textContent = opt && opt.state === 'error' ? 'try optimizing again' : 'optimize for TV (1080p)';
     if (entry.thumbUrl && it.img.getAttribute('src') !== entry.thumbUrl) it.img.src = entry.thumbUrl;
   }
 

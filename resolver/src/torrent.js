@@ -380,4 +380,101 @@ function describePeers(stats) {
   return parts.join(', ');
 }
 
-module.exports = { parseTorrentUrl, isKey, download, folderBytes, peerStats, describePeers, SEGMENT_SEC, ORIGINAL_DIR };
+// Width and height of a saved film's video (from its first segment), or
+// null. For films saved before their size was recorded.
+function frameSize(dir) {
+  return new Promise((resolve) => {
+    const child = spawn(FFPROBE_BIN, [
+      '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height',
+      '-of', 'csv=p=0', path.join(dir, 'seg00000.ts')
+    ]);
+    let out = '';
+    child.stdout.on('data', (c) => { out += c; });
+    child.on('error', () => resolve(null));
+    child.on('close', () => {
+      const [w, h] = out.trim().split(',').map((n) => parseInt(n, 10));
+      resolve(w > 0 && h > 0 ? { width: w, height: h } : null);
+    });
+  });
+}
+
+// True when a saved film is bigger than the TV's limit and has no TV
+// copy yet (saved before conversions existed, or with them off).
+function needsTvCopy(dir, size) {
+  if (!size || MAX_HEIGHT <= 0) return false;
+  if (fs.existsSync(path.join(dir, ORIGINAL_DIR, 'index.m3u8'))) return false;
+  return size.height > MAX_HEIGHT || size.width > MAX_WIDTH;
+}
+
+// "optimize for TV" on a film already saved at full size: makes the
+// 1080p copy from the files on disk (no torrent), then moves the
+// full-size film into original/ and the new copy where the TV plays
+// from -- the same layout a download that converts ends up with. Until
+// the swap at the very end, the film keeps playing as it was.
+async function makeTvCopy(dir, { onProgress, signal }) {
+  const playlist = path.join(dir, 'index.m3u8');
+  const total = (() => {
+    try {
+      return (fs.readFileSync(playlist, 'utf8').match(/#EXTINF:([\d.]+)/g) || [])
+        .reduce((n, m) => n + parseFloat(m.slice(8)), 0);
+    } catch (e) {
+      return 0;
+    }
+  })();
+  const tmp = path.join(dir, '.tv-copy');
+  fs.rmSync(tmp, { recursive: true, force: true });
+  fs.mkdirSync(tmp, { recursive: true });
+  const encoder = await pickEncoder();
+  const args = [
+    '-hide_banner', '-nostats', '-loglevel', 'error', '-progress', 'pipe:1',
+    ...(encoder === 'nvenc' ? ['-hwaccel', 'cuda'] : []),
+    '-i', playlist,
+    '-map', '0:v:0', '-map', '0:a:0?', '-sn',
+    ...encodeArgs(encoder, { w: MAX_WIDTH, h: MAX_HEIGHT }), '-c:a', 'copy',
+    '-f', 'hls', '-hls_time', String(SEGMENT_SEC), '-hls_list_size', '0',
+    '-hls_playlist_type', 'vod', '-hls_flags', 'independent_segments',
+    '-hls_segment_filename', path.join(tmp, 'seg%05d.ts'),
+    path.join(tmp, 'index.m3u8')
+  ];
+  await new Promise((resolve, reject) => {
+    const child = spawn(FFMPEG_BIN, args, { signal });
+    let stderr = '';
+    let buffer = '';
+    child.stderr.on('data', (c) => { stderr = (stderr + c).slice(-4000); });
+    child.stdout.on('data', (c) => {
+      buffer += c;
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      lines.forEach((line) => {
+        const m = /^out_time_us=(\d+)/.exec(line);
+        if (m && total) onProgress(Math.min(99.9, (parseInt(m[1], 10) / 1e6 / total) * 100));
+      });
+    });
+    child.on('error', (err) => {
+      if (err.name !== 'AbortError') reject(new Error(`Could not start ffmpeg: ${err.message}`));
+    });
+    child.on('close', (code) => {
+      if (signal && signal.aborted) return reject(new Error('Cancelled.'));
+      if (code !== 0) return reject(new Error(stderr.trim().split('\n').pop() || `ffmpeg exit ${code}`));
+      resolve();
+    });
+  }).catch((err) => {
+    fs.rmSync(tmp, { recursive: true, force: true });
+    throw err;
+  });
+
+  // The swap: full-size files into original/, the new copy up a level.
+  const orig = path.join(dir, ORIGINAL_DIR);
+  fs.mkdirSync(orig, { recursive: true });
+  fs.readdirSync(dir).forEach((name) => {
+    if (name === 'index.m3u8' || /^seg\d+\.ts$/.test(name)) fs.renameSync(path.join(dir, name), path.join(orig, name));
+  });
+  fs.readdirSync(tmp).forEach((name) => fs.renameSync(path.join(tmp, name), path.join(dir, name)));
+  fs.rmSync(tmp, { recursive: true, force: true });
+  return encoder;
+}
+
+module.exports = {
+  parseTorrentUrl, isKey, download, folderBytes, peerStats, describePeers,
+  frameSize, needsTvCopy, makeTvCopy, SEGMENT_SEC, ORIGINAL_DIR
+};

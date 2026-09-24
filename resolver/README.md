@@ -180,6 +180,13 @@ the download to get there.
   saved video or film (`src/thumbs.js`), made on first request and kept in
   `MEDIA_DIR/thumbs/` until the video is deleted. A film still saving gets a
   fresh one every 5 minutes.
+- `POST /cache/torrents/<key>/optimize` — makes the 1080p TV copy of a
+  saved film that's bigger than `TORRENT_MAX_HEIGHT` and has none yet
+  (saved before conversions existed), from the files on disk: no download.
+  The full-size film moves into `original/`, same as a converted download.
+  One runs at a time, the rest queue; `GET /cache` shows each film's
+  `width`/`height`, `canOptimize`, and `optimize` (`queued`, `running` with
+  `pct`, or `error`). `409` if it doesn't need it or is still downloading.
 - `POST /cache/<media|torrents>/<key>/delete` — deletes a saved video or
   film (files and thumbnail). `409` for a film that's still downloading
   (cancel it instead), `404` if it isn't saved.

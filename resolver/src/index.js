@@ -36,6 +36,44 @@ const mediaCache = new MediaCache(MEDIA_DIR, CACHE_MAX_ENTRIES);
 // Keyed by "<infoHash>-<fileIdx>"; fileName is that key's folder.
 const torrentCache = new MediaCache(TORRENT_DIR, TORRENT_CACHE_SIZE);
 const activeTorrents = new Map(); // key -> job, while ffmpeg is running
+// "optimize for TV" jobs on saved films, one at a time (it's heavy on
+// the CPU/GPU): key -> { state: 'queued' | 'running', pct } or
+// { state: 'error', error }. Done ones are dropped.
+const optimizing = new Map();
+
+async function runOptimizeQueue() {
+  if ([...optimizing.values()].some((o) => o.state === 'running')) return;
+  const next = [...optimizing.entries()].find(([, o]) => o.state === 'queued');
+  if (!next) return;
+  const [key, state] = next;
+  state.state = 'running';
+  state.pct = 0;
+  const entry = torrentCache.find(key);
+  log('optimizing for TV', key, entry && entry.title);
+  try {
+    const encoder = await torrent.makeTvCopy(path.join(TORRENT_DIR, key), {
+      onProgress: (pct) => { state.pct = pct; }
+    });
+    optimizing.delete(key);
+    thumbs.remove('torrents', key);
+    log('optimized for TV', key, `(${encoder === 'nvenc' ? 'GPU' : 'CPU'})`);
+  } catch (err) {
+    optimizing.set(key, { state: 'error', error: err.message });
+    log('optimize failed', key, err.message);
+  }
+  runOptimizeQueue();
+}
+
+// Films saved before their picture size was recorded get measured once,
+// in the background, so the saved tab knows which are too big for the TV.
+async function measureSavedFilms() {
+  for (const entry of torrentCache.list()) {
+    if (entry.width) continue;
+    const size = await torrent.frameSize(path.join(TORRENT_DIR, entry.fileName));
+    if (size) torrentCache.update(entry.fileName, size);
+  }
+}
+
 const thumbs = createThumbs({
   mediaDir: MEDIA_DIR,
   torrentDir: TORRENT_DIR,
@@ -307,6 +345,7 @@ async function runTorrentJob(job, url, key) {
       finishedAt: Date.now()
     });
     log('torrent fully saved', key, job.title);
+    setImmediate(measureSavedFilms);
     const evicted = torrentCache.add({ sourceUrl: key, fileName: key, title: job.title });
     evicted.forEach((e) => {
       fs.rm(path.join(TORRENT_DIR, e.fileName), { recursive: true, force: true }, () => {});
@@ -579,6 +618,13 @@ const server = http.createServer((req, res) => {
         streamUrl: `http://${host}/media/torrents/${entry.fileName}/index.m3u8`,
         // The full-size film, when it was converted down for the TV.
         originalUrl: hasOriginal ? `http://${host}/media/torrents/${entry.fileName}/${torrent.ORIGINAL_DIR}/index.m3u8` : null,
+        width: entry.width || null,
+        height: entry.height || null,
+        // Too big for the TV and no TV copy yet: the saved tab offers
+        // "optimize for TV". optimize is that job's state, if any.
+        canOptimize: !optimizing.has(entry.fileName) && !activeTorrents.has(entry.fileName) &&
+          torrent.needsTvCopy(dir, entry.width ? { width: entry.width, height: entry.height } : null),
+        optimize: optimizing.get(entry.fileName) || null,
         thumbUrl: `http://${host}/thumb/torrents/${entry.fileName}.jpg`,
         bytes: torrent.folderBytes(dir) + (hasOriginal ? torrent.folderBytes(origDir) : 0),
         createdAt: entry.createdAt,
@@ -616,6 +662,36 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Makes the 1080p TV copy of a saved 4K film from the files on disk.
+  // Queued behind any other running one; progress shows in GET /cache.
+  const optimizeMatch = /^\/cache\/torrents\/([^/]+)\/optimize$/.exec(url.pathname);
+  if (req.method === 'POST' && optimizeMatch) {
+    const key = optimizeMatch[1];
+    const entry = torrent.isKey(key) ? torrentCache.find(key) : null;
+    if (!entry) {
+      sendJson(res, 404, { error: 'Not in the cache.' });
+      return;
+    }
+    const current = optimizing.get(key);
+    if (current && current.state !== 'error') {
+      sendJson(res, 202, { key, ...current });
+      return;
+    }
+    if (activeTorrents.has(key)) {
+      sendJson(res, 409, { error: 'Still downloading: it gets converted as it saves.' });
+      return;
+    }
+    const size = entry.width ? { width: entry.width, height: entry.height } : null;
+    if (!torrent.needsTvCopy(path.join(TORRENT_DIR, key), size)) {
+      sendJson(res, 409, { error: 'Already the right size for the TV (or already optimized).' });
+      return;
+    }
+    optimizing.set(key, { state: 'queued', pct: 0 });
+    runOptimizeQueue();
+    sendJson(res, 202, { key, ...optimizing.get(key) });
+    return;
+  }
+
   // Deletes a saved video or film, files and thumbnail included. A film
   // that's still downloading has to be cancelled instead.
   const deleteMatch = /^\/cache\/(media|torrents)\/([^/]+)\/delete$/.exec(url.pathname);
@@ -627,6 +703,10 @@ const server = http.createServer((req, res) => {
     }
     if (kind === 'torrents' && activeTorrents.has(name)) {
       sendJson(res, 409, { error: 'Still downloading: cancel it from the downloads list first.' });
+      return;
+    }
+    if (kind === 'torrents' && optimizing.has(name) && optimizing.get(name).state !== 'error') {
+      sendJson(res, 409, { error: 'Being optimized for the TV right now: wait for it to finish.' });
       return;
     }
     const cache = kind === 'media' ? mediaCache : torrentCache;
@@ -741,6 +821,8 @@ setInterval(() => {
   });
 }, SWEEP_INTERVAL_MS);
 
+measureSavedFilms();
+
 server.listen(PORT, () => {
-  log(`resolver listening on :${PORT} (POST /resolve, POST /torrent, GET /resolve/:id, GET /jobs, GET /cache, GET /thumb/:kind/:name.jpg, POST /cache/:kind/:name/delete, GET /media/:file, GET /healthz)`);
+  log(`resolver listening on :${PORT} (POST /resolve, POST /torrent, GET /resolve/:id, GET /jobs, GET /cache, GET /thumb/:kind/:name.jpg, POST /cache/:kind/:name/delete, POST /cache/torrents/:key/optimize, GET /media/:file, GET /healthz)`);
 });

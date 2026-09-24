@@ -100,6 +100,18 @@ function createResolverClient(config) {
     return getCache().then(function (body) { return body.entries || []; });
   }
 
+  // Makes the 1080p TV copy of a saved 4K film, from the files on disk.
+  // Progress then shows in getCache()'s torrents[].optimize.
+  function optimizeSaved(key) {
+    var url = config.RESOLVER_URL + '/cache/torrents/' + encodeURIComponent(key) + '/optimize';
+    return fetch(url, { method: 'POST' }).then(function (res) {
+      if (res.ok) return res.json();
+      return res.json().catch(function () { return {}; }).then(function (body) {
+        throw new Error(body.error || 'Could not optimize (HTTP ' + res.status + ')');
+      });
+    });
+  }
+
   // Deletes a saved video ("media") or film ("torrents") from the server.
   function deleteSaved(kind, key) {
     var url = config.RESOLVER_URL + '/cache/' + kind + '/' + encodeURIComponent(key) + '/delete';
@@ -129,6 +141,7 @@ function createResolverClient(config) {
     listJobs: listJobs,
     getCache: getCache,
     listCache: listCache,
-    deleteSaved: deleteSaved
+    deleteSaved: deleteSaved,
+    optimizeSaved: optimizeSaved
   };
 }
