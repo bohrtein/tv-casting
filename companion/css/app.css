@@ -313,3 +313,12 @@
   display: flex;
   gap: 8px;
 }
+
+/* Matrix's split layout is two columns; this page has three (library,
+   link + remote, downloads + activity). With two, the third wraps to a
+   second row below the taller of the first two, leaving a big gap. */
+@media (min-width: 1024px) {
+  .mx-layout-split.cn-split-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
