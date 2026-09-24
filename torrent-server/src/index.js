@@ -95,8 +95,12 @@ setInterval(() => {
 
 // Nothing survives a restart (see IDLE_MS), so whatever is left in
 // DATA_DIR is from before one, and would only fill the disk.
-fs.rmSync(DATA_DIR, { recursive: true, force: true });
+// Only its contents: in Docker DATA_DIR is a volume's mount point, and
+// that can't be removed itself.
 fs.mkdirSync(DATA_DIR, { recursive: true });
+fs.readdirSync(DATA_DIR).forEach((name) => {
+  fs.rmSync(path.join(DATA_DIR, name), { recursive: true, force: true });
+});
 
 // No UPnP/NAT-PMP: there's no router inside the VPN to ask, the
 // forwarded port is already open.
