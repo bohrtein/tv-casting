@@ -11,12 +11,19 @@ messages this app sends and receives.
 
 - `config.xml` — Tizen widget manifest (TV profile, `internet` privilege).
 - `index.html` — loads Samsung's `webapis.js` bridge, then the app scripts.
-- `css/style.css` — fixed 1920x1080, 10-foot-UI styling (no dependency on
-  the Matrix design system used in `companion/` — that system's
-  components target phone/desktop breakpoints, not a TV canvas).
+- `matrix/` — the [Matrix](https://github.com/bohrtein/matrix_design)
+  design system's tokens (colours, fonts, TV type sizes), flattened to
+  literal values in `matrix-tokens.css` because this TV's browser
+  (Chromium 56–76) is too old for `matrix.css` itself. Don't edit it;
+  update it with
+  `python ../matrix_design/tools/sync.py tv-receiver/matrix --tokens-only --device tv`
+  so a change to Matrix (a new accent, a theme) reaches the TV too.
+- `css/style.css` — fixed 1920x1080, 10-foot-UI layout, styled only from
+  those tokens. Keep to what old Chromium supports (custom properties
+  yes; `inset`, flex `gap`, `color-mix()`, `clamp()` no).
 - `media/idle-background.mp4` (+ `idle-background-poster.jpg`) — the
   idle screen's digital-rain background, matching the look of
-  `companion/matrix.js`'s animation but **pre-rendered to video**, not
+  `companion/matrix/matrix.js`'s animation but **pre-rendered to video**, not
   run live: a first attempt ran the real canvas animation on-device and
   it was unusably slow on this TV's own CPU. `app.js` just plays this on
   loop with a plain `<video>` tag, which the TV decodes in hardware like
@@ -30,9 +37,10 @@ messages this app sends and receives.
   reason, so the idle screen is never plain black. See
   `tools/render-idle-background.js` for how both are generated.
 - `tools/render-idle-background.js`, `tools/render-harness.html` — the
-  generator for `media/idle-background.*`: loads `companion/matrix.js`'s
+  generator for `media/idle-background.*`: loads `companion/matrix/matrix.js`'s
   animation unmodified in a real headless browser (Playwright), records
-  it, and encodes a seamless-looking loop (crossfades the tail into the
+  it (one canvas at Matrix 1.1's rain opacity; the 1.0 bloom layer is
+  gone), and encodes a seamless-looking loop (crossfades the tail into the
   head so `<video loop>` doesn't hard-cut) plus the poster frame. Not
   part of the shipped app — rerun it and re-save the outputs if the
   design changes, or if a device turns out to need even more

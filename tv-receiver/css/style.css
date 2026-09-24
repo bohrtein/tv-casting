@@ -1,19 +1,15 @@
 /* TV receiver — 10-foot UI. Big type, generous overscan-safe margins,
-   no hover states (remote-controlled, not touched). Thematically
-   consistent with the Matrix design system used in companion/ (black +
-   phosphor green) but written standalone: that system's components are
-   built for phone/desktop breakpoints, not a fixed 1920x1080 TV canvas. */
+   no hover states (remote-controlled, not touched).
+
+   Colours, fonts and type sizes come from the Matrix design system's
+   tokens (../matrix/matrix-tokens.css, flattened for this TV's old
+   browser: Tizen 4-6 is Chromium 56-76, too old for matrix.css itself),
+   so a change to Matrix -- a new accent, a new theme -- reaches the TV
+   on the next sync. Only the TV-specific layout lives here. Keep to what
+   old Chromium supports: custom properties yes; inset, flex gap,
+   color-mix and clamp no. */
 
 :root {
-  --ink: #b9ffcf;
-  --ink-hot: #e8fff0;
-  --ink-dim: #4e9c6b;
-  --green: #00ff5a;
-  --amber: #ffb020;
-  --red: #ff4d4f;
-  --bg: #000400;
-  --mono: 'Consolas', 'SF Mono', Menlo, monospace;
-  --sans: 'Segoe UI', Roboto, Arial, sans-serif;
   /* 5% overscan-safe margin on a 1920x1080 canvas. */
   --safe: 96px;
 }
@@ -27,15 +23,16 @@ html, body {
   padding: 0;
   width: 1920px;
   height: 1080px;
-  background: var(--bg);
-  color: var(--ink);
-  font-family: var(--sans);
+  background: var(--mx-bg);
+  color: var(--mx-ink);
+  font-family: var(--mx-mono);
   overflow: hidden;
 }
 
 .screen {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
   width: 1920px;
   height: 1080px;
 }
@@ -87,7 +84,7 @@ html, body {
 
 .idle-vignette {
   background:
-    radial-gradient(120% 90% at 50% 0%, rgba(0, 255, 90, 0.07), transparent 60%),
+    radial-gradient(120% 90% at 50% 0%, var(--mx-accent-low), transparent 60%),
     radial-gradient(130% 100% at 50% 100%, rgba(0, 0, 0, 0.85), transparent 55%);
 }
 
@@ -106,30 +103,33 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 36px;
   padding: var(--safe);
 }
+/* Margins, not flex `gap`: gap in flexbox needs Chromium 84. */
+.idle-panel > * + * { margin-top: 36px; }
 
+/* The wordmark, as Matrix sets it everywhere else (mx-mark). */
 .brand {
-  font-family: var(--mono);
-  font-size: 40px;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: var(--ink-hot);
-  text-shadow: 0 0 16px rgba(0, 255, 90, 0.5);
+  font-family: var(--mx-gothic);
+  font-size: 96px;
+  line-height: 1.15;
+  color: var(--mx-ink-hot);
+  text-shadow: 0 0 16px var(--mx-accent-glow);
 }
 
 .connection-note {
-  font-family: var(--mono);
-  font-size: 24px;
-  color: var(--ink-dim);
+  font-family: var(--mx-mono);
+  font-size: var(--mx-text-md);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--mx-ink-dim);
   min-height: 1.2em;
 }
 
 .idle-bg-debug {
-  font-family: var(--mono);
-  font-size: 16px;
-  color: var(--amber);
+  font-family: var(--mx-mono);
+  font-size: var(--mx-text-xs);
+  color: var(--mx-warn);
   max-width: 900px;
   text-align: center;
 }
@@ -137,12 +137,13 @@ html, body {
 /* --- Player screen --- */
 
 #player-screen {
-  background: #000;
+  background: var(--mx-bg);
 }
 
 #av-player {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
   width: 1920px;
   height: 1080px;
 }
@@ -151,25 +152,26 @@ html, body {
   position: absolute;
   left: var(--safe);
   bottom: var(--safe);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
   padding: 20px 28px;
-  background: rgba(0, 4, 0, 0.55);
-  border-left: 4px solid var(--green);
-  border-radius: 4px;
+  background: var(--mx-scrim);
+  border: 1px solid var(--mx-border);
+  border-left: 4px solid var(--mx-accent);
+  border-radius: var(--mx-r-sm);
   max-width: 60%;
 }
 
 .now-playing-title {
-  font-size: 32px;
-  color: var(--ink-hot);
+  font-family: var(--mx-mono);
+  font-size: var(--mx-text-lg);
+  font-weight: 700;
+  color: var(--mx-ink-hot);
 }
+.now-playing-title + .now-playing-state { margin-top: 8px; }
 
 .now-playing-state {
-  font-family: var(--mono);
-  font-size: 20px;
-  color: var(--ink-dim);
+  font-family: var(--mx-mono);
+  font-size: var(--mx-text-sm);
+  color: var(--mx-ink-dim);
   text-transform: uppercase;
   letter-spacing: 0.15em;
 }
@@ -182,9 +184,11 @@ html, body {
   right: var(--safe);
   bottom: var(--safe);
   padding: 20px 28px;
-  background: rgba(40, 0, 0, 0.85);
-  border-left: 4px solid var(--red);
-  color: var(--ink-hot);
-  font-size: 26px;
-  border-radius: 4px;
+  background: var(--mx-surface);
+  border: 1px solid var(--mx-danger-line);
+  border-left: 4px solid var(--mx-danger);
+  color: var(--mx-danger);
+  font-family: var(--mx-mono);
+  font-size: var(--mx-text-base);
+  border-radius: var(--mx-r-sm);
 }

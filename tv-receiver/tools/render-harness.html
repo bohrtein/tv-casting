@@ -8,25 +8,24 @@
     padding: 0;
     width: 1920px;
     height: 1080px;
-    background: #000400;
+    background: #000;
     overflow: hidden;
   }
-  #mx-rain, #mx-rain-bloom {
+  #mx-rain {
     position: absolute;
     top: 0;
     left: 0;
     width: 1920px;
     height: 1080px;
   }
-  #mx-rain { opacity: 0.9; }
-  #mx-rain-bloom { filter: blur(9px) saturate(1.4) brightness(1.6); }
+  /* Matrix 1.1: one canvas, no bloom, at --mx-rain-opacity. */
+  #mx-rain { opacity: 0.45; }
 </style>
 </head>
 <body>
-<canvas id="mx-rain-bloom"></canvas>
 <canvas id="mx-rain"></canvas>
 <!-- Reuses the real design system's animation unmodified, at full quality --
      this only ever runs here at record time, never on the TV itself. -->
-<script src="../../companion/matrix.js"></script>
+<script src="../../companion/matrix/matrix.js"></script>
 </body>
 </html>
