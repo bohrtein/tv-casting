@@ -3,12 +3,17 @@
 // Everything the resolver is downloading, as Matrix progress bars with a
 // cancel button: YouTube/links (downloaded before playing) and torrents
 // (saved on the server while the TV plays them, resolver/README.md
-// "Torrents"). Shared by index.html's remote tab and stremio.html.
+// "Torrents"). Shared by index.html's downloads tab and stremio.html.
+//
+// `panel` is hidden while there's nothing to show. With
+// opts.emptyNotice it's the other way round: `panel` is an "empty"
+// notice, shown only while there's nothing.
 //
 // Rows are kept and updated in place, keyed per download: rebuilding
 // them on every poll restarted the bars' animation, so they looked like
 // they kept resetting.
-function createDownloadsView(resolver, panel, list) {
+function createDownloadsView(resolver, panel, list, opts) {
+  var emptyNotice = !!(opts && opts.emptyNotice);
   var KEEP_MS = 120000; // how long a finished download stays listed
   var rows = {};
 
@@ -157,7 +162,7 @@ function createDownloadsView(resolver, panel, list) {
         delete rows[key];
       }
     });
-    panel.classList.toggle('cn-hidden', !shown.length);
+    panel.classList.toggle('cn-hidden', emptyNotice ? shown.length > 0 : !shown.length);
     return shown.some(isRunning);
   }
 

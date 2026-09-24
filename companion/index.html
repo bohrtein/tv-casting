@@ -44,6 +44,7 @@
       <button class="mx-tab" data-mx-tab="library" aria-selected="true">library</button>
       <button class="mx-tab" data-mx-tab="link">link</button>
       <button class="mx-tab" data-mx-tab="remote">remote</button>
+      <button class="mx-tab" data-mx-tab="downloads">downloads</button>
       <button class="mx-tab" data-mx-tab="activity">activity</button>
     </nav>
 
@@ -114,13 +115,6 @@
         <section class="mx-panel" data-mx-panel="remote" style="margin-top:16px">
           <h2 class="mx-panel-title">remote</h2>
 
-          <div id="remote-downloads" class="cn-hidden" style="margin-bottom:16px">
-            <h3 style="font-size:12px; color:var(--mx-ink-dim); text-transform:uppercase; letter-spacing:.04em; margin:0 0 8px">
-              downloads on the server
-            </h3>
-            <div id="remote-downloads-list"></div>
-          </div>
-
           <div class="mx-readout" id="remote-readout">nothing casting</div>
           <div class="cn-seekbar" style="margin-top:14px">
             <input class="cn-seek-range" id="remote-seek" type="range" min="0" max="0" value="0" step="1" disabled aria-label="seek position">
@@ -139,7 +133,18 @@
       </div>
 
       <div class="mx-col">
-        <section class="mx-panel mx-glass" data-mx-panel="activity">
+        <section class="mx-panel" data-mx-panel="downloads">
+          <h2 class="mx-panel-title">downloads</h2>
+          <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 16px">
+            What the server is downloading right now, from any device:
+            torrents keep saving while the TV plays them. Cancel stops the
+            download and deletes what it saved.
+          </p>
+          <div id="downloads-list"></div>
+          <span id="downloads-empty" class="mx-empty">nothing downloading.</span>
+        </section>
+
+        <section class="mx-panel mx-glass" data-mx-panel="activity" style="margin-top:16px">
           <h2 class="mx-panel-title">activity</h2>
           <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 16px">
             Every link resolved recently, from any device — what it's

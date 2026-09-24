@@ -75,8 +75,8 @@ page builds) and saves that film on this server while the TV watches it:
 - Torrent jobs in `/jobs` and `/resolve/:id` also carry `kind: "torrent"`,
   `phase` (`connecting` → `saving` → `done`), `savedSec`, `durationSec`,
   `bytes` (on disk so far) and `bytesPerSec` (over the last ~5 s). The
-  companion shows them as progress bars under "downloads on the server"
-  (remote tab and Stremio page, `companion/js/downloads-view.js`), which
+  companion shows them as progress bars (the "downloads" tab, and the Stremio page)
+  (`companion/js/downloads-view.js`), which
   keep updating after the TV starts playing and have a cancel button.
 
 Seeking works within what's saved so far; jumping past it has to wait for

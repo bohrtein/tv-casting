@@ -28,8 +28,8 @@ document.addEventListener('DOMContentLoaded', function () {
     linkCast: document.getElementById('link-cast'),
     linkDownloaded: document.getElementById('link-downloaded'),
     linkDownloadedList: document.getElementById('link-downloaded-list'),
-    remoteDownloads: document.getElementById('remote-downloads'),
-    remoteDownloadsList: document.getElementById('remote-downloads-list'),
+    downloadsList: document.getElementById('downloads-list'),
+    downloadsEmpty: document.getElementById('downloads-empty'),
     activityList: document.getElementById('activity-list'),
     remoteReadout: document.getElementById('remote-readout'),
     remoteSeek: document.getElementById('remote-seek'),
@@ -291,9 +291,27 @@ document.addEventListener('DOMContentLoaded', function () {
     return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
   }
 
-  // Progress bars + cancel, same view as the Stremio page's.
-  var downloadsView = createDownloadsView(resolver, el.remoteDownloads, el.remoteDownloadsList);
+  // The downloads tab: progress bars + cancel, same view as the Stremio
+  // page's.
+  var downloadsView = createDownloadsView(resolver, el.downloadsEmpty, el.downloadsList, { emptyNotice: true });
   downloadsView.onRefreshNeeded(function () { pollJobs(); });
+
+  // A download that started while another tab is open puts Matrix's
+  // update dot on the downloads tab. The first poll only records what's
+  // already there.
+  var seenDownloads = null;
+
+  function markNewDownloads(allJobs) {
+    var fresh = false;
+    var first = !seenDownloads;
+    seenDownloads = seenDownloads || {};
+    allJobs.forEach(function (job) {
+      if (job.status !== 'starting' && job.status !== 'downloading') return;
+      if (!seenDownloads[job.id] && !first) fresh = true;
+      seenDownloads[job.id] = true;
+    });
+    if (fresh && MX.view && !MX.view.visible('downloads')) MX.view.mark('downloads');
+  }
 
   function renderActivity(allJobs) {
     el.activityList.innerHTML = '';
@@ -322,6 +340,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function pollJobs() {
     resolver.listJobs().then(function (allJobs) {
       downloadsView.render(allJobs);
+      markNewDownloads(allJobs);
       renderActivity(allJobs);
     }).catch(function () {
       // Resolver unreachable -- leave whatever was last rendered up
@@ -449,6 +468,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
   relay.connect();
   route();
-  // stremio.html's "remote" link lands here.
-  if (location.hash === '#remote' && MX.view) MX.view.show('remote');
+  // stremio.html's "remote" and "downloads" links land here.
+  if ((location.hash === '#remote' || location.hash === '#downloads') && MX.view) MX.view.show(location.hash.slice(1));
 });
