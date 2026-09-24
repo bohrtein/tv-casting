@@ -6,5 +6,7 @@
 var APP_CONFIG = {
   RELAY_URL: 'ws://192.168.2.31:8787',
   RECONNECT_BASE_DELAY_MS: 1000,
-  RECONNECT_MAX_DELAY_MS: 30000
+  RECONNECT_MAX_DELAY_MS: 30000,
+  // Same host as the relay, different port/process (resolver/README.md).
+  RESOLVER_URL: 'http://192.168.2.31:8788'
 };

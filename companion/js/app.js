@@ -2,6 +2,7 @@
 
 document.addEventListener('DOMContentLoaded', function () {
   var jellyfin = createJellyfinClient();
+  var resolver = createResolverClient(APP_CONFIG);
   var currentFolderId = null;
   var folderStack = []; // [{id, name}, ...] breadcrumb trail
   var nowCasting = null; // {url, title} of the last thing WE told the TV to play
@@ -25,6 +26,11 @@ document.addEventListener('DOMContentLoaded', function () {
     linkTitle: document.getElementById('link-title'),
     linkReadout: document.getElementById('link-readout'),
     linkCast: document.getElementById('link-cast'),
+    linkDownloaded: document.getElementById('link-downloaded'),
+    linkDownloadedList: document.getElementById('link-downloaded-list'),
+    remoteDownloads: document.getElementById('remote-downloads'),
+    remoteDownloadsList: document.getElementById('remote-downloads-list'),
+    activityList: document.getElementById('activity-list'),
     remoteReadout: document.getElementById('remote-readout'),
     remoteSeek: document.getElementById('remote-seek'),
     remoteSeekPos: document.getElementById('remote-seek-pos'),
@@ -197,15 +203,25 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // --- cast a link (no Jellyfin involved) ---
-  // Direct media URL only (.mp4/.m3u8/...) -- typed straight in, sent
-  // straight to the TV via the same relay play command the library tab
-  // uses. No scraping, no resolving, no re-encoding: whatever URL the
-  // user pastes is exactly what webapis.avplay gets handed.
+  // A direct media url (.mp4/.m3u8/...) goes straight to the TV, same as
+  // before. Anything else (a YouTube/Twitter/etc. page with a video
+  // embedded in it) goes through the resolver first, which downloads and
+  // serves back a plain MP4 the TV can actually load -- AVPlay can't
+  // parse a webpage to find the video itself (resolver/README.md).
+
+  function describeResolveProgress(job) {
+    if (job.status === 'starting') return 'looking up that video…';
+    if (job.status === 'downloading') {
+      var pct = typeof job.progress === 'number' ? Math.round(job.progress) : 0;
+      return (job.title ? job.title + ' — ' : '') + 'downloading… ' + pct + '%';
+    }
+    return job.status;
+  }
 
   el.linkCast.addEventListener('click', function () {
     var url = el.linkUrl.value.trim();
     if (!url) {
-      setReadout(el.linkReadout, 'Paste a direct video URL first.', true);
+      setReadout(el.linkReadout, 'Paste a video URL first.', true);
       return;
     }
     try {
@@ -216,9 +232,113 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     var typedTitle = el.linkTitle.value.trim();
-    setReadout(el.linkReadout, '', false);
-    castToTv(url, typedTitle || url);
+
+    if (resolver.isDirectMediaUrl(url)) {
+      setReadout(el.linkReadout, '', false);
+      castToTv(url, typedTitle || url);
+      return;
+    }
+
+    el.linkCast.disabled = true;
+    setReadout(el.linkReadout, 'looking up that video…', false);
+    resolver.resolve(url, function (job) {
+      setReadout(el.linkReadout, describeResolveProgress(job), false);
+    }).then(function (result) {
+      el.linkCast.disabled = false;
+      setReadout(el.linkReadout, '', false);
+      castToTv(result.streamUrl, typedTitle || result.title || url);
+    }).catch(function (err) {
+      el.linkCast.disabled = false;
+      setReadout(el.linkReadout, err.message, true);
+    });
   });
+
+  // --- previously downloaded: instant recast from the resolver's
+  // rewatch cache, no url needed ---
+
+  function renderDownloaded(entries) {
+    el.linkDownloaded.classList.toggle('cn-hidden', entries.length === 0);
+    el.linkDownloadedList.innerHTML = '';
+    entries.forEach(function (entry) {
+      var row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'cn-row';
+      row.innerHTML =
+        '<span class="cn-row-name">' + escapeHtml(entry.title || entry.sourceUrl) + '</span>' +
+        '<span class="mx-pill">cached</span>';
+      row.addEventListener('click', function () {
+        castToTv(entry.streamUrl, entry.title || entry.sourceUrl);
+      });
+      el.linkDownloadedList.appendChild(row);
+    });
+  }
+
+  // --- job activity: downloads-in-progress + activity log ---
+  // Polls the resolver directly (same LAN, no auth, same pattern the
+  // rest of this file already uses) rather than routing through the
+  // relay -- a resolve job already runs independently of whichever
+  // browser tab/device started it, so this just makes that state
+  // discoverable from any device, any time, including one that wasn't
+  // even open when the download started.
+
+  var JOBS_POLL_MS = 3000;
+
+  function formatClock(ts) {
+    if (!ts) return '';
+    var d = new Date(ts);
+    var h = d.getHours();
+    var m = d.getMinutes();
+    return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+  }
+
+  function renderDownloads(allJobs) {
+    var active = allJobs.filter(function (j) {
+      return j.status === 'starting' || j.status === 'downloading';
+    });
+    el.remoteDownloads.classList.toggle('cn-hidden', active.length === 0);
+    el.remoteDownloadsList.innerHTML = '';
+    active.forEach(function (job) {
+      var row = document.createElement('div');
+      row.className = 'cn-row';
+      row.innerHTML = '<span class="cn-row-name">' + escapeHtml(describeResolveProgress(job)) + '</span>';
+      el.remoteDownloadsList.appendChild(row);
+    });
+  }
+
+  function renderActivity(allJobs) {
+    el.activityList.innerHTML = '';
+    if (!allJobs.length) {
+      el.activityList.innerHTML = '<span class="mx-empty">nothing resolved yet.</span>';
+      return;
+    }
+    allJobs.slice(0, 30).forEach(function (job) {
+      var item = document.createElement('div');
+      item.className = 'mx-log-item' + (job.status === 'ready' ? ' mx-ok' : job.status === 'error' ? ' mx-err' : '');
+      var label = job.title || job.sourceUrl || job.id;
+      var detail;
+      if (job.status === 'error') detail = 'failed — ' + job.error;
+      else if (job.status === 'ready') detail = job.fromCache ? 'already had it — cast instantly' : 'downloaded fresh';
+      else detail = describeResolveProgress(job);
+      item.innerHTML =
+        '<time>' + formatClock(job.createdAt) + '</time>' +
+        '<span>' + escapeHtml(label) + ' — ' + escapeHtml(detail) + '</span>';
+      el.activityList.appendChild(item);
+    });
+  }
+
+  function pollJobs() {
+    resolver.listJobs().then(function (allJobs) {
+      renderDownloads(allJobs);
+      renderActivity(allJobs);
+    }).catch(function () {
+      // Resolver unreachable -- leave whatever was last rendered up
+      // rather than blank a working UI over a transient LAN hiccup.
+    });
+    resolver.listCache().then(renderDownloaded).catch(function () {});
+  }
+
+  pollJobs();
+  setInterval(pollJobs, JOBS_POLL_MS);
 
   // --- remote ---
 

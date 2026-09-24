@@ -1,0 +1,30 @@
+[Unit]
+Description=TV Casting Resolver - turns embedded-video page urls into castable MP4s
+After=network.target
+
+[Service]
+Type=simple
+User=apphub
+Group=apphub
+WorkingDirectory=/opt/tv-casting/resolver
+EnvironmentFile=/opt/tv-casting/resolver/.env
+# Same caveat as relay's unit: point this at wherever `node` actually
+# resolves on the host (systemd doesn't source nvm's PATH setup).
+ExecStart=/usr/bin/node src/index.js
+Restart=on-failure
+RestartSec=2
+
+# Matches relay's unit on this host, which matches apphub.service's own
+# convention: same service account, same /opt root, same sandboxing.
+# ProtectHome can stay on since WorkingDirectory and the default MEDIA_DIR
+# (resolver/media, relative to this unit's own folder) both live under
+# /opt now, not /home.
+KillMode=control-group
+TimeoutStopSec=10
+
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

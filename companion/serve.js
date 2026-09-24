@@ -1,7 +1,7 @@
 'use strict';
 
-// Plain static file server, no framework/deps -- matches relay/'s "no
-// dependencies beyond what the task needs" convention.
+// Plain static file server, no framework/deps -- matches relay/ and
+// resolver/'s "no dependencies beyond what the task needs" convention.
 // Just serves companion/ as-is over plain http on the home LAN
 // (decision #4 in PLAN.md: no TLS, LAN-only).
 const http = require('http');
