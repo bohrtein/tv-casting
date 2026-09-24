@@ -61,8 +61,7 @@ function probe(url) {
     child.on('error', (err) => reject(new Error(`Could not start ffprobe (${FFPROBE_BIN}): ${err.message}`)));
     child.on('close', (code) => {
       if (code !== 0) {
-        const last = stderr.trim().split('\n').pop();
-        reject(new Error(`The Stremio server couldn't open that torrent${last ? ` (${last})` : ''}. It may have no peers.`));
+        explainFailure(url, stderr).then((msg) => reject(new Error(msg)));
         return;
       }
       try {
@@ -78,6 +77,36 @@ function probe(url) {
       }
     });
   });
+}
+
+// ffprobe only says "Connection timed out", which is the same whether the
+// torrent has no peers or the server can't be reached. The server's own
+// stats for the torrent (enginefs /<infoHash>/stats.json) tell them apart.
+// The URL is left out of the message: with trackers it's a screenful.
+async function explainFailure(url, stderr) {
+  const u = new URL(url);
+  const infoHash = u.pathname.split('/')[1];
+  const last = stderr.trim().split('\n').pop() || '';
+  const detail = last.replace(/^\S*https?:\/\/\S+:\s*/, '');
+  let stats = null;
+  let reachable = true;
+  try {
+    const res = await fetch(`${u.origin}/${infoHash}/stats.json`, { signal: AbortSignal.timeout(5000) });
+    stats = res.ok ? await res.json() : null;
+  } catch (e) {
+    reachable = false;
+  }
+  const waited = Math.round(TORRENT_START_TIMEOUT_MS / 1000);
+  if (!reachable) {
+    return `Couldn't reach the Stremio server at ${u.origin} (${detail || 'no answer'}). Is it running, and is its VPN connected?`;
+  }
+  if (stats && typeof stats.peers === 'number') {
+    if (stats.peers === 0) {
+      return `The torrent found no peers in ${waited}s, so it's probably dead. Try another stream with more seeders.`;
+    }
+    return `The torrent found ${stats.peers} peer${stats.peers === 1 ? '' : 's'}, but none sent any data in ${waited}s. Try again, or pick a stream with more seeders.`;
+  }
+  return `The Stremio server couldn't open that torrent${detail ? ` (${detail})` : ''}. It may have no peers.`;
 }
 
 // ffmpeg's HLS output reports no size (total_size=N/A), so this adds up
