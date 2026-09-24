@@ -279,6 +279,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (push) history.pushState({ stremioDetail: true }, '', detailHash(type, id));
     var token = ++detail.token;
     detail.meta = null;
+    lastStreams = null;
     showView('detail');
     fillHero(preview || { name: '' });
     el.episodesPanel.classList.add('cn-hidden');
@@ -364,8 +365,10 @@ document.addEventListener('DOMContentLoaded', function () {
   // --- streams ---
 
   var streamsToken = 0;
+  var lastStreams = null; // {type, id, title} -- re-asked when the addon list changes
 
   function loadStreams(type, id, title) {
+    lastStreams = { type: type, id: id, title: title };
     var token = ++streamsToken;
     el.streamsTitle.textContent = 'streams' + (title && title !== (detail.meta && detail.meta.name) ? ' — ' + title : '');
     el.streamsList.innerHTML = '';
@@ -556,6 +559,11 @@ document.addEventListener('DOMContentLoaded', function () {
       var q = el.browseSearch.value.trim();
       if (q.length >= 2) runSearch(q);
       else loadCatalogPage(true);
+      // A title left open (e.g. the "no stream addons" message) asks the
+      // new addon list straight away instead of needing to be reopened.
+      if (lastStreams && !el.viewDetail.classList.contains('cn-hidden')) {
+        loadStreams(lastStreams.type, lastStreams.id, lastStreams.title);
+      }
     });
     return whenAddonsReady;
   }
