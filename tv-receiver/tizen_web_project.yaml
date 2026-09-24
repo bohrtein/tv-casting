@@ -36,6 +36,11 @@ files:
   - js/log.js
   - js/player.js
   - js/relay-client.js
+  - matrix/matrix-tokens.css
+  - matrix/fonts/SpaceMono-Regular.ttf
+  - matrix/fonts/SpaceMono-Bold.ttf
+  - matrix/fonts/UnifrakturMaguntia-Book.ttf
+  - matrix/fonts/OFL.txt
   - media/idle-background.jpg
 
 # list of files to exclude based on the matched patterns

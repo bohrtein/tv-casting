@@ -109,14 +109,14 @@ document.addEventListener('DOMContentLoaded', function () {
   function renderBreadcrumb() {
     el.libraryBreadcrumb.innerHTML = '';
     var homeBtn = document.createElement('button');
-    homeBtn.className = 'mx-pill cn-crumb';
+    homeBtn.className = 'mx-badge cn-crumb';
     homeBtn.type = 'button';
     homeBtn.textContent = 'library';
     homeBtn.addEventListener('click', function () { goToBreadcrumb(-1); });
     el.libraryBreadcrumb.appendChild(homeBtn);
     folderStack.forEach(function (crumb, i) {
       var btn = document.createElement('button');
-      btn.className = 'mx-pill cn-crumb';
+      btn.className = 'mx-badge cn-crumb';
       btn.type = 'button';
       btn.textContent = crumb.name;
       btn.addEventListener('click', function () { goToBreadcrumb(i); });
@@ -145,7 +145,7 @@ document.addEventListener('DOMContentLoaded', function () {
       var typePill = item.Type || (item.IsFolder ? 'folder' : 'item');
       row.innerHTML =
         '<span class="cn-row-name">' + escapeHtml(item.Name) + '</span>' +
-        '<span class="mx-pill">' + escapeHtml(typePill) + '</span>';
+        '<span class="mx-badge">' + escapeHtml(typePill) + '</span>';
       row.addEventListener('click', function () {
         if (item.IsFolder) {
           openFolder(item);

@@ -11,11 +11,18 @@ messages this app sends and receives.
 
 - `config.xml` — Tizen widget manifest (TV profile, `internet` privilege).
 - `index.html` — loads Samsung's `webapis.js` bridge, then the app scripts.
-- `css/style.css` — fixed 1920x1080, 10-foot-UI styling (no dependency on
-  the Matrix design system used in `companion/` — that system's
-  components target phone/desktop breakpoints, not a TV canvas).
+- `matrix/` — the [Matrix](https://github.com/bohrtein/matrix_design)
+  design system's tokens (colours, fonts, TV type sizes), flattened to
+  literal values in `matrix-tokens.css` because this TV's browser
+  (Chromium 56–76) is too old for `matrix.css` itself. Don't edit it;
+  update it with
+  `python ../matrix_design/tools/sync.py tv-receiver/matrix --tokens-only --device tv`
+  so a change to Matrix (a new accent, a theme) reaches the TV too.
+- `css/style.css` — fixed 1920x1080, 10-foot-UI layout, styled only from
+  those tokens. Keep to what old Chromium supports (custom properties
+  yes; `inset`, flex `gap`, `color-mix()`, `clamp()` no).
 - `media/idle-background.jpg` — the idle screen's background: a
-  **static** still of `companion/matrix.js`'s digital rain, shown as a
+  **static** still of `companion/matrix/matrix.js`'s digital rain, shown as a
   plain CSS background image. Deliberately not animated. A live canvas
   animation was unusably slow on this TV's CPU, and a pre-rendered
   looping `<video>` never worked on the real TV no matter how it was

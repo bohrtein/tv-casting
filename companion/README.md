@@ -24,12 +24,14 @@ here that actually needs it:
 
 ## Layout
 
-- `matrix.css` / `matrix.js` / `fonts/` — the
-  [Matrix](https://github.com/bohrtein/matrix_design) design system,
-  vendored whole (decision #7 in PLAN.md). `css/app.css` adds the handful
-  of things the base component set doesn't cover (screen routing, the
-  library row/breadcrumb list), built from the same CSS custom
-  properties rather than new colors.
+- `matrix/` — the [Matrix](https://github.com/bohrtein/matrix_design)
+  design system. Behind the app hub the page loads Matrix live from
+  `/ds/1/` (the one copy every app shares, never cached by `sw.js`), on
+  top of this synced copy, which the service worker caches for offline
+  use. Don't edit it; update it with
+  `python ../matrix_design/tools/sync.py companion/matrix`.
+  `css/app.css` adds the handful of things Matrix doesn't cover (screen
+  routing, the library row/breadcrumb list), with Matrix tokens only.
 - `js/config.js` — `RELAY_URL`.
 - `js/jellyfin-client.js` — auth, library browsing, stream URL
   construction. Talks to Jellyfin directly, never through the relay.
