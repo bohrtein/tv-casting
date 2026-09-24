@@ -80,20 +80,6 @@ These are enforced in code review, not just convention:
   proxied by the hub only changes how you reach the companion page
   itself, not how the three pieces talk to each other.
 
-### Start everything at boot
-
-On the server, from this checkout:
-
-```bash
-sh autostart.sh
-```
-
-It turns on start-at-boot for App Hub, relay, resolver, the Stremio
-server and the torrent server (and the VPN they bring up), starts any
-that aren't running, and does the same for the companion's user
-service, with lingering on so it starts without anyone logging in.
-Units that aren't installed are skipped. Safe to run again.
-
 ## Status
 
 See the "Current status" section at the bottom of [PLAN.md](PLAN.md).
