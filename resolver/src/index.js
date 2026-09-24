@@ -97,6 +97,7 @@ function jobPublicShape(job, req) {
     // companion's Stremio page reads them.
     Object.assign(shape, {
       kind: 'torrent',
+      torrentKey: job.torrentKey,
       phase: job.phase,
       savedSec: job.savedSec,
       durationSec: job.durationSec,

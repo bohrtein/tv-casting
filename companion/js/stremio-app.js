@@ -551,8 +551,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function renderSaving(jobs) {
     var now = Date.now();
+    var seen = {};
+    // Newest first, so a film cast twice shows only its latest job.
     var shown = jobs.filter(function (job) {
-      if (job.kind !== 'torrent') return false;
+      if (job.kind !== 'torrent' || seen[job.torrentKey]) return false;
+      seen[job.torrentKey] = true;
       if (!job.complete) return true;
       return now - (job.finishedAt || job.createdAt || 0) < SAVING_KEEP_MS;
     });
