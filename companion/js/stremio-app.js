@@ -37,6 +37,8 @@ document.addEventListener('DOMContentLoaded', function () {
     streamsReadout: document.getElementById('streams-readout'),
     streamsList: document.getElementById('streams-list'),
     nowPlaying: document.getElementById('now-playing'),
+    savingPanel: document.getElementById('saving-panel'),
+    savingList: document.getElementById('saving-list'),
     npReadout: document.getElementById('np-readout'),
     npPlayPause: document.getElementById('np-playpause'),
     npStop: document.getElementById('np-stop'),
@@ -426,12 +428,13 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         // The resolver saves the film on the server and answers once
         // the TV can start; the download carries on there after that.
-        setReadout(el.streamsReadout, 'finding peers…', false);
-        return resolver.resolveTorrent(castable.url, title, function (job) {
-          var pct = typeof job.progress === 'number' && job.progress > 0 ? ' ' + Math.round(job.progress) + '%' : '';
-          setReadout(el.streamsReadout, job.status === 'downloading' ? 'saving to the server…' + pct : 'finding peers…', false);
+        // Its progress shows in the "saving on the server" panel.
+        setReadout(el.streamsReadout, 'starting the download on the server…', false);
+        var refreshed = false;
+        return resolver.resolveTorrent(castable.url, title, function () {
+          if (!refreshed) { refreshed = true; refreshSaving(); }
         }).then(function (result) {
-          setReadout(el.streamsReadout, 'playing while it keeps saving on the server', false);
+          setReadout(el.streamsReadout, '', false);
           castToTv(result.streamUrl, title);
         });
       }).catch(function (err) {
@@ -503,6 +506,78 @@ document.addEventListener('DOMContentLoaded', function () {
     relay.sendCommand('stop');
     nowCasting = null;
   });
+
+  // --- saving on the server (torrent downloads) ---
+
+  var SAVING_FAST_MS = 2000;   // while something is downloading
+  var SAVING_SLOW_MS = 15000;  // otherwise, to notice one started elsewhere
+  var SAVING_KEEP_MS = 120000; // how long a finished one stays listed
+  var savingTimer = null;
+
+  function formatClock(totalSec) {
+    var s = Math.floor(totalSec || 0);
+    var h = Math.floor(s / 3600);
+    var m = Math.floor((s % 3600) / 60);
+    var sec = s % 60;
+    return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
+  }
+
+  function formatBytes(n) {
+    if (!n) return '0 MB';
+    if (n >= 1e9) return (n / 1e9).toFixed(2) + ' GB';
+    return Math.round(n / 1e6) + ' MB';
+  }
+
+  function saveDetail(job) {
+    if (job.status === 'error') return 'failed: ' + (job.error || 'unknown error');
+    if (job.complete) {
+      return (job.fromCache ? 'already saved' : 'fully saved') +
+        (job.bytes ? ' · ' + formatBytes(job.bytes) : '') +
+        (job.durationSec ? ' · ' + formatClock(job.durationSec) : '');
+    }
+    if (job.phase !== 'saving') return 'finding peers…';
+    var parts = [];
+    if (typeof job.progress === 'number' && job.durationSec) {
+      parts.push(Math.floor(job.progress) + '%');
+      parts.push(formatClock(job.savedSec) + ' of ' + formatClock(job.durationSec));
+    } else {
+      parts.push(formatClock(job.savedSec) + ' saved');
+    }
+    parts.push(formatBytes(job.bytes));
+    parts.push((job.bytesPerSec ? (job.bytesPerSec / 1e6).toFixed(1) : '0.0') + ' MB/s');
+    if (job.status === 'ready') parts.push('playable');
+    return parts.join(' · ');
+  }
+
+  function renderSaving(jobs) {
+    var now = Date.now();
+    var shown = jobs.filter(function (job) {
+      if (job.kind !== 'torrent') return false;
+      if (!job.complete) return true;
+      return now - (job.finishedAt || job.createdAt || 0) < SAVING_KEEP_MS;
+    });
+    el.savingPanel.classList.toggle('cn-hidden', !shown.length);
+    el.savingList.innerHTML = shown.map(function (job) {
+      var known = job.complete || (job.phase === 'saving' && typeof job.progress === 'number' && job.durationSec);
+      var pct = job.complete ? 100 : known ? job.progress : 0;
+      return '<div class="cn-save-item' + (job.status === 'error' ? ' cn-save-err' : '') + '">' +
+        '<div class="cn-save-title">' + escapeHtml(job.title || 'torrent') + '</div>' +
+        '<div class="cn-save-track' + (known || job.status === 'error' ? '' : ' cn-indeterminate') + '"' +
+          ' role="progressbar" aria-valuemin="0" aria-valuemax="100"' + (known ? ' aria-valuenow="' + Math.round(pct) + '"' : '') + '>' +
+          '<div class="cn-save-fill" style="width:' + (known || job.status === 'error' ? pct.toFixed(1) + '%' : '') + '"></div>' +
+        '</div>' +
+        '<div class="cn-save-detail">' + escapeHtml(saveDetail(job)) + '</div>' +
+      '</div>';
+    }).join('');
+    return shown.some(function (job) { return !job.complete; });
+  }
+
+  function refreshSaving() {
+    clearTimeout(savingTimer);
+    resolver.listJobs().then(renderSaving, function () { return false; }).then(function (busy) {
+      savingTimer = setTimeout(refreshSaving, busy ? SAVING_FAST_MS : SAVING_SLOW_MS);
+    });
+  }
 
   // --- addons sheet ---
 
@@ -593,6 +668,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   relay.connect();
   reloadAddons();
+  refreshSaving();
   var initial = parseHash();
   if (initial) openDetail(initial.type, initial.id, null, false);
 });

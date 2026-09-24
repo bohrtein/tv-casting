@@ -80,6 +80,33 @@ function probe(url) {
   });
 }
 
+// ffmpeg's HLS output reports no size (total_size=N/A), so this adds up
+// what's on disk. Finished segments never change, so each is stat'ed once.
+function createSizeCounter(dir) {
+  const known = new Map();
+  return function savedBytes() {
+    let total = 0;
+    let names = [];
+    try {
+      names = fs.readdirSync(dir);
+    } catch (e) {
+      return 0;
+    }
+    names.forEach((name) => {
+      if (!/^seg\d+\.ts$/.test(name)) return;
+      if (!known.has(name)) {
+        try {
+          known.set(name, fs.statSync(path.join(dir, name)).size);
+        } catch (e) {
+          return;
+        }
+      }
+      total += known.get(name);
+    });
+    return total;
+  };
+}
+
 function countSegments(playlistPath) {
   try {
     return (fs.readFileSync(playlistPath, 'utf8').match(/^#EXTINF/gm) || []).length;
@@ -100,9 +127,14 @@ function countSegments(playlistPath) {
 //
 // Resolves when the whole file is saved; rejects on failure (outDir is
 // left for the caller to delete).
-async function download(url, outDir, { onReady, onProgress }) {
+//
+// onProgress gets { pct, savedSec, bytes }: how far into the film is on
+// disk, and how many bytes that is. pct is null when the file doesn't
+// say how long it is.
+async function download(url, outDir, { onProbed, onReady, onProgress }) {
   const info = await probe(url);
   if (!info.video) throw new Error('That torrent file has no video in it.');
+  onProbed({ durationSec: info.duration });
 
   const videoArgs = COPY_VIDEO.includes(info.video.codec_name)
     ? ['-c:v', 'copy']
@@ -133,17 +165,24 @@ async function download(url, outDir, { onReady, onProgress }) {
     let stderr = '';
     let ready = false;
     let buffer = '';
+    let savedSec = 0;
+    const savedBytes = createSizeCounter(outDir);
     child.stderr.on('data', (c) => { stderr = (stderr + c).slice(-4000); });
     child.stdout.on('data', (c) => {
       buffer += c;
       const lines = buffer.split('\n');
       buffer = lines.pop();
       lines.forEach((line) => {
+        // ffmpeg ends each progress block with progress=continue|end.
         const m = /^out_time_us=(\d+)/.exec(line);
-        if (m && info.duration) {
-          onProgress(Math.min(99.9, (parseInt(m[1], 10) / 1e6 / info.duration) * 100));
-        }
-        if (!ready && /^progress=/.test(line) && countSegments(playlist) >= READY_SEGMENTS) {
+        if (m) savedSec = parseInt(m[1], 10) / 1e6;
+        if (!/^progress=/.test(line)) return;
+        onProgress({
+          pct: info.duration ? Math.min(99.9, (savedSec / info.duration) * 100) : null,
+          savedSec,
+          bytes: savedBytes()
+        });
+        if (!ready && countSegments(playlist) >= READY_SEGMENTS) {
           ready = true;
           onReady();
         }
@@ -163,4 +202,8 @@ async function download(url, outDir, { onReady, onProgress }) {
   });
 }
 
-module.exports = { parseTorrentUrl, isKey, download };
+function folderBytes(dir) {
+  return createSizeCounter(dir)();
+}
+
+module.exports = { parseTorrentUrl, isKey, download, folderBytes };

@@ -92,6 +92,18 @@ function jobPublicShape(job, req) {
     createdAt: job.createdAt,
     finishedAt: job.finishedAt
   };
+  if (job.torrentKey) {
+    // Only torrent jobs carry these: the save-progress bar on the
+    // companion's Stremio page reads them.
+    Object.assign(shape, {
+      kind: 'torrent',
+      phase: job.phase,
+      savedSec: job.savedSec,
+      durationSec: job.durationSec,
+      bytes: job.bytes,
+      bytesPerSec: job.bytesPerSec
+    });
+  }
   if (job.status === 'error') shape.error = job.error;
   if (job.status === 'ready') {
     const host = req.headers.host; // same host companion used to reach us -- reachable by the TV on the same LAN
@@ -192,16 +204,38 @@ async function runJob(job, url) {
 async function runTorrentJob(job, url, key) {
   const outDir = path.join(TORRENT_DIR, key);
   activeTorrents.set(key, job);
-  jobs.update(job.id, { status: 'downloading', torrentKey: key, complete: false });
+  jobs.update(job.id, { status: 'downloading', phase: 'connecting', torrentKey: key, complete: false, bytes: 0 });
+  // Speed over roughly the last 5 seconds, so one burst of pieces doesn't
+  // make the number jump around.
+  const samples = [];
   try {
     await torrent.download(url, outDir, {
+      onProbed: ({ durationSec }) => jobs.update(job.id, { phase: 'saving', durationSec }),
       onReady: () => {
         jobs.update(job.id, { status: 'ready' });
         log('torrent playable, still downloading', key, job.title);
       },
-      onProgress: (pct) => jobs.update(job.id, { progress: pct })
+      onProgress: ({ pct, savedSec, bytes }) => {
+        const now = Date.now();
+        samples.push({ t: now, bytes });
+        while (samples.length > 2 && now - samples[0].t > 5000) samples.shift();
+        const span = (now - samples[0].t) / 1000;
+        jobs.update(job.id, {
+          progress: pct,
+          savedSec,
+          bytes,
+          bytesPerSec: span > 0 ? (bytes - samples[0].bytes) / span : 0
+        });
+      }
     });
-    jobs.update(job.id, { progress: 100, complete: true, finishedAt: Date.now() });
+    jobs.update(job.id, {
+      progress: 100,
+      phase: 'done',
+      bytes: torrent.folderBytes(outDir),
+      bytesPerSec: 0,
+      complete: true,
+      finishedAt: Date.now()
+    });
     log('torrent fully saved', key, job.title);
     const evicted = torrentCache.add({ sourceUrl: key, fileName: key, title: job.title });
     evicted.forEach((e) => {
@@ -366,6 +400,8 @@ const server = http.createServer((req, res) => {
           progress: 100,
           title: cached.title,
           torrentKey: parsed.key,
+          phase: 'done',
+          bytes: torrent.folderBytes(path.join(TORRENT_DIR, parsed.key)),
           fromCache: true,
           finishedAt: Date.now()
         });

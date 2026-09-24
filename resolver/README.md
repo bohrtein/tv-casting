@@ -72,6 +72,11 @@ page builds) and saves that film on this server while the TV watches it:
   finished (resolver stopped mid-film) is deleted on the next start.
 - Casting a film that's already downloading joins the running download
   instead of starting a second one.
+- Torrent jobs in `/jobs` and `/resolve/:id` also carry `kind: "torrent"`,
+  `phase` (`connecting` → `saving` → `done`), `savedSec`, `durationSec`,
+  `bytes` (on disk so far) and `bytesPerSec` (over the last ~5 s). The
+  companion's Stremio page shows them as a "saving on the server" progress
+  bar, which keeps updating after the TV starts playing.
 
 Seeking works within what's saved so far; jumping past it has to wait for
 the download to get there.
