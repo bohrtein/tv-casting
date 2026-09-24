@@ -85,27 +85,29 @@ function createResolverClient(config) {
     });
   }
 
-  // Lists the still-on-disk rewatch cache (most recently used first) --
-  // the subset of past resolves that can be cast again instantly, with
-  // no re-download. Separate from listJobs(), which is the full
-  // starting/downloading/ready/error activity log.
-  function listCache() {
+  // Everything saved on the server (GET /cache): { entries, torrents },
+  // videos from links and films from torrents, most recently used first,
+  // each with streamUrl, thumbUrl and bytes.
+  function getCache() {
     return fetch(config.RESOLVER_URL + '/cache').then(function (res) {
       if (!res.ok) throw new Error('Could not reach the resolver (HTTP ' + res.status + ')');
       return res.json();
-    }).then(function (body) {
-      return body.entries || [];
     });
   }
 
-  // Films saved from torrents (the resolver's torrent cache), most
-  // recently used first; each has a streamUrl the TV plays from disk.
-  function listSavedFilms() {
-    return fetch(config.RESOLVER_URL + '/cache').then(function (res) {
-      if (!res.ok) throw new Error('Could not reach the resolver (HTTP ' + res.status + ')');
-      return res.json();
-    }).then(function (body) {
-      return body.torrents || [];
+  // The link videos alone (the link tab's "previously downloaded").
+  function listCache() {
+    return getCache().then(function (body) { return body.entries || []; });
+  }
+
+  // Deletes a saved video ("media") or film ("torrents") from the server.
+  function deleteSaved(kind, key) {
+    var url = config.RESOLVER_URL + '/cache/' + kind + '/' + encodeURIComponent(key) + '/delete';
+    return fetch(url, { method: 'POST' }).then(function (res) {
+      if (res.ok) return res.json();
+      return res.json().catch(function () { return {}; }).then(function (body) {
+        throw new Error(body.error || 'Could not delete (HTTP ' + res.status + ')');
+      });
     });
   }
 
@@ -125,7 +127,8 @@ function createResolverClient(config) {
     resolve: resolve,
     resolveTorrent: resolveTorrent,
     listJobs: listJobs,
+    getCache: getCache,
     listCache: listCache,
-    listSavedFilms: listSavedFilms
+    deleteSaved: deleteSaved
   };
 }

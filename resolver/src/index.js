@@ -7,6 +7,7 @@ const { JobRegistry } = require('./jobs');
 const { MediaCache } = require('./cache');
 const ytdlp = require('./ytdlp');
 const torrent = require('./torrent');
+const { createThumbs } = require('./thumbs');
 const { log } = require('./logger');
 
 const PORT = process.env.PORT || 8788;
@@ -16,9 +17,11 @@ const MAX_FILESIZE = process.env.MAX_FILESIZE || '2G';
 const MEDIA_TTL_MS = parseInt(process.env.MEDIA_TTL_MS || String(6 * 60 * 60 * 1000), 10); // 6h
 const SWEEP_INTERVAL_MS = 15 * 60 * 1000;
 const ENABLE_GENERIC_FALLBACK = process.env.ENABLE_GENERIC_FALLBACK !== '0';
-const CACHE_MAX_ENTRIES = parseInt(process.env.RESOLVER_CACHE_SIZE || '5', 10);
+// Both caches are big on purpose: films and videos stay until deleted by
+// hand from the companion's "saved" tab; these only cap a runaway disk.
+const CACHE_MAX_ENTRIES = parseInt(process.env.RESOLVER_CACHE_SIZE || '100', 10);
 // Films are big, so torrents get their own, smaller cache.
-const TORRENT_CACHE_SIZE = parseInt(process.env.TORRENT_CACHE_SIZE || '3', 10);
+const TORRENT_CACHE_SIZE = parseInt(process.env.TORRENT_CACHE_SIZE || '100', 10);
 const TORRENT_DIR = path.join(MEDIA_DIR, 'torrents');
 // Where torrent files are read from. The companion builds Stremio server
 // URLs; when this is set, the same path goes to our own torrent server
@@ -32,6 +35,11 @@ const mediaCache = new MediaCache(MEDIA_DIR, CACHE_MAX_ENTRIES);
 // Keyed by "<infoHash>-<fileIdx>"; fileName is that key's folder.
 const torrentCache = new MediaCache(TORRENT_DIR, TORRENT_CACHE_SIZE);
 const activeTorrents = new Map(); // key -> job, while ffmpeg is running
+const thumbs = createThumbs({
+  mediaDir: MEDIA_DIR,
+  torrentDir: TORRENT_DIR,
+  isTorrentComplete: (key) => torrentCache.has(key)
+});
 
 // A folder that isn't in the cache index is a download that never
 // finished (resolver stopped mid-film). Nothing is running at startup,
@@ -42,6 +50,20 @@ fs.readdirSync(TORRENT_DIR).forEach((name) => {
     log('removed unfinished torrent download', name);
   }
 });
+
+// Only names the caches themselves hand out: a job id's MP4, or a
+// torrent key. Keeps /thumb and delete away from any other path.
+function validCacheName(kind, name) {
+  return kind === 'media' ? /^[0-9a-f]{16}\.mp4$/.test(name) : torrent.isKey(name);
+}
+
+function fileBytes(file) {
+  try {
+    return fs.statSync(file).size;
+  } catch (e) {
+    return 0;
+  }
+}
 
 function sendJson(res, status, body) {
   const data = JSON.stringify(body);
@@ -206,6 +228,7 @@ async function runJob(job, url) {
     const evicted = mediaCache.add({ sourceUrl: job.sourceUrl, fileName, title: info.title });
     evicted.forEach((e) => {
       fs.unlink(path.join(MEDIA_DIR, e.fileName), () => {});
+      thumbs.remove('media', e.fileName);
       log('cache evicted (LRU cap)', e.fileName, e.title);
     });
   } catch (err) {
@@ -284,6 +307,7 @@ async function runTorrentJob(job, url, key) {
     const evicted = torrentCache.add({ sourceUrl: key, fileName: key, title: job.title });
     evicted.forEach((e) => {
       fs.rm(path.join(TORRENT_DIR, e.fileName), { recursive: true, force: true }, () => {});
+      thumbs.remove('torrents', e.fileName);
       log('torrent cache evicted (LRU cap)', e.fileName, e.title);
     });
   } catch (err) {
@@ -487,23 +511,87 @@ const server = http.createServer((req, res) => {
   // still-on-disk, re-castable-without-a-redownload entries the LRU
   // cache is tracking (mediaCache's max entries, 5 by default), not
   // every job that's ever run.
+  // Everything saved: videos from links ("entries") and films from
+  // torrents ("torrents"), most recently used first, each with a
+  // thumbnail URL and its size on disk.
   if (req.method === 'GET' && url.pathname === '/cache') {
     const host = req.headers.host;
     const list = mediaCache.list().map((entry) => ({
+      kind: 'media',
+      key: entry.fileName,
       sourceUrl: entry.sourceUrl,
       title: entry.title,
       streamUrl: `http://${host}/media/${entry.fileName}`,
+      thumbUrl: `http://${host}/thumb/media/${entry.fileName}.jpg`,
+      bytes: fileBytes(path.join(MEDIA_DIR, entry.fileName)),
+      createdAt: entry.createdAt,
       lastUsedAt: entry.lastUsedAt
     }));
-    // Films saved from torrents: castable any time, straight from disk.
     const torrents = torrentCache.list().map((entry) => ({
+      kind: 'torrents',
       key: entry.fileName,
       title: entry.title,
       streamUrl: `http://${host}/media/torrents/${entry.fileName}/index.m3u8`,
+      thumbUrl: `http://${host}/thumb/torrents/${entry.fileName}.jpg`,
       bytes: torrent.folderBytes(path.join(TORRENT_DIR, entry.fileName)),
+      createdAt: entry.createdAt,
       lastUsedAt: entry.lastUsedAt
     }));
     sendJson(res, 200, { entries: list, torrents });
+    return;
+  }
+
+  // A frame from 10% into a saved video or film (thumbs.js), made on
+  // first request. Also works for a film that's still saving.
+  const thumbMatch = /^\/thumb\/(media|torrents)\/([^/]+)\.jpg$/.exec(url.pathname);
+  if (req.method === 'GET' && thumbMatch) {
+    const [, kind, name] = thumbMatch;
+    if (!validCacheName(kind, name)) {
+      res.writeHead(404);
+      res.end();
+      return;
+    }
+    thumbs.get(kind, name).then((file) => {
+      fs.readFile(file, (err, data) => {
+        if (err) {
+          res.writeHead(404);
+          res.end();
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': data.length, 'Cache-Control': 'max-age=300' });
+        res.end(data);
+      });
+    }, () => {
+      res.writeHead(404);
+      res.end();
+    });
+    return;
+  }
+
+  // Deletes a saved video or film, files and thumbnail included. A film
+  // that's still downloading has to be cancelled instead.
+  const deleteMatch = /^\/cache\/(media|torrents)\/([^/]+)\/delete$/.exec(url.pathname);
+  if (req.method === 'POST' && deleteMatch) {
+    const [, kind, name] = deleteMatch;
+    if (!validCacheName(kind, name)) {
+      sendJson(res, 404, { error: 'Not in the cache.' });
+      return;
+    }
+    if (kind === 'torrents' && activeTorrents.has(name)) {
+      sendJson(res, 409, { error: 'Still downloading: cancel it from the downloads list first.' });
+      return;
+    }
+    const cache = kind === 'media' ? mediaCache : torrentCache;
+    const entry = cache.remove(name);
+    if (!entry) {
+      sendJson(res, 404, { error: 'Not in the cache (already deleted?).' });
+      return;
+    }
+    const target = kind === 'media' ? path.join(MEDIA_DIR, name) : path.join(TORRENT_DIR, name);
+    fs.rm(target, { recursive: true, force: true }, () => {});
+    thumbs.remove(kind, name);
+    log('deleted from cache', kind, name, entry.title);
+    sendJson(res, 200, { deleted: name });
     return;
   }
 
@@ -567,7 +655,7 @@ setInterval(() => {
     if (err) return;
     const cutoff = Date.now() - MEDIA_TTL_MS;
     files.forEach((file) => {
-      if (file === 'cache-index.json' || file === 'torrents' || mediaCache.has(file)) return;
+      if (file === 'cache-index.json' || file === 'torrents' || file === 'thumbs' || mediaCache.has(file)) return;
       const filePath = path.join(MEDIA_DIR, file);
       fs.stat(filePath, (statErr, stat) => {
         if (!statErr && stat.mtimeMs < cutoff) fs.unlink(filePath, () => {});
@@ -577,5 +665,5 @@ setInterval(() => {
 }, SWEEP_INTERVAL_MS);
 
 server.listen(PORT, () => {
-  log(`resolver listening on :${PORT} (POST /resolve, POST /torrent, GET /resolve/:id, GET /jobs, GET /cache, GET /media/:file, GET /healthz)`);
+  log(`resolver listening on :${PORT} (POST /resolve, POST /torrent, GET /resolve/:id, GET /jobs, GET /cache, GET /thumb/:kind/:name.jpg, POST /cache/:kind/:name/delete, GET /media/:file, GET /healthz)`);
 });

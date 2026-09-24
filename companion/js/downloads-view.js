@@ -7,9 +7,8 @@
 // Cast shows once a download is playable, which for a torrent is while
 // it's still saving; opts.onCast(streamUrl, title) does the casting.
 //
-// render(jobs, saved) can also take the films saved from torrents
-// (resolver.listSavedFilms()): they stay listed, castable, after their
-// download has dropped off the job list.
+// Finished films stay castable from the saved tab (saved-view.js) after
+// they drop off this list.
 //
 // `panel` is hidden while there's nothing to show. With
 // opts.emptyNotice it's the other way round: `panel` is an "empty"
@@ -150,24 +149,9 @@ function createDownloadsView(resolver, panel, list, opts) {
     if (running && row.cancel.textContent !== 'cancelling…') row.cancel.disabled = false;
   }
 
-  // A saved film shaped like a finished torrent job, so it renders the
-  // same way (full green bar, "fully saved · size", cast button).
-  function savedJob(film) {
-    return {
-      id: 'saved:' + film.key,
-      torrentKey: film.key,
-      kind: 'torrent',
-      status: 'ready',
-      complete: true,
-      title: film.title,
-      bytes: film.bytes,
-      streamUrl: film.streamUrl
-    };
-  }
-
-  // Takes /jobs (newest first), and optionally the saved films. Returns
-  // true while anything is running, so the caller can poll faster.
-  function render(jobs, saved) {
+  // Takes /jobs (newest first). Returns true while anything is running,
+  // so the caller can poll faster.
+  function render(jobs) {
     var now = Date.now();
     var seen = {};
     var shown = jobs.filter(function (job) {
@@ -175,11 +159,6 @@ function createDownloadsView(resolver, panel, list, opts) {
       if (seen[key]) return false; // cast twice: only the latest
       seen[key] = true;
       return isRunning(job) || now - (job.finishedAt || job.createdAt || 0) < KEEP_MS;
-    });
-    var listed = {};
-    shown.forEach(function (job) { listed[keyOf(job)] = true; });
-    (saved || []).forEach(function (film) {
-      if (!listed[film.key]) shown.push(savedJob(film));
     });
     var keep = {};
     shown.forEach(function (job, i) {

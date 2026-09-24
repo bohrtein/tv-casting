@@ -118,6 +118,16 @@ class MediaCache {
     return this.entries.slice().sort((a, b) => b.lastUsedAt - a.lastUsedAt);
   }
 
+  // Forgets one entry (deleted by hand from the companion). Returns it,
+  // or null if it wasn't there; the caller deletes the files.
+  remove(fileName) {
+    const entry = this.entries.find((e) => e.fileName === fileName);
+    if (!entry) return null;
+    this.entries = this.entries.filter((e) => e !== entry);
+    this._save();
+    return entry;
+  }
+
   // Registers a freshly downloaded file, replacing any stale entry for
   // the same source url, then evicts least-recently-used entries beyond
   // maxEntries. Returns the evicted entries so the caller can delete

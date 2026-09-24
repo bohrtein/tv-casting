@@ -45,6 +45,7 @@
       <button class="mx-tab" data-mx-tab="link">link</button>
       <button class="mx-tab" data-mx-tab="remote">remote</button>
       <button class="mx-tab" data-mx-tab="downloads">downloads</button>
+      <button class="mx-tab" data-mx-tab="saved">saved</button>
       <button class="mx-tab" data-mx-tab="activity">activity</button>
     </nav>
 
@@ -144,6 +145,16 @@
           <span id="downloads-empty" class="mx-empty">nothing downloading.</span>
         </section>
 
+        <section class="mx-panel" data-mx-panel="saved" style="margin-top:16px">
+          <h2 class="mx-panel-title">saved</h2>
+          <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 16px">
+            Everything kept on the server: films saved from torrents, and
+            videos downloaded from links. They stay until you delete them
+            here (up to 100 of each).
+          </p>
+          <div id="saved-view"></div>
+        </section>
+
         <section class="mx-panel mx-glass" data-mx-panel="activity" style="margin-top:16px">
           <h2 class="mx-panel-title">activity</h2>
           <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 16px">
@@ -165,6 +176,7 @@
 <script src="js/resolver-client.js" defer></script>
 <script src="js/downloads-view.js" defer></script>
 <script src="js/now-casting.js" defer></script>
+<script src="js/saved-view.js" defer></script>
 <script src="js/relay-client.js" defer></script>
 <script src="js/app.js" defer></script>
 <script>

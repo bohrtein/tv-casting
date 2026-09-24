@@ -441,3 +441,91 @@
   color: var(--mx-ink-faint);
   overflow-wrap: anywhere;
 }
+
+/* --- saved tab (saved-view.js) --- */
+
+.cn-saved-filter {
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.cn-saved-group + .cn-saved-group {
+  margin-top: 22px;
+}
+
+.cn-saved-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--mx-ink-dim);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin: 0 0 10px;
+}
+
+.cn-saved-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cn-saved-item {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.cn-saved-thumb {
+  flex: 0 0 128px;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--mx-accent-low);
+  border: 1px solid var(--mx-border-strong);
+}
+
+.cn-saved-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* No thumbnail yet (or the frame couldn't be made): just the tinted box. */
+.cn-saved-nothumb img {
+  visibility: hidden;
+}
+
+.cn-saved-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cn-saved-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.cn-saved-meta {
+  font-size: 12px;
+  color: var(--mx-ink-dim);
+}
+
+.cn-saved-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.cn-saved-actions .cn-confirm {
+  color: var(--mx-danger);
+  border-color: var(--mx-danger-line);
+  background: var(--mx-danger-low);
+}

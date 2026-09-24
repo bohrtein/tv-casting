@@ -33,7 +33,7 @@ around regardless of age.
 
 ## Rewatch cache
 
-`src/cache.js` keeps the last `RESOLVER_CACHE_SIZE` (default 5)
+`src/cache.js` keeps the last `RESOLVER_CACHE_SIZE` (default 100)
 distinct source urls' downloaded files on disk, indexed by source url
 in `MEDIA_DIR/cache-index.json`. Recasting a url that's still in the
 cache skips the download entirely — `POST /resolve` resolves straight
@@ -69,7 +69,7 @@ page builds) and saves that film on this server while the TV watches it:
   converted to AAC stereo, and other video to h264, which is slow on a
   weak CPU. Subtitles are dropped.
 - Finished films are kept, so casting the same one again plays from disk
-  with no torrent at all. `TORRENT_CACHE_SIZE` (default 3) finished films
+  with no torrent at all. `TORRENT_CACHE_SIZE` (default 100) finished films
   are kept, least recently watched deleted first. A download that never
   finished (resolver stopped mid-film) is deleted on the next start.
 - Casting a film that's already downloading joins the running download
@@ -159,13 +159,20 @@ the download to get there.
   (yt-dlp, or a torrent's ffmpeg) and deletes what it saved so far; the
   job's `status` becomes `cancelled`. `409` if it already finished. A
   torrent the TV is playing stops playing too.
-- `GET /cache` → `{ "entries": [{ "sourceUrl", "title", "streamUrl", "lastUsedAt" }, ...] }`,
+- `GET /cache` → `{ "entries": [{ "kind", "key", "sourceUrl", "title", "streamUrl", "thumbUrl", "bytes", "createdAt", "lastUsedAt" }, ...] }`,
   most-recently-used first. The still-on-disk rewatch cache (up to
   `RESOLVER_CACHE_SIZE` entries) — lets a client offer "cast something
   you already downloaded" without re-resolving the source url. Also
-  `"torrents": [{ "key", "title", "streamUrl", "bytes", "lastUsedAt" }]`:
+  `"torrents": [{ "kind", "key", "title", "streamUrl", "thumbUrl", "bytes", "createdAt", "lastUsedAt" }]`:
   the films saved from torrents (up to `TORRENT_CACHE_SIZE`), which the
   companion's downloads list offers to cast.
+- `GET /thumb/<media|torrents>/<key>.jpg` — a 480 px frame from 10% into a
+  saved video or film (`src/thumbs.js`), made on first request and kept in
+  `MEDIA_DIR/thumbs/` until the video is deleted. A film still saving gets a
+  fresh one every 5 minutes.
+- `POST /cache/<media|torrents>/<key>/delete` — deletes a saved video or
+  film (files and thumbnail). `409` for a film that's still downloading
+  (cancel it instead), `404` if it isn't saved.
 - `GET /healthz` — `{ "status": "ok", "jobs": <n> }`.
 
 ## Config (`.env`, see `.env.example`)
@@ -177,8 +184,8 @@ the download to get there.
 | `MAX_HEIGHT` | `1080` | caps the requested format so a cast doesn't pull an 8K master onto a home LAN |
 | `MAX_FILESIZE` | `2G` | hard stop passed to yt-dlp's `--max-filesize`, protects disk from a runaway download |
 | `MEDIA_TTL_MS` | `21600000` (6h) | sweep interval for deleting old downloaded files and job records not tracked by the rewatch cache |
-| `RESOLVER_CACHE_SIZE` | `5` | how many distinct source urls the rewatch cache (see above) keeps on disk at once |
-| `TORRENT_CACHE_SIZE` | `3` | how many finished torrent films stay on disk (see "Torrents"; a film is often 2–20 GB) |
+| `RESOLVER_CACHE_SIZE` | `100` | how many distinct source urls the rewatch cache (see above) keeps on disk at once; delete by hand from the companion's "saved" tab |
+| `TORRENT_CACHE_SIZE` | `100` | how many finished torrent films stay on disk (see "Torrents"; a film is often 2–20 GB, so watch the disk); delete by hand from the "saved" tab |
 | `TORRENT_SERVER_URL` | *(unset)* | read torrents from [`torrent-server/`](../torrent-server/README.md) (e.g. `http://192.168.2.31:11480`) instead of the Stremio server the companion names |
 | `TORRENT_START_TIMEOUT_MS` | `180000` | how long to wait for a torrent to start sending data before giving up |
 | `YTDLP_BIN` | `yt-dlp` | override if it's not on `PATH` for the service user |
