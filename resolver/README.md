@@ -74,6 +74,13 @@ page builds) and saves that film on this server while the TV watches it:
   finished (resolver stopped mid-film) is deleted on the next start.
 - Casting a film that's already downloading joins the running download
   instead of starting a second one.
+- The log reports the torrent's peers while a job runs, every 10 s while
+  it's still looking for them and every 30 s once it's saving:
+  `torrent peers [connecting] <key> 3 connected (2 in, 1 out), 57 known,
+  metadata ok, 1.20 MB/s, forwarded port 34136`. `in` are peers that
+  connected to us through the VPN's forwarded port, `out` ones we reached;
+  `known` is every address heard of. The Stremio server reports tries
+  and per-tracker finds instead of in/out and known.
 - Torrent jobs in `/jobs` and `/resolve/:id` also carry `kind: "torrent"`,
   `phase` (`connecting` → `saving` → `done`), `savedSec`, `durationSec`,
   `bytes` (on disk so far) and `bytesPerSec` (over the last ~5 s). The

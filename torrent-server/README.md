@@ -28,7 +28,7 @@ URLs and the resolver only swaps the host:
 | Route | |
 |---|---|
 | `GET`/`HEAD /<infoHash>/<fileIdx>?tr=…&f=…` | The file, with `Range` support. `-1` picks the biggest video file (the biggest one matching an `f=` pattern, if any). Waits up to `METADATA_TIMEOUT_MS` for the torrent's metadata, then answers 504 with how many peers it had. |
-| `GET /<infoHash>/stats.json` | `peers`, `downloadSpeed`, `downloaded`, `progress`… The resolver reads this to explain a failure. |
+| `GET /<infoHash>/stats.json` | `peers` (and how many are `incoming`/`outgoing`), `knownPeers`, `downloadSpeed`, `downloaded`, `progress`… The resolver logs this while a job runs, and reads it to explain a failure. |
 | `GET /stats.json` | The forwarded port and every running torrent. |
 
 Only the chosen file is downloaded, in order. A torrent nobody has read

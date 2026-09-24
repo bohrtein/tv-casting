@@ -236,10 +236,25 @@ async function runTorrentJob(job, url, key) {
   // Speed over roughly the last 5 seconds, so one burst of pieces doesn't
   // make the number jump around.
   const samples = [];
+  // Peer report in the log: every 10 s while it's still looking for
+  // peers, every 30 s once it's saving.
+  let phase = 'connecting';
+  let ticks = 0;
+  log('torrent start', key, job.title, 'from', new URL(url).origin);
+  const peerTimer = setInterval(async () => {
+    ticks++;
+    if (phase !== 'connecting' && ticks % 3 !== 0) return;
+    const stats = await torrent.peerStats(url);
+    if (activeTorrents.get(key) !== job) return;
+    log(`torrent peers [${phase}]`, key, torrent.describePeers(stats));
+  }, 10000);
   try {
     await torrent.download(url, outDir, {
       signal,
-      onProbed: ({ durationSec }) => jobs.update(job.id, { phase: 'saving', durationSec }),
+      onProbed: ({ durationSec }) => {
+        phase = 'saving';
+        jobs.update(job.id, { phase: 'saving', durationSec });
+      },
       onReady: () => {
         jobs.update(job.id, { status: 'ready' });
         log('torrent playable, still downloading', key, job.title);
@@ -280,6 +295,7 @@ async function runTorrentJob(job, url, key) {
     jobs.update(job.id, { status: 'error', error: err.message, complete: true, finishedAt: Date.now() });
     log('torrent failed', key, err.message);
   } finally {
+    clearInterval(peerTimer);
     activeTorrents.delete(key);
   }
 }

@@ -213,11 +213,19 @@ function sendJson(res, status, body) {
 
 function torrentStats(infoHash, entry) {
   const t = entry.torrent;
+  // Which way each connected peer came: incoming ones found us through
+  // the forwarded port, so they show whether it's doing its job.
+  const incoming = t.wires.filter((w) => /Incoming/.test(w.type || '')).length;
   return {
     infoHash,
     name: t.name || null,
     ready: t.ready,
     peers: t.numPeers,
+    incoming,
+    outgoing: t.numPeers - incoming,
+    // Addresses heard of (trackers, DHT, peer exchange), connected or not.
+    // Private in webtorrent, hence the fallback.
+    knownPeers: typeof t._peersLength === 'number' ? t._peersLength : null,
     downloadSpeed: Math.round(t.downloadSpeed),
     uploadSpeed: Math.round(t.uploadSpeed),
     downloaded: t.downloaded,

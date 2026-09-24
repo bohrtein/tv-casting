@@ -250,4 +250,44 @@ function folderBytes(dir) {
   return createSizeCounter(dir)();
 }
 
-module.exports = { parseTorrentUrl, isKey, download, folderBytes };
+// The server's own stats for a torrent URL's torrent: ours
+// (torrent-server/) or the Stremio server's, same path on both. null when
+// the server doesn't answer or doesn't know the torrent (yet).
+async function peerStats(url) {
+  const u = new URL(url);
+  try {
+    const res = await fetch(`${u.origin}/${u.pathname.split('/')[1]}/stats.json`, { signal: AbortSignal.timeout(5000) });
+    return res.ok ? await res.json() : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function mbps(bytesPerSec) {
+  return `${((bytesPerSec || 0) / 1e6).toFixed(2)} MB/s`;
+}
+
+// One log line out of peerStats(). Fields only one of the two servers
+// has (incoming/outgoing and known peers: ours; tries and per-tracker
+// finds: Stremio's) are left out when missing.
+function describePeers(stats) {
+  if (!stats) return 'no stats from the server';
+  const parts = [];
+  let connected = `${stats.peers} connected`;
+  if (typeof stats.incoming === 'number') connected += ` (${stats.incoming} in, ${stats.outgoing} out)`;
+  parts.push(connected);
+  if (typeof stats.knownPeers === 'number') parts.push(`${stats.knownPeers} known`);
+  if (typeof stats.connectionTries === 'number') parts.push(`${stats.connectionTries} tries`);
+  if (Array.isArray(stats.sources) && stats.sources.length) {
+    const found = stats.sources.reduce((n, src) => n + (src.numFound || 0), 0);
+    parts.push(`${found} found by ${stats.sources.length} trackers`);
+  }
+  parts.push(stats.name ? 'metadata ok' : 'no metadata yet');
+  parts.push(mbps(stats.downloadSpeed));
+  if (typeof stats.forwardedPort !== 'undefined') {
+    parts.push(stats.forwardedPort ? `forwarded port ${stats.forwardedPort}` : 'no forwarded port');
+  }
+  return parts.join(', ');
+}
+
+module.exports = { parseTorrentUrl, isKey, download, folderBytes, peerStats, describePeers };
