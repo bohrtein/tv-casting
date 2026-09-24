@@ -416,6 +416,16 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function castStream(castable, title) {
+    if (castable.kind === 'direct' && castable.viaServer) {
+      setReadout(el.streamsReadout, 'checking the Stremio server…', false);
+      stremio.checkServer().then(function () {
+        setReadout(el.streamsReadout, '', false);
+        castToTv(castable.url, title);
+      }).catch(function (err) {
+        setReadout(el.streamsReadout, err.message, true);
+      });
+      return;
+    }
     if (castable.kind === 'direct') {
       castToTv(castable.url, title);
       return;

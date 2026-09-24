@@ -95,6 +95,12 @@ function handleStatus(socket, msg) {
     sendError(socket, ERROR_CODES.INVALID_MESSAGE, `Invalid status state "${msg.state}".`);
     return;
   }
+  // The TV's own console needs a debugger attached; logging here puts
+  // playback errors in this service's journal (App Hub's log viewer).
+  if (msg.state === 'error') {
+    const err = msg.error || {};
+    log(`TV playback error${msg.title ? ` (${msg.title})` : ''}: ${err.code || '?'}: ${err.message || '(no message)'}`);
+  }
   broadcastToCompanions(msg);
 }
 

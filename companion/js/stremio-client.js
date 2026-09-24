@@ -61,6 +61,22 @@ function createStremioClient(config) {
     writeStore(SERVER_KEY, String(url || '').trim());
   }
 
+  // Resolves if the streaming server answers at all, rejects with a
+  // readable reason if not. Without this, a stopped or unreachable server
+  // only shows up as the TV's player failing with no useful message.
+  // no-cors: only reachability matters here, not the (opaque) body.
+  function checkServer() {
+    var server = getServerUrl();
+    var timeout = new Promise(function (resolve, reject) {
+      setTimeout(function () { reject(new Error('timed out')); }, 5000);
+    });
+    return Promise.race([fetch(server + '/settings', { mode: 'no-cors', cache: 'no-store' }), timeout])
+      .catch(function (err) {
+        throw new Error("Can't reach the Stremio server at " + server + ' (' + err.message +
+          '). Is it running? Check Developer Tools > Stremio Server, and the VPN log.');
+      });
+  }
+
   // --- transport ---
 
   function getJson(url) {
@@ -260,7 +276,8 @@ function createStremioClient(config) {
   //               the addon says the request needs extra headers
   //   infoHash -> <server>/<infoHash>/<fileIdx or -1>?tr=...
   //   ytId     -> our own resolver, which already turns YouTube into MP4
-  // Returns { kind: 'direct' | 'resolve' | 'unsupported', url, reason }.
+  // Returns { kind: 'direct' | 'resolve' | 'unsupported', url, reason },
+  // with viaServer set when the TV will be fetching from the server.
 
   function torrentUrl(server, infoHash, fileIdx, trackers, fileMustInclude) {
     var params = [];
@@ -307,14 +324,14 @@ function createStremioClient(config) {
       var parsed = fromMagnet(stream.url);
       if (!parsed) return { kind: 'unsupported', reason: 'unreadable magnet link' };
       if (!server) return { kind: 'unsupported', reason: NEEDS_SERVER };
-      return { kind: 'direct', url: torrentUrl(server, parsed.infoHash, null, parsed.trackers) };
+      return { kind: 'direct', viaServer: true, url: torrentUrl(server, parsed.infoHash, null, parsed.trackers) };
     }
 
     if (stream.url) {
       var headers = stream.behaviorHints && stream.behaviorHints.proxyHeaders;
       if (headers && (headers.request || headers.response)) {
         if (!server) return { kind: 'unsupported', reason: NEEDS_SERVER };
-        return { kind: 'direct', url: proxyUrl(server, stream.url, headers) };
+        return { kind: 'direct', viaServer: true, url: proxyUrl(server, stream.url, headers) };
       }
       return { kind: 'direct', url: stream.url };
     }
@@ -328,6 +345,7 @@ function createStremioClient(config) {
       // the server takes them as-is, same as stremio-core passes them.
       return {
         kind: 'direct',
+        viaServer: true,
         url: torrentUrl(server, stream.infoHash, stream.fileIdx, stream.sources || stream.announce, stream.fileMustInclude)
       };
     }
@@ -348,6 +366,7 @@ function createStremioClient(config) {
     removeAddon: removeAddon,
     getServerUrl: getServerUrl,
     setServerUrl: setServerUrl,
+    checkServer: checkServer,
     browsableCatalogs: browsableCatalogs,
     getCatalog: getCatalog,
     search: search,

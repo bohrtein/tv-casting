@@ -25,6 +25,11 @@ function createPlayer(handlers) {
     return text;
   }
 
+  function hostOf(url) {
+    var m = /^[a-z]+:\/\/([^/?#]+)/i.exec(url || '');
+    return m ? m[1] : 'an unknown address';
+  }
+
   // Resets AVPlay to NONE after a failed open/prepare. Without this the
   // player stays half-open, and the next open() throws InvalidStateError,
   // so one bad link would break every link after it.
@@ -66,8 +71,22 @@ function createPlayer(handlers) {
         handlers.onPlayTime(sec);
       },
       onerror: function (eventType) {
-        log.error('onerror', eventType, 'url=' + currentUrl);
-        handlers.onError({ code: 'PLAYBACK_FAILED', message: String(eventType) });
+        var url = currentUrl;
+        log.error('onerror', Array.prototype.slice.call(arguments), 'url=' + url);
+        // Some firmware calls this with no argument at all, which used to
+        // reach the companion as the bare word "undefined". Name what
+        // failed instead: usually the TV couldn't connect to, or read,
+        // that server.
+        var reason = eventType ? describeError(eventType)
+          : 'the TV player gave no reason';
+        // Same half-open state as a failed prepare: without the reset,
+        // casting the same link again only "resumes" the dead player.
+        resetAfterFailure();
+        handlers.onError({
+          code: 'PLAYBACK_FAILED',
+          message: 'Playback failed (' + reason + ') while playing from ' + hostOf(url) +
+            '. Check that the TV can reach that server and that the file is a format the TV plays.'
+        });
       },
       onevent: function (eventType, eventData) {
         log.info('onevent', eventType, eventData);
