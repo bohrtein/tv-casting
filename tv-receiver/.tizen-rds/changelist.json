@@ -8,7 +8,7 @@
       },
       {
         "path": "Debug/projects/tv-receiver/js/player.js",
-        "type": "modify"
+        "type": "add"
       },
       {
         "path": "Debug/projects/tv-receiver/README.md",
@@ -28,7 +28,7 @@
       },
       {
         "path": "Debug/projects/tv-receiver/index.html",
-        "type": "modify"
+        "type": "add"
       },
       {
         "path": "Debug/projects/tv-receiver/js/config.js",
@@ -68,6 +68,34 @@
       },
       {
         "path": "Debug/projects/tv-receiver/media/idle-background.jpg",
+        "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/matrix/fonts/OFL.txt",
+        "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/matrix/fonts/SpaceMono-Bold.ttf",
+        "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/matrix/fonts/SpaceMono-Regular.ttf",
+        "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/matrix/fonts/UnifrakturMaguntia-Book.ttf",
+        "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/matrix/MANIFEST.json",
+        "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/matrix/matrix-tokens.css",
+        "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/matrix/VERSION",
         "type": "add"
       }
     ]

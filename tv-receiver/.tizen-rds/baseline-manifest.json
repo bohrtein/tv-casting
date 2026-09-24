@@ -1,14 +1,14 @@
 {
   "deployId": 1,
   "projectDir": "c:\\tv-casting\\tv-receiver",
-  "timestamp": "2026-09-24T20:07:59.577Z",
+  "timestamp": "2026-09-24T20:15:00.384Z",
   "hashAlgorithm": "xxh3-128",
   "input": {
     "README.md": {
-      "hash": "eae4a65d9ef89daa1425609352d4373f"
+      "hash": "980c3f3f0f83b503bc07427894e34035"
     },
     "index.html": {
-      "hash": "ce929f53cd1ddacb89670f9739745bdf"
+      "hash": "3228afc92274f435381889d393f53429"
     },
     "icon.png": {
       "hash": "bd44cc37e2f9e1f535090ea4b90b0d5f"
@@ -20,7 +20,7 @@
       "hash": "5d9040ae0da8f82979cf3c02db1bd68d"
     },
     "js/player.js": {
-      "hash": "aae9501c87e740b96e9704ff62bf95a0"
+      "hash": "abd61c1ae7a13ff9c4a60ecfa171c9a6"
     },
     "js/log.js": {
       "hash": "436aaebb000a269b31ef30c748c2a663"
@@ -32,18 +32,39 @@
       "hash": "8f2776e74dba2a6c99bbe9870681265c"
     },
     "css/style.css": {
-      "hash": "bd6d43f4e4f1f2ba83670bf1e62b281e"
+      "hash": "9efda7a14875d6f04a8aab1777b348a8"
     },
     "media/idle-background.jpg": {
       "hash": "6d08eb7830b3222bbeba2c706c635eba"
+    },
+    "matrix/VERSION": {
+      "hash": "cce3b30ae8ad3b2eafcaff747c533044"
+    },
+    "matrix/matrix-tokens.css": {
+      "hash": "44c094952c7c0c1ffc7956ebf5091624"
+    },
+    "matrix/MANIFEST.json": {
+      "hash": "3b2ef8b9b15b88591bc6941e89fec2a8"
+    },
+    "matrix/fonts/UnifrakturMaguntia-Book.ttf": {
+      "hash": "a231106bc472e71af7258651859b03fa"
+    },
+    "matrix/fonts/SpaceMono-Regular.ttf": {
+      "hash": "425a76c75191e9d28dd3444449850dc5"
+    },
+    "matrix/fonts/SpaceMono-Bold.ttf": {
+      "hash": "7ad3c77d407b53508307dee03b7ab63d"
+    },
+    "matrix/fonts/OFL.txt": {
+      "hash": "1223916b1a89adc59991ec4a437ff320"
     }
   },
   "output": {
     "Debug/projects/tv-receiver/README.md": {
-      "hash": "eae4a65d9ef89daa1425609352d4373f"
+      "hash": "980c3f3f0f83b503bc07427894e34035"
     },
     "Debug/projects/tv-receiver/index.html": {
-      "hash": "ce929f53cd1ddacb89670f9739745bdf"
+      "hash": "3228afc92274f435381889d393f53429"
     },
     "Debug/projects/tv-receiver/icon.png": {
       "hash": "bd44cc37e2f9e1f535090ea4b90b0d5f"
@@ -51,14 +72,20 @@
     "Debug/projects/tv-receiver/config.xml": {
       "hash": "afdc94a211f8772b9f72b59d95d8b590"
     },
-    "Debug/projects/tv-receiver/media/idle-background.jpg": {
-      "hash": "6d08eb7830b3222bbeba2c706c635eba"
+    "Debug/projects/tv-receiver/matrix/VERSION": {
+      "hash": "cce3b30ae8ad3b2eafcaff747c533044"
+    },
+    "Debug/projects/tv-receiver/matrix/matrix-tokens.css": {
+      "hash": "44c094952c7c0c1ffc7956ebf5091624"
+    },
+    "Debug/projects/tv-receiver/matrix/MANIFEST.json": {
+      "hash": "3b2ef8b9b15b88591bc6941e89fec2a8"
     },
     "Debug/projects/tv-receiver/js/relay-client.js": {
       "hash": "5d9040ae0da8f82979cf3c02db1bd68d"
     },
     "Debug/projects/tv-receiver/js/player.js": {
-      "hash": "aae9501c87e740b96e9704ff62bf95a0"
+      "hash": "abd61c1ae7a13ff9c4a60ecfa171c9a6"
     },
     "Debug/projects/tv-receiver/js/log.js": {
       "hash": "436aaebb000a269b31ef30c748c2a663"
@@ -72,8 +99,23 @@
     "Debug/projects/tv-receiver/.vscode/settings.json": {
       "hash": "4363d5c883c8ad50eb39176c2df0bdb7"
     },
+    "Debug/projects/tv-receiver/media/idle-background.jpg": {
+      "hash": "6d08eb7830b3222bbeba2c706c635eba"
+    },
     "Debug/projects/tv-receiver/css/style.css": {
-      "hash": "bd6d43f4e4f1f2ba83670bf1e62b281e"
+      "hash": "9efda7a14875d6f04a8aab1777b348a8"
+    },
+    "Debug/projects/tv-receiver/matrix/fonts/UnifrakturMaguntia-Book.ttf": {
+      "hash": "a231106bc472e71af7258651859b03fa"
+    },
+    "Debug/projects/tv-receiver/matrix/fonts/SpaceMono-Regular.ttf": {
+      "hash": "425a76c75191e9d28dd3444449850dc5"
+    },
+    "Debug/projects/tv-receiver/matrix/fonts/SpaceMono-Bold.ttf": {
+      "hash": "7ad3c77d407b53508307dee03b7ab63d"
+    },
+    "Debug/projects/tv-receiver/matrix/fonts/OFL.txt": {
+      "hash": "1223916b1a89adc59991ec4a437ff320"
     }
   }
 }

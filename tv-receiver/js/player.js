@@ -14,6 +14,29 @@ function createPlayer(handlers) {
     return typeof webapis !== 'undefined' && !!webapis.avplay;
   }
 
+  // Tizen WebAPIException stringifies to just its name ("UnknownError"),
+  // which hides the message that actually says what went wrong -- spell
+  // out name, message and numeric code instead.
+  function describeError(err) {
+    if (!err || typeof err !== 'object') return String(err);
+    var text = err.name || 'Error';
+    if (err.message) text += ': ' + err.message;
+    if (err.code) text += ' (code ' + err.code + ')';
+    return text;
+  }
+
+  // Resets AVPlay to NONE after a failed open/prepare. Without this the
+  // player stays half-open, and the next open() throws InvalidStateError,
+  // so one bad link would break every link after it.
+  function resetAfterFailure() {
+    currentUrl = null;
+    try {
+      webapis.avplay.close();
+    } catch (e) {
+      log.warn('close after failure threw', describeError(e));
+    }
+  }
+
   function attachListeners() {
     webapis.avplay.setListener({
       onbufferingstart: function () {
@@ -43,7 +66,7 @@ function createPlayer(handlers) {
         handlers.onPlayTime(sec);
       },
       onerror: function (eventType) {
-        log.error('onerror', eventType);
+        log.error('onerror', eventType, 'url=' + currentUrl);
         handlers.onError({ code: 'PLAYBACK_FAILED', message: String(eventType) });
       },
       onevent: function (eventType, eventData) {
@@ -62,24 +85,32 @@ function createPlayer(handlers) {
     currentUrl = url;
     lastLoggedPlayTimeSec = -1;
     log.info('open', url, 'start=' + (startPositionSec || 0) + 's');
-    webapis.avplay.open(url);
-    attachListeners();
-    webapis.avplay.setDisplayRect(0, 0, 1920, 1080);
-    webapis.avplay.prepareAsync(
-      function () {
-        log.info('prepared, duration=' + getDurationSec() + 's');
-        if (startPositionSec) {
-          webapis.avplay.seekTo(startPositionSec * 1000);
+    try {
+      webapis.avplay.open(url);
+      attachListeners();
+      webapis.avplay.setDisplayRect(0, 0, 1920, 1080);
+      webapis.avplay.prepareAsync(
+        function () {
+          log.info('prepared, duration=' + getDurationSec() + 's');
+          if (startPositionSec) {
+            webapis.avplay.seekTo(startPositionSec * 1000);
+          }
+          webapis.avplay.play();
+          handlers.onStateChange('playing');
+        },
+        function (err) {
+          log.error('prepareAsync failed', describeError(err), 'url=' + url, err);
+          resetAfterFailure();
+          handlers.onError({ code: 'PREPARE_FAILED', message: describeError(err) });
         }
-        webapis.avplay.play();
-        handlers.onStateChange('playing');
-      },
-      function (err) {
-        log.error('prepareAsync failed', err);
-        currentUrl = null;
-        handlers.onError({ code: 'PREPARE_FAILED', message: String(err) });
-      }
-    );
+      );
+    } catch (e) {
+      // Thrown synchronously (bad URI, wrong player state). Previously
+      // uncaught, so the companion never heard anything back at all.
+      log.error('open failed', describeError(e), 'url=' + url, e);
+      resetAfterFailure();
+      handlers.onError({ code: 'OPEN_FAILED', message: describeError(e) });
+    }
   }
 
   function play(url, startPositionSec) {
