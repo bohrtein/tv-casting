@@ -81,6 +81,11 @@ ones may find fewer peers.
 
 ## Using it
 
+Torrents don't go straight from here to the TV. The resolver reads them
+from this server and saves them to disk while the TV plays them (see
+[resolver/README.md](../resolver/README.md), "Torrents"), so a film you've
+watched stays on the server and plays again without the torrent.
+
 - **Start / Stop** in Developer Tools. Stopping it frees the bandwidth and
   disk a torrent keeps using after you stop watching. Direct-link streams
   and YouTube don't need it.

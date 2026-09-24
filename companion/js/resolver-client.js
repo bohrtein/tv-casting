@@ -15,11 +15,11 @@ function createResolverClient(config) {
     return /\.(mp4|m3u8|mpd|webm|mkv|mov|ts)$/i.test(path);
   }
 
-  function startJob(url) {
-    return fetch(config.RESOLVER_URL + '/resolve', {
+  function startJob(endpoint, body) {
+    return fetch(config.RESOLVER_URL + endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: url })
+      body: JSON.stringify(body)
     }).then(function (res) {
       if (!res.ok) {
         return res.json().catch(function () { return {}; }).then(function (body) {
@@ -40,7 +40,18 @@ function createResolverClient(config) {
   // Resolves with { streamUrl, title }. Calls onProgress(job) after
   // every poll so the caller can render a live status line.
   function resolve(url, onProgress) {
-    return startJob(url).then(function (job) {
+    return follow(startJob('/resolve', { url: url }), onProgress);
+  }
+
+  // Same, for a Stremio server torrent URL: the resolver saves the film
+  // on the server and resolves as soon as the TV can start on it, while
+  // the rest keeps downloading there (resolver/README.md, "Torrents").
+  function resolveTorrent(url, title, onProgress) {
+    return follow(startJob('/torrent', { url: url, title: title }), onProgress);
+  }
+
+  function follow(started, onProgress) {
+    return started.then(function (job) {
       return new Promise(function (ok, fail) {
         function tick() {
           pollJob(job.id).then(function (state) {
@@ -88,6 +99,7 @@ function createResolverClient(config) {
   return {
     isDirectMediaUrl: isDirectMediaUrl,
     resolve: resolve,
+    resolveTorrent: resolveTorrent,
     listJobs: listJobs,
     listCache: listCache
   };

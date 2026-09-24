@@ -277,7 +277,8 @@ function createStremioClient(config) {
   //   infoHash -> <server>/<infoHash>/<fileIdx or -1>?tr=...
   //   ytId     -> our own resolver, which already turns YouTube into MP4
   // Returns { kind: 'direct' | 'resolve' | 'unsupported', url, reason },
-  // with viaServer set when the TV will be fetching from the server.
+  // with viaServer set when the stream comes from the streaming server,
+  // and torrent set when it's a torrent (saved on the server first).
 
   function torrentUrl(server, infoHash, fileIdx, trackers, fileMustInclude) {
     var params = [];
@@ -324,7 +325,7 @@ function createStremioClient(config) {
       var parsed = fromMagnet(stream.url);
       if (!parsed) return { kind: 'unsupported', reason: 'unreadable magnet link' };
       if (!server) return { kind: 'unsupported', reason: NEEDS_SERVER };
-      return { kind: 'direct', viaServer: true, url: torrentUrl(server, parsed.infoHash, null, parsed.trackers) };
+      return { kind: 'direct', viaServer: true, torrent: true, url: torrentUrl(server, parsed.infoHash, null, parsed.trackers) };
     }
 
     if (stream.url) {
@@ -346,6 +347,7 @@ function createStremioClient(config) {
       return {
         kind: 'direct',
         viaServer: true,
+        torrent: true,
         url: torrentUrl(server, stream.infoHash, stream.fileIdx, stream.sources || stream.announce, stream.fileMustInclude)
       };
     }

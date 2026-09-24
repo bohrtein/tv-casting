@@ -419,8 +419,21 @@ document.addEventListener('DOMContentLoaded', function () {
     if (castable.kind === 'direct' && castable.viaServer) {
       setReadout(el.streamsReadout, 'checking the Stremio server…', false);
       stremio.checkServer().then(function () {
-        setReadout(el.streamsReadout, '', false);
-        castToTv(castable.url, title);
+        if (!castable.torrent) {
+          setReadout(el.streamsReadout, '', false);
+          castToTv(castable.url, title);
+          return;
+        }
+        // The resolver saves the film on the server and answers once
+        // the TV can start; the download carries on there after that.
+        setReadout(el.streamsReadout, 'finding peers…', false);
+        return resolver.resolveTorrent(castable.url, title, function (job) {
+          var pct = typeof job.progress === 'number' && job.progress > 0 ? ' ' + Math.round(job.progress) + '%' : '';
+          setReadout(el.streamsReadout, job.status === 'downloading' ? 'saving to the server…' + pct : 'finding peers…', false);
+        }).then(function (result) {
+          setReadout(el.streamsReadout, 'playing while it keeps saving on the server', false);
+          castToTv(result.streamUrl, title);
+        });
       }).catch(function (err) {
         setReadout(el.streamsReadout, err.message, true);
       });

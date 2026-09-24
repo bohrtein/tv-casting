@@ -48,6 +48,34 @@ of the last N distinct things cast," not a timer; the TTL sweep only
 ever touches files the cache isn't tracking (orphaned partial/error
 downloads).
 
+## Torrents
+
+`POST /torrent` takes a torrent URL from the Stremio server
+(`http://<host>:11470/<infoHash>/<fileIdx>`, what the companion's Stremio
+page builds) and saves that film on this server while the TV watches it:
+
+- ffmpeg reads the file through the Stremio server (which does the actual
+  torrenting, through the VPN) and writes it to
+  `MEDIA_DIR/torrents/<infoHash>-<fileIdx>/` as an HLS playlist
+  (`index.m3u8`) plus `.ts` segments of about 6 seconds each.
+- The job turns `ready` as soon as the first 3 segments are saved, so the
+  TV starts right away. The download keeps going on the server at whatever
+  speed the torrent gives, whether the TV is watching, paused or stopped.
+  `complete` in the job turns `true` once the whole film is saved.
+- h264/hevc video and aac/mp3/ac3/eac3 audio are copied as they are, so
+  the server does almost no work. Other audio (DTS, FLAC, TrueHD...) is
+  converted to AAC stereo, and other video to h264, which is slow on a
+  weak CPU. Subtitles are dropped.
+- Finished films are kept, so casting the same one again plays from disk
+  with no torrent at all. `TORRENT_CACHE_SIZE` (default 3) finished films
+  are kept, least recently watched deleted first. A download that never
+  finished (resolver stopped mid-film) is deleted on the next start.
+- Casting a film that's already downloading joins the running download
+  instead of starting a second one.
+
+Seeking works within what's saved so far; jumping past it has to wait for
+the download to get there.
+
 ## Extraction tiers
 
 `runJob` in `src/index.js` tries, in order:
@@ -108,6 +136,10 @@ downloads).
   human-readable message from yt-dlp).
 - `GET /media/:id.mp4` — the resolved file, with HTTP Range support so
   AVPlay can seek.
+- `POST /torrent` `{ "url": "<stremio server>/<infoHash>/<fileIdx>", "title": "..." }`
+  → same job shape as `/resolve` (see "Torrents"). Once `ready`,
+  `streamUrl` is `http://<this-host>/media/torrents/<key>/index.m3u8`,
+  and `complete` says whether the download is still running.
 - `GET /cache` → `{ "entries": [{ "sourceUrl", "title", "streamUrl", "lastUsedAt" }, ...] }`,
   most-recently-used first. The still-on-disk rewatch cache (up to
   `RESOLVER_CACHE_SIZE` entries) — lets a client offer "cast something
@@ -124,6 +156,8 @@ downloads).
 | `MAX_FILESIZE` | `2G` | hard stop passed to yt-dlp's `--max-filesize`, protects disk from a runaway download |
 | `MEDIA_TTL_MS` | `21600000` (6h) | sweep interval for deleting old downloaded files and job records not tracked by the rewatch cache |
 | `RESOLVER_CACHE_SIZE` | `5` | how many distinct source urls the rewatch cache (see above) keeps on disk at once |
+| `TORRENT_CACHE_SIZE` | `3` | how many finished torrent films stay on disk (see "Torrents"; a film is often 2–20 GB) |
+| `TORRENT_START_TIMEOUT_MS` | `180000` | how long to wait for a torrent to start sending data before giving up |
 | `YTDLP_BIN` | `yt-dlp` | override if it's not on `PATH` for the service user |
 
 ## Personal use

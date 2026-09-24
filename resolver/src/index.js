@@ -6,6 +6,7 @@ const path = require('path');
 const { JobRegistry } = require('./jobs');
 const { MediaCache } = require('./cache');
 const ytdlp = require('./ytdlp');
+const torrent = require('./torrent');
 const { log } = require('./logger');
 
 const PORT = process.env.PORT || 8788;
@@ -16,11 +17,27 @@ const MEDIA_TTL_MS = parseInt(process.env.MEDIA_TTL_MS || String(6 * 60 * 60 * 1
 const SWEEP_INTERVAL_MS = 15 * 60 * 1000;
 const ENABLE_GENERIC_FALLBACK = process.env.ENABLE_GENERIC_FALLBACK !== '0';
 const CACHE_MAX_ENTRIES = parseInt(process.env.RESOLVER_CACHE_SIZE || '5', 10);
+// Films are big, so torrents get their own, smaller cache.
+const TORRENT_CACHE_SIZE = parseInt(process.env.TORRENT_CACHE_SIZE || '3', 10);
+const TORRENT_DIR = path.join(MEDIA_DIR, 'torrents');
 
-fs.mkdirSync(MEDIA_DIR, { recursive: true });
+fs.mkdirSync(TORRENT_DIR, { recursive: true });
 
 const jobs = new JobRegistry();
 const mediaCache = new MediaCache(MEDIA_DIR, CACHE_MAX_ENTRIES);
+// Keyed by "<infoHash>-<fileIdx>"; fileName is that key's folder.
+const torrentCache = new MediaCache(TORRENT_DIR, TORRENT_CACHE_SIZE);
+const activeTorrents = new Map(); // key -> job, while ffmpeg is running
+
+// A folder that isn't in the cache index is a download that never
+// finished (resolver stopped mid-film). Nothing is running at startup,
+// so those are safe to clear.
+fs.readdirSync(TORRENT_DIR).forEach((name) => {
+  if (torrent.isKey(name) && !torrentCache.has(name)) {
+    fs.rmSync(path.join(TORRENT_DIR, name), { recursive: true, force: true });
+    log('removed unfinished torrent download', name);
+  }
+});
 
 function sendJson(res, status, body) {
   const data = JSON.stringify(body);
@@ -69,13 +86,18 @@ function jobPublicShape(job, req) {
     title: job.title,
     sourceUrl: job.sourceUrl,
     fromCache: !!job.fromCache,
+    // Torrents turn "ready" while still downloading; this says when the
+    // whole file is on disk.
+    complete: job.complete !== false,
     createdAt: job.createdAt,
     finishedAt: job.finishedAt
   };
   if (job.status === 'error') shape.error = job.error;
   if (job.status === 'ready') {
     const host = req.headers.host; // same host companion used to reach us -- reachable by the TV on the same LAN
-    shape.streamUrl = `http://${host}/media/${job.fileName}`;
+    shape.streamUrl = job.torrentKey
+      ? `http://${host}/media/torrents/${job.torrentKey}/index.m3u8`
+      : `http://${host}/media/${job.fileName}`;
   }
   return shape;
 }
@@ -164,7 +186,58 @@ async function runJob(job, url) {
   }
 }
 
-function serveMedia(req, res, fileName) {
+// Download and playback side by side: the job goes "ready" once the
+// first segments are saved, so the TV starts playing, and ffmpeg keeps
+// downloading into the same folder while it watches.
+async function runTorrentJob(job, url, key) {
+  const outDir = path.join(TORRENT_DIR, key);
+  activeTorrents.set(key, job);
+  jobs.update(job.id, { status: 'downloading', torrentKey: key, complete: false });
+  try {
+    await torrent.download(url, outDir, {
+      onReady: () => {
+        jobs.update(job.id, { status: 'ready' });
+        log('torrent playable, still downloading', key, job.title);
+      },
+      onProgress: (pct) => jobs.update(job.id, { progress: pct })
+    });
+    jobs.update(job.id, { progress: 100, complete: true, finishedAt: Date.now() });
+    log('torrent fully saved', key, job.title);
+    const evicted = torrentCache.add({ sourceUrl: key, fileName: key, title: job.title });
+    evicted.forEach((e) => {
+      fs.rm(path.join(TORRENT_DIR, e.fileName), { recursive: true, force: true }, () => {});
+      log('torrent cache evicted (LRU cap)', e.fileName, e.title);
+    });
+  } catch (err) {
+    fs.rm(outDir, { recursive: true, force: true }, () => {});
+    jobs.update(job.id, { status: 'error', error: err.message, complete: true, finishedAt: Date.now() });
+    log('torrent failed', key, err.message);
+  } finally {
+    activeTorrents.delete(key);
+  }
+}
+
+// The playlist gets an EXT-X-START so the TV begins at the start of the
+// film. A growing ("event") playlist otherwise tells players to join at
+// the newest segment, like a live broadcast.
+function servePlaylist(res, filePath) {
+  fs.readFile(filePath, 'utf8', (err, text) => {
+    if (err) {
+      res.writeHead(404);
+      res.end();
+      return;
+    }
+    const body = text.replace(/^#EXTM3U\n/, '#EXTM3U\n#EXT-X-START:TIME-OFFSET=0\n');
+    res.writeHead(200, {
+      'Content-Type': 'application/vnd.apple.mpegurl',
+      'Content-Length': Buffer.byteLength(body),
+      'Cache-Control': 'no-store'
+    });
+    res.end(body);
+  });
+}
+
+function serveMedia(req, res, fileName, contentType = 'video/mp4') {
   const filePath = path.join(MEDIA_DIR, fileName);
   fs.stat(filePath, (err, stat) => {
     if (err) {
@@ -176,7 +249,7 @@ function serveMedia(req, res, fileName) {
     const range = req.headers.range;
     if (!range) {
       res.writeHead(200, {
-        'Content-Type': 'video/mp4',
+        'Content-Type': contentType,
         'Content-Length': stat.size,
         'Accept-Ranges': 'bytes'
       });
@@ -195,7 +268,7 @@ function serveMedia(req, res, fileName) {
       return;
     }
     res.writeHead(206, {
-      'Content-Type': 'video/mp4',
+      'Content-Type': contentType,
       'Content-Range': `bytes ${start}-${end}/${stat.size}`,
       'Content-Length': end - start + 1,
       'Accept-Ranges': 'bytes'
@@ -262,6 +335,53 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Torrents: body { url, title }, url being a Stremio server torrent URL
+  // (<server>/<infoHash>/<fileIdx>). Same job shape as /resolve.
+  if (req.method === 'POST' && url.pathname === '/torrent') {
+    readJsonBody(req, 32 * 1024).then((body) => {
+      const target = typeof body.url === 'string' ? body.url.trim() : '';
+      const parsed = torrent.parseTorrentUrl(target);
+      if (!parsed) {
+        sendJson(res, 400, { error: 'Body must be { "url": "<stremio server>/<infoHash>/<fileIdx>" }.' });
+        return;
+      }
+      const title = typeof body.title === 'string' && body.title ? body.title.slice(0, 300) : parsed.key;
+
+      // Already downloading (e.g. cast again, or from another phone):
+      // hand back the same job instead of downloading it twice.
+      const running = activeTorrents.get(parsed.key);
+      if (running) {
+        sendJson(res, 202, { id: running.id, status: running.status });
+        return;
+      }
+
+      const job = jobs.create();
+      job.sourceUrl = target;
+      job.title = title;
+
+      const cached = torrentCache.find(parsed.key);
+      if (cached) {
+        jobs.update(job.id, {
+          status: 'ready',
+          progress: 100,
+          title: cached.title,
+          torrentKey: parsed.key,
+          fromCache: true,
+          finishedAt: Date.now()
+        });
+        log('torrent from cache', parsed.key, cached.title);
+        sendJson(res, 202, { id: job.id, status: job.status });
+        return;
+      }
+
+      sendJson(res, 202, { id: job.id, status: job.status });
+      runTorrentJob(job, target, parsed.key);
+    }).catch((err) => {
+      sendJson(res, 400, { error: err.message });
+    });
+    return;
+  }
+
   // Lets ANY companion see what's resolving/downloading right now (or
   // recently finished/errored), not just the device that started it --
   // a resolve job already runs independently of the browser tab that
@@ -311,6 +431,14 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  const torrentMatch = /^\/media\/torrents\/([0-9a-f]{40}-(?:-1|\d+))\/(index\.m3u8|seg\d{5}\.ts)$/.exec(url.pathname);
+  if (req.method === 'GET' && torrentMatch) {
+    const rel = path.join('torrents', torrentMatch[1], torrentMatch[2]);
+    if (torrentMatch[2] === 'index.m3u8') servePlaylist(res, path.join(MEDIA_DIR, rel));
+    else serveMedia(req, res, rel, 'video/mp2t');
+    return;
+  }
+
   res.writeHead(404);
   res.end();
 });
@@ -326,7 +454,7 @@ setInterval(() => {
     if (err) return;
     const cutoff = Date.now() - MEDIA_TTL_MS;
     files.forEach((file) => {
-      if (file === 'cache-index.json' || mediaCache.has(file)) return;
+      if (file === 'cache-index.json' || file === 'torrents' || mediaCache.has(file)) return;
       const filePath = path.join(MEDIA_DIR, file);
       fs.stat(filePath, (statErr, stat) => {
         if (!statErr && stat.mtimeMs < cutoff) fs.unlink(filePath, () => {});
@@ -336,5 +464,5 @@ setInterval(() => {
 }, SWEEP_INTERVAL_MS);
 
 server.listen(PORT, () => {
-  log(`resolver listening on :${PORT} (POST /resolve, GET /resolve/:id, GET /jobs, GET /cache, GET /media/:file, GET /healthz)`);
+  log(`resolver listening on :${PORT} (POST /resolve, POST /torrent, GET /resolve/:id, GET /jobs, GET /cache, GET /media/:file, GET /healthz)`);
 });
