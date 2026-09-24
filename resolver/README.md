@@ -162,7 +162,10 @@ the download to get there.
 - `GET /cache` → `{ "entries": [{ "sourceUrl", "title", "streamUrl", "lastUsedAt" }, ...] }`,
   most-recently-used first. The still-on-disk rewatch cache (up to
   `RESOLVER_CACHE_SIZE` entries) — lets a client offer "cast something
-  you already downloaded" without re-resolving the source url.
+  you already downloaded" without re-resolving the source url. Also
+  `"torrents": [{ "key", "title", "streamUrl", "bytes", "lastUsedAt" }]`:
+  the films saved from torrents (up to `TORRENT_CACHE_SIZE`), which the
+  companion's downloads list offers to cast.
 - `GET /healthz` — `{ "status": "ok", "jobs": <n> }`.
 
 ## Config (`.env`, see `.env.example`)

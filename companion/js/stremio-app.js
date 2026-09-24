@@ -589,7 +589,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var SAVING_FAST_MS = 2000;   // while something is downloading
   var SAVING_SLOW_MS = 15000;  // otherwise, to notice one started elsewhere
   var savingTimer = null;
-  var downloads = createDownloadsView(resolver, el.savingPanel, el.savingList);
+  var downloads = createDownloadsView(resolver, el.savingPanel, el.savingList, { onCast: castToTv });
 
   function refreshSaving() {
     clearTimeout(savingTimer);

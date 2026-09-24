@@ -98,6 +98,17 @@ function createResolverClient(config) {
     });
   }
 
+  // Films saved from torrents (the resolver's torrent cache), most
+  // recently used first; each has a streamUrl the TV plays from disk.
+  function listSavedFilms() {
+    return fetch(config.RESOLVER_URL + '/cache').then(function (res) {
+      if (!res.ok) throw new Error('Could not reach the resolver (HTTP ' + res.status + ')');
+      return res.json();
+    }).then(function (body) {
+      return body.torrents || [];
+    });
+  }
+
   // Stops a running download on the server and deletes what it saved.
   function cancel(id) {
     return fetch(config.RESOLVER_URL + '/resolve/' + id + '/cancel', { method: 'POST' }).then(function (res) {
@@ -114,6 +125,7 @@ function createResolverClient(config) {
     resolve: resolve,
     resolveTorrent: resolveTorrent,
     listJobs: listJobs,
-    listCache: listCache
+    listCache: listCache,
+    listSavedFilms: listSavedFilms
   };
 }

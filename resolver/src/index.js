@@ -495,7 +495,15 @@ const server = http.createServer((req, res) => {
       streamUrl: `http://${host}/media/${entry.fileName}`,
       lastUsedAt: entry.lastUsedAt
     }));
-    sendJson(res, 200, { entries: list });
+    // Films saved from torrents: castable any time, straight from disk.
+    const torrents = torrentCache.list().map((entry) => ({
+      key: entry.fileName,
+      title: entry.title,
+      streamUrl: `http://${host}/media/torrents/${entry.fileName}/index.m3u8`,
+      bytes: torrent.folderBytes(path.join(TORRENT_DIR, entry.fileName)),
+      lastUsedAt: entry.lastUsedAt
+    }));
+    sendJson(res, 200, { entries: list, torrents });
     return;
   }
 

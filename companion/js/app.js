@@ -293,7 +293,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // The downloads tab: progress bars + cancel, same view as the Stremio
   // page's.
-  var downloadsView = createDownloadsView(resolver, el.downloadsEmpty, el.downloadsList, { emptyNotice: true });
+  var downloadsView = createDownloadsView(resolver, el.downloadsEmpty, el.downloadsList, { emptyNotice: true, onCast: castToTv });
   downloadsView.onRefreshNeeded(function () { pollJobs(); });
 
   // A download that started while another tab is open puts Matrix's
@@ -338,8 +338,12 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function pollJobs() {
-    resolver.listJobs().then(function (allJobs) {
-      downloadsView.render(allJobs);
+    // Saved films are optional: an older resolver without them still
+    // shows its downloads.
+    var saved = resolver.listSavedFilms().catch(function () { return []; });
+    Promise.all([resolver.listJobs(), saved]).then(function (results) {
+      var allJobs = results[0];
+      downloadsView.render(allJobs, results[1]);
       markNewDownloads(allJobs);
       renderActivity(allJobs);
     }).catch(function () {

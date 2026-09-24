@@ -1,9 +1,15 @@
 'use strict';
 
-// Everything the resolver is downloading, as Matrix progress bars with a
-// cancel button: YouTube/links (downloaded before playing) and torrents
-// (saved on the server while the TV plays them, resolver/README.md
+// Everything the resolver is downloading, as Matrix progress bars with
+// cast and cancel buttons: YouTube/links (downloaded before playing) and
+// torrents (saved on the server while the TV plays them, resolver/README.md
 // "Torrents"). Shared by index.html's downloads tab and stremio.html.
+// Cast shows once a download is playable, which for a torrent is while
+// it's still saving; opts.onCast(streamUrl, title) does the casting.
+//
+// render(jobs, saved) can also take the films saved from torrents
+// (resolver.listSavedFilms()): they stay listed, castable, after their
+// download has dropped off the job list.
 //
 // `panel` is hidden while there's nothing to show. With
 // opts.emptyNotice it's the other way round: `panel` is an "empty"
@@ -14,6 +20,7 @@
 // they kept resetting.
 function createDownloadsView(resolver, panel, list, opts) {
   var emptyNotice = !!(opts && opts.emptyNotice);
+  var onCast = (opts && opts.onCast) || null;
   var KEEP_MS = 120000; // how long a finished download stays listed
   var rows = {};
 
@@ -89,7 +96,8 @@ function createDownloadsView(resolver, panel, list, opts) {
     item.innerHTML =
       '<div class="cn-dl-head">' +
         '<span class="cn-dl-title"></span>' +
-        '<button class="mx-btn mx-sm" type="button">cancel</button>' +
+        '<button class="mx-btn mx-sm mx-primary cn-dl-cast" type="button" hidden>cast</button>' +
+        '<button class="mx-btn mx-sm cn-dl-cancel" type="button">cancel</button>' +
       '</div>' +
       '<div class="mx-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100">' +
         '<div class="mx-progress-fill"></div>' +
@@ -98,12 +106,16 @@ function createDownloadsView(resolver, panel, list, opts) {
     var row = {
       item: item,
       title: item.querySelector('.cn-dl-title'),
-      cancel: item.querySelector('button'),
+      cast: item.querySelector('.cn-dl-cast'),
+      cancel: item.querySelector('.cn-dl-cancel'),
       bar: item.querySelector('.mx-progress'),
       fill: item.querySelector('.mx-progress-fill'),
       detail: item.querySelector('.cn-dl-detail'),
       job: null
     };
+    row.cast.addEventListener('click', function () {
+      if (onCast && row.job && row.job.streamUrl) onCast(row.job.streamUrl, row.job.title || 'download');
+    });
     row.cancel.addEventListener('click', function () {
       var job = row.job;
       row.cancel.disabled = true;
@@ -134,12 +146,28 @@ function createDownloadsView(resolver, panel, list, opts) {
     else row.bar.removeAttribute('aria-valuenow');
     row.detail.textContent = detail(job);
     row.cancel.hidden = !running;
+    row.cast.hidden = !onCast || job.status !== 'ready' || !job.streamUrl;
     if (running && row.cancel.textContent !== 'cancelling…') row.cancel.disabled = false;
   }
 
-  // Takes /jobs (newest first). Returns true while anything is running,
-  // so the caller can poll faster.
-  function render(jobs) {
+  // A saved film shaped like a finished torrent job, so it renders the
+  // same way (full green bar, "fully saved · size", cast button).
+  function savedJob(film) {
+    return {
+      id: 'saved:' + film.key,
+      torrentKey: film.key,
+      kind: 'torrent',
+      status: 'ready',
+      complete: true,
+      title: film.title,
+      bytes: film.bytes,
+      streamUrl: film.streamUrl
+    };
+  }
+
+  // Takes /jobs (newest first), and optionally the saved films. Returns
+  // true while anything is running, so the caller can poll faster.
+  function render(jobs, saved) {
     var now = Date.now();
     var seen = {};
     var shown = jobs.filter(function (job) {
@@ -147,6 +175,11 @@ function createDownloadsView(resolver, panel, list, opts) {
       if (seen[key]) return false; // cast twice: only the latest
       seen[key] = true;
       return isRunning(job) || now - (job.finishedAt || job.createdAt || 0) < KEEP_MS;
+    });
+    var listed = {};
+    shown.forEach(function (job) { listed[keyOf(job)] = true; });
+    (saved || []).forEach(function (film) {
+      if (!listed[film.key]) shown.push(savedJob(film));
     });
     var keep = {};
     shown.forEach(function (job, i) {
