@@ -160,10 +160,6 @@
   min-width: 0;
 }
 
-.cn-posters {
-  --mx-card-min: 128px;
-}
-
 .cn-poster > .mx-slot-lead {
   aspect-ratio: 2 / 3;
 }
@@ -191,12 +187,6 @@
   display: flex;
   justify-content: center;
   margin-top: 16px;
-}
-
-.cn-hero-poster {
-  width: 120px;
-  height: auto;
-  aspect-ratio: 2 / 3;
 }
 
 .cn-desc {
@@ -321,4 +311,133 @@
   .mx-layout-split.cn-split-3 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+}
+
+/* --- stremio: bigger artwork, full-picture viewer, stream details -------- */
+
+/* Two posters across a phone, more on wider screens -- big enough to see. */
+.cn-posters {
+  --mx-card-min: 150px;
+}
+
+@media (min-width: 700px) {
+  .cn-posters {
+    --mx-card-min: 190px;
+  }
+}
+
+.cn-poster .mx-media > img {
+  object-position: center top;
+}
+
+.cn-hero-poster-btn {
+  flex: 0 0 auto;
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: var(--mx-r-md);
+  cursor: zoom-in;
+}
+
+.cn-hero-poster-btn:focus-visible {
+  outline: 2px solid var(--mx-accent);
+  outline-offset: 3px;
+}
+
+/* The whole poster, not a square crop of it. */
+.cn-hero-poster,
+.mx-hero-media.cn-hero-poster {
+  display: block;
+  width: min(62vw, 240px);
+  height: auto;
+  aspect-ratio: auto;
+  object-fit: contain;
+}
+
+@container (min-width: 560px) {
+  .mx-hero-media.cn-hero-poster {
+    width: 240px;
+    height: auto;
+  }
+}
+
+.cn-facts {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0 0;
+  font-size: 13px;
+  text-align: left;
+}
+
+.cn-facts:empty {
+  display: none;
+}
+
+.cn-facts > div {
+  display: flex;
+  gap: 8px;
+}
+
+.cn-facts dt {
+  flex: 0 0 72px;
+  color: var(--mx-ink-faint);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: .04em;
+  padding-top: 2px;
+}
+
+.cn-facts dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--mx-ink-dim);
+}
+
+.cn-viewer {
+  align-items: center;
+  padding: 16px;
+}
+
+.cn-viewer-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.cn-viewer-body > img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 100px);
+  max-height: calc(100dvh - 100px);
+  object-fit: contain;
+  border-radius: var(--mx-r-md);
+  box-shadow: var(--mx-shadow);
+}
+
+.cn-stream-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 3px 0 2px;
+}
+
+.cn-tag {
+  padding: 1px 6px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--mx-ink);
+  background: var(--mx-surface-sunken);
+  border: 1px solid var(--mx-border-soft);
+  border-radius: var(--mx-r-sm);
+  white-space: nowrap;
+}
+
+.cn-stream-source {
+  font-size: 11px;
+  color: var(--mx-ink-faint);
+  overflow-wrap: anywhere;
 }
