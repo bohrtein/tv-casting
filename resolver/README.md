@@ -61,7 +61,14 @@ page builds) and saves that film on this server while the TV watches it:
   `MEDIA_DIR/torrents/<infoHash>-<fileIdx>/` as an HLS playlist
   (`index.m3u8`) plus `.ts` segments of about 6 seconds each.
 - The job turns `ready` as soon as the first 3 segments are saved, so the
-  TV starts right away. The download keeps going on the server at whatever
+  TV starts right away. While the film is still saving, the TV gets a
+  playlist for the whole film (`src/hls.js`): the saved segments, then
+  placeholders for the rest. Samsung's player treats a growing playlist
+  as live TV and would start wherever the download has got to; this way
+  it starts at the beginning and its seek bar shows the full length. A
+  request for a segment that isn't saved yet waits for it (up to
+  `SEGMENT_WAIT_MS`, default 2 min), and the few spare placeholders left
+  once the film is saved are answered empty, so the TV just reaches the end. The download keeps going on the server at whatever
   speed the torrent gives, whether the TV is watching, paused or stopped.
   `complete` in the job turns `true` once the whole film is saved.
 - h264/hevc video and aac/mp3/ac3/eac3 audio are copied as they are, so

@@ -290,4 +290,4 @@ function describePeers(stats) {
   return parts.join(', ');
 }
 
-module.exports = { parseTorrentUrl, isKey, download, folderBytes, peerStats, describePeers };
+module.exports = { parseTorrentUrl, isKey, download, folderBytes, peerStats, describePeers, SEGMENT_SEC };

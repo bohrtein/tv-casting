@@ -8,6 +8,7 @@ const { MediaCache } = require('./cache');
 const ytdlp = require('./ytdlp');
 const torrent = require('./torrent');
 const { createThumbs } = require('./thumbs');
+const { fullLengthPlaylist } = require('./hls');
 const { log } = require('./logger');
 
 const PORT = process.env.PORT || 8788;
@@ -324,23 +325,61 @@ async function runTorrentJob(job, url, key) {
   }
 }
 
-// The playlist gets an EXT-X-START so the TV begins at the start of the
-// film. A growing ("event") playlist otherwise tells players to join at
-// the newest segment, like a live broadcast.
-function servePlaylist(res, filePath) {
+// A film still saving is served as a playlist for the whole film
+// (hls.js): the TV's player treats a growing one as live TV and starts
+// wherever the download has got to. A finished one is served as ffmpeg
+// wrote it, with an EXT-X-START so any player begins at the start.
+function servePlaylist(res, filePath, key) {
   fs.readFile(filePath, 'utf8', (err, text) => {
     if (err) {
       res.writeHead(404);
       res.end();
       return;
     }
-    const body = text.replace(/^#EXTM3U\n/, '#EXTM3U\n#EXT-X-START:TIME-OFFSET=0\n');
+    const job = activeTorrents.get(key);
+    const body = job && job.durationSec && !/#EXT-X-ENDLIST/.test(text)
+      ? fullLengthPlaylist(text, job.durationSec, torrent.SEGMENT_SEC)
+      : text.replace(/^#EXTM3U\n/, '#EXTM3U\n#EXT-X-START:TIME-OFFSET=0\n');
     res.writeHead(200, {
       'Content-Type': 'application/vnd.apple.mpegurl',
       'Content-Length': Buffer.byteLength(body),
       'Cache-Control': 'no-store'
     });
     res.end(body);
+  });
+}
+
+// A segment that doesn't exist. For a finished film that's one of the
+// spare placeholders at the end of a full-length playlist (hls.js lists a
+// few more than ffmpeg ends up writing): answer it empty, so the TV reads
+// it as the end of the film rather than an error. Otherwise a real 404.
+function serveMissingSegment(res, key) {
+  if (torrentCache.has(key)) {
+    res.writeHead(200, { 'Content-Type': 'video/mp2t', 'Content-Length': 0 });
+    res.end();
+    return;
+  }
+  res.writeHead(404);
+  res.end();
+}
+
+// How long a request for a segment that isn't saved yet waits for it.
+// The TV asks a few segments ahead, so this is how far the download may
+// fall behind playback before the TV gives up on that request.
+const SEGMENT_WAIT_MS = parseInt(process.env.SEGMENT_WAIT_MS || '120000', 10);
+
+// Resolves true once file exists, false if the download for key stops
+// (finished without it, failed or cancelled) or SEGMENT_WAIT_MS passes.
+// ffmpeg writes each segment under a temporary name and renames it when
+// it's complete (temp_file), so existing means complete.
+function waitForSegment(file, key) {
+  const until = Date.now() + SEGMENT_WAIT_MS;
+  return new Promise((resolve) => {
+    (function check() {
+      if (fs.existsSync(file)) return resolve(true);
+      if (!activeTorrents.has(key) || Date.now() >= until) return resolve(fs.existsSync(file));
+      setTimeout(check, 500);
+    })();
   });
 }
 
@@ -634,9 +673,28 @@ const server = http.createServer((req, res) => {
 
   const torrentMatch = /^\/media\/torrents\/([0-9a-f]{40}-(?:-1|\d+))\/(index\.m3u8|seg\d{5}\.ts)$/.exec(url.pathname);
   if (req.method === 'GET' && torrentMatch) {
-    const rel = path.join('torrents', torrentMatch[1], torrentMatch[2]);
-    if (torrentMatch[2] === 'index.m3u8') servePlaylist(res, path.join(MEDIA_DIR, rel));
-    else serveMedia(req, res, rel, 'video/mp2t');
+    const [, key, name] = torrentMatch;
+    const rel = path.join('torrents', key, name);
+    if (name === 'index.m3u8') {
+      servePlaylist(res, path.join(MEDIA_DIR, rel), key);
+      return;
+    }
+    const file = path.join(MEDIA_DIR, rel);
+    if (fs.existsSync(file)) {
+      serveMedia(req, res, rel, 'video/mp2t');
+      return;
+    }
+    if (!activeTorrents.has(key)) {
+      serveMissingSegment(res, key);
+      return;
+    }
+    let gone = false;
+    res.on('close', () => { gone = true; });
+    waitForSegment(file, key).then((ready) => {
+      if (gone) return;
+      if (ready) serveMedia(req, res, rel, 'video/mp2t');
+      else serveMissingSegment(res, key);
+    });
     return;
   }
 
