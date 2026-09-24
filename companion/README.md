@@ -36,7 +36,9 @@ directly from the browser, the same way Stremio does:
   gives Popular movies/series plus search.
 - **Detail**: title info, season/episode picker for series, then the
   streams every stream addon returns for that title or episode. Tap one
-  and it casts.
+  and it casts. Direct links (e.g. debrid) come first, then torrents by
+  seeders, read from the addon's text (Torrentio's "👤 N"); under 5
+  seeders the count shows amber, 0 red, since those rarely start.
 - **Addons** (sheet): add any addon by its manifest link
   (`https://…/manifest.json` or `stremio://…`), remove them, and set
   the streaming server. The addon list is shared by every device:

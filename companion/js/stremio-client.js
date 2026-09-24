@@ -333,6 +333,35 @@ function createStremioClient(config) {
     return tryNext(0);
   }
 
+  // --- seeders ---
+  // The addon protocol has no seeders field, so addons put the count in
+  // the text: Torrentio and most forks write "👤 123", a few "Seeders: 123".
+  // Returns the number, or null when the stream doesn't say.
+  function seeders(stream) {
+    var text = [stream.title, stream.description, stream.name].filter(Boolean).join('\n');
+    var m = /👤\s*(\d+)/.exec(text) || /\bseed(?:er)?s?\s*[:=]?\s*(\d+)/i.exec(text);
+    return m ? parseInt(m[1], 10) : null;
+  }
+
+  function isTorrent(stream) {
+    return !!stream.infoHash || /^magnet:/i.test(stream.url || '');
+  }
+
+  // Direct links (debrid, plain http) first, as the addons gave them:
+  // they don't need peers. Then torrents, most seeders first, with the
+  // ones that don't say at the end.
+  function sortStreams(streams) {
+    function rank(s) {
+      if (!isTorrent(s)) return Infinity;
+      var n = seeders(s);
+      return n == null ? -1 : n;
+    }
+    return streams
+      .map(function (s, i) { return { s: s, i: i, r: rank(s) }; })
+      .sort(function (a, b) { return a.r === b.r ? a.i - b.i : b.r - a.r; })
+      .map(function (x) { return x.s; });
+  }
+
   // Asks every stream addon at once. Resolves with { streams, errors },
   // each stream tagged with the addon it came from; one slow or broken
   // addon only costs its own streams.
@@ -351,7 +380,7 @@ function createStremioClient(config) {
       });
     })).then(function (lists) {
       return {
-        streams: [].concat.apply([], lists),
+        streams: sortStreams([].concat.apply([], lists)),
         errors: errors,
         addonCount: candidates.length
       };
@@ -463,6 +492,8 @@ function createStremioClient(config) {
     search: search,
     getMeta: getMeta,
     getStreams: getStreams,
-    toCastable: toCastable
+    toCastable: toCastable,
+    seeders: seeders,
+    isTorrent: isTorrent
   };
 }

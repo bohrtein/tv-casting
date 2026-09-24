@@ -366,6 +366,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // --- streams ---
 
+  var LOW_SEEDERS = 5;
   var streamsToken = 0;
   var lastStreams = null; // {type, id, title} -- re-asked when the addon list changes
 
@@ -400,14 +401,22 @@ document.addEventListener('DOMContentLoaded', function () {
     var name = String(stream.name || stream.addonName || 'stream').replace(/\n+/g, ' · ');
     var desc = stream.title || stream.description || '';
     if (castable.kind === 'unsupported') desc = (desc ? desc + '\n' : '') + '✕ ' + castable.reason;
-    var kind = stream.infoHash || /^magnet:/i.test(stream.url || '') ? 'torrent'
+    var kind = stremio.isTorrent(stream) ? 'torrent'
       : stream.ytId ? 'youtube' : stream.url ? 'link' : 'other';
+    // Torrents under LOW_SEEDERS usually time out on the server before
+    // the first byte arrives; say so before the three-minute wait.
+    var seeds = kind === 'torrent' ? stremio.seeders(stream) : null;
+    var seedBadge = seeds == null ? ''
+      : '<span class="mx-badge cn-seeds' + (seeds === 0 ? ' cn-seeds-dead' : seeds < LOW_SEEDERS ? ' cn-seeds-low' : '') + '"' +
+        ' title="' + (seeds < LOW_SEEDERS ? 'few seeders: may not start' : 'seeders') + '">👤 ' + seeds + '</span>';
     row.innerHTML =
       '<span class="cn-stream-main">' +
         '<span class="cn-row-name">' + escapeHtml(name) + '</span>' +
         '<span class="cn-stream-desc">' + escapeHtml(desc) + '</span>' +
       '</span>' +
-      '<span class="mx-badge">' + escapeHtml(kind) + '</span>';
+      '<span class="cn-stream-badges">' + seedBadge +
+        '<span class="mx-badge">' + escapeHtml(kind) + '</span>' +
+      '</span>';
     row.title = firstLine(desc);
     if (castable.kind === 'unsupported') {
       row.disabled = true;

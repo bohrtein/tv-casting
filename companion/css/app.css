@@ -220,6 +220,26 @@
   overflow-wrap: anywhere;
 }
 
+.cn-stream-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.cn-seeds-low {
+  --mx-tone: var(--mx-warn);
+  --mx-tone-line: var(--mx-warn-line);
+  --mx-tone-low: var(--mx-warn-low);
+}
+
+.cn-seeds-dead {
+  --mx-tone: var(--mx-danger);
+  --mx-tone-line: var(--mx-danger-line);
+  --mx-tone-low: var(--mx-danger-low);
+}
+
 .cn-row[disabled] {
   opacity: 0.5;
   cursor: default;
