@@ -53,9 +53,11 @@ conversion in `src/types/resource/stream.rs`):
 | `ytId` | an MP4 from `resolver/` | resolver |
 | `externalUrl` | not castable, shown disabled | |
 
-"Streaming server" is Stremio's own `stremio-service` (port 11470),
-meant to run on the home server next to relay/resolver
-(`STREMIO_SERVER_URL` in `js/config.js`, overridable on the page). The
+"Streaming server" is Stremio's own server (port 11470), run on the home
+server next to relay/resolver as the `tv-casting-stremio` unit, and
+controlled from App Hub's Developer Tools (see
+[`stremio-server/`](../stremio-server/)). It's `STREMIO_SERVER_URL` in
+`js/config.js`, overridable on the page. The
 TV fetches from it directly; nothing media-related goes through the
 relay, same hard rule as Jellyfin.
 

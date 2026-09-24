@@ -23,6 +23,10 @@ pieces in one repo. Full background and open decisions live in
   Its separate **Stremio** page (`stremio.html`) browses Stremio addons
   (Cinemeta catalogs, any stream addon) and casts the chosen stream; see
   [`companion/README.md`](companion/README.md#stremio-page-stremiohtml).
+- **[`stremio-server/`](stremio-server/)** — no code, just the systemd
+  unit that runs Stremio's own streaming server (Docker image
+  `stremio/server`) on the home server, for the companion's Stremio page.
+  Started, stopped and updated from App Hub's Developer Tools.
 - **[`resolver/`](resolver/)** — Node.js HTTP service, also on the home
   server. Turns a page URL with an embedded video (YouTube, Twitter/X,
   …) into a plain MP4 via `yt-dlp` + `ffmpeg`, since AVPlay can only load

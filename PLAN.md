@@ -188,6 +188,13 @@ loop: browse Jellyfin → pair with TV → cast → control → see live status.
 
 ## Current status
 
+2026-09-24 — Stremio server now runs as the `tv-casting-stremio` systemd
+unit (`stremio-server/systemd/`, Docker `stremio/server`, pulls the newest
+image on every start). App Hub's Developer Tools lists it, with new opt-in
+Start/Stop buttons (`stoppable = true` in its `devtools.toml`) on top of
+Restart and logs. Needs a matching sudoers line on the server; see
+`stremio-server/README.md`. The unit hasn't been run on the real server yet.
+
 2026-09-24 — Added a Stremio page to the companion (`stremio.html`,
 `js/stremio-client.js`, `js/stremio-app.js`). It speaks the Stremio addon
 protocol straight from the browser: Cinemeta for catalogs, search and

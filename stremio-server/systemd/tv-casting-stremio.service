@@ -1,0 +1,33 @@
+[Unit]
+Description=TV Casting Stremio server - Stremio's streaming server (stremio/server) in Docker
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Pull the newest image on every start, so App Hub's Restart button also
+# updates it. The leading "-" lets it start from the image already on disk
+# when the pull fails (offline, Docker Hub down).
+ExecStartPre=-/usr/bin/docker pull stremio/server:latest
+# Clears a container left over from an unclean stop, or from running it
+# by hand with `docker run --name stremio-server`, which would otherwise
+# make the name clash below.
+ExecStartPre=-/usr/bin/docker rm -f stremio-server
+# Runs in the foreground (no -d), so systemd tracks the container itself
+# and its output lands in the journal, which is where App Hub's log
+# viewer reads from. The named volume keeps the server's settings across
+# restarts and image updates.
+ExecStart=/usr/bin/docker run --rm --name stremio-server \
+  -p 11470:11470 -p 12470:12470 \
+  -v stremio-server:/root/.stremio-server \
+  stremio/server:latest
+ExecStop=/usr/bin/docker stop stremio-server
+Restart=on-failure
+RestartSec=5
+# The first start pulls a few hundred MB.
+TimeoutStartSec=600
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
