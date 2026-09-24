@@ -18,6 +18,16 @@ const READY_SEGMENTS = 3;
 // conversion is slow, but h264/hevc (nearly every torrent) is only
 // copied, so a 2h film costs the server almost nothing.
 const COPY_VIDEO = ['h264', 'hevc'];
+// Bigger than this (4K) is converted down to it as the film is saved, so
+// the saved copy is the size the TV can play. 0 keeps every size. The
+// width limit is the same 16:9 box (1920 for 1080), so a wide 3840x1600
+// film becomes 1920x800.
+const MAX_HEIGHT = parseInt(process.env.TORRENT_MAX_HEIGHT || '1080', 10);
+const MAX_WIDTH = Math.round((MAX_HEIGHT * 16) / 9);
+// libx264 speed for any conversion. Faster presets make bigger files;
+// on a slow CPU a 4K conversion may still run slower than the film
+// plays, and the TV then waits for it.
+const X264_PRESET = process.env.TORRENT_X264_PRESET || 'superfast';
 const COPY_AUDIO = ['aac', 'mp3', 'ac3', 'eac3'];
 
 // Only a Stremio server torrent URL: <server>/<infoHash>/<fileIdx>[?...].
@@ -51,7 +61,7 @@ function probe(url, signal) {
   return new Promise((resolve, reject) => {
     const child = spawn(FFPROBE_BIN, [
       '-v', 'error', ...httpInputArgs(),
-      '-show_entries', 'format=duration:stream=index,codec_type,codec_name',
+      '-show_entries', 'format=duration:stream=index,codec_type,codec_name,width,height',
       '-of', 'json', url
     ], { signal });
     let stdout = '';
@@ -172,12 +182,21 @@ function countSegments(playlistPath) {
 async function download(url, outDir, { onProbed, onReady, onProgress, signal }) {
   const info = await probe(url, signal);
   if (!info.video) throw new Error('That torrent file has no video in it.');
-  onProbed({ durationSec: info.duration });
+  const { width, height, codec_name: codec } = info.video;
+  const tooBig = MAX_HEIGHT > 0 && (height > MAX_HEIGHT || width > MAX_WIDTH);
+  const convert = tooBig || !COPY_VIDEO.includes(codec);
+  // Only ever shrinks, keeping the shape; never scales a small film up.
+  const box = MAX_HEIGHT > 0 ? { w: MAX_WIDTH, h: MAX_HEIGHT } : { w: 1920, h: 1080 };
+  const converting = !convert ? null
+    : tooBig ? `${width}x${height} ${codec} → ${MAX_HEIGHT}p`
+      : `${codec} → h264`;
+  onProbed({ durationSec: info.duration, converting });
 
-  const videoArgs = COPY_VIDEO.includes(info.video.codec_name)
+  const videoArgs = !convert
     ? ['-c:v', 'copy']
-    : ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p',
-      '-vf', "scale='min(1920,iw)':-2", '-force_key_frames', `expr:gte(t,n_forced*${SEGMENT_SEC})`];
+    : ['-c:v', 'libx264', '-preset', X264_PRESET, '-crf', '21', '-pix_fmt', 'yuv420p',
+      '-vf', `scale='min(iw,${box.w})':'min(ih,${box.h})':force_original_aspect_ratio=decrease:force_divisible_by=2`,
+      '-force_key_frames', `expr:gte(t,n_forced*${SEGMENT_SEC})`];
   let audioArgs = [];
   if (info.audio) {
     audioArgs = COPY_AUDIO.includes(info.audio.codec_name)

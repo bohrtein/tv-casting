@@ -129,7 +129,8 @@ function jobPublicShape(job, req) {
       savedSec: job.savedSec,
       durationSec: job.durationSec,
       bytes: job.bytes,
-      bytesPerSec: job.bytesPerSec
+      bytesPerSec: job.bytesPerSec,
+      converting: job.converting || null
     });
   }
   if (job.status === 'error') shape.error = job.error;
@@ -275,9 +276,10 @@ async function runTorrentJob(job, url, key) {
   try {
     await torrent.download(url, outDir, {
       signal,
-      onProbed: ({ durationSec }) => {
+      onProbed: ({ durationSec, converting }) => {
         phase = 'saving';
-        jobs.update(job.id, { phase: 'saving', durationSec });
+        jobs.update(job.id, { phase: 'saving', durationSec, converting });
+        if (converting) log('torrent converting', key, converting);
       },
       onReady: () => {
         jobs.update(job.id, { status: 'ready' });

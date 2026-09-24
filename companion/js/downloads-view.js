@@ -64,6 +64,7 @@ function createDownloadsView(resolver, panel, list, opts) {
     }
     parts.push(formatBytes(job.bytes));
     parts.push((job.bytesPerSec ? (job.bytesPerSec / 1e6).toFixed(1) : '0.0') + ' MB/s');
+    if (job.converting) parts.push('converting ' + job.converting);
     if (job.status === 'ready') parts.push('playable');
     return parts.join(' · ');
   }

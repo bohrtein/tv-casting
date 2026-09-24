@@ -194,6 +194,8 @@ the download to get there.
 | `RESOLVER_CACHE_SIZE` | `100` | how many distinct source urls the rewatch cache (see above) keeps on disk at once; delete by hand from the companion's "saved" tab |
 | `TORRENT_CACHE_SIZE` | `100` | how many finished torrent films stay on disk (see "Torrents"; a film is often 2–20 GB, so watch the disk); delete by hand from the "saved" tab |
 | `TORRENT_SERVER_URL` | *(unset)* | read torrents from [`torrent-server/`](../torrent-server/README.md) (e.g. `http://192.168.2.31:11480`) instead of the Stremio server the companion names |
+| `TORRENT_MAX_HEIGHT` | `1080` | films bigger than this (4K) are converted down to it as they're saved; `0` keeps every size |
+| `TORRENT_X264_PRESET` | `superfast` | libx264 speed for any conversion; on a slow CPU a 4K conversion can run slower than the film plays |
 | `TORRENT_START_TIMEOUT_MS` | `180000` | how long to wait for a torrent to start sending data before giving up |
 | `YTDLP_BIN` | `yt-dlp` | override if it's not on `PATH` for the service user |
 
