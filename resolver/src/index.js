@@ -568,16 +568,23 @@ const server = http.createServer((req, res) => {
       createdAt: entry.createdAt,
       lastUsedAt: entry.lastUsedAt
     }));
-    const torrents = torrentCache.list().map((entry) => ({
-      kind: 'torrents',
-      key: entry.fileName,
-      title: entry.title,
-      streamUrl: `http://${host}/media/torrents/${entry.fileName}/index.m3u8`,
-      thumbUrl: `http://${host}/thumb/torrents/${entry.fileName}.jpg`,
-      bytes: torrent.folderBytes(path.join(TORRENT_DIR, entry.fileName)),
-      createdAt: entry.createdAt,
-      lastUsedAt: entry.lastUsedAt
-    }));
+    const torrents = torrentCache.list().map((entry) => {
+      const dir = path.join(TORRENT_DIR, entry.fileName);
+      const origDir = path.join(dir, torrent.ORIGINAL_DIR);
+      const hasOriginal = fs.existsSync(path.join(origDir, 'index.m3u8'));
+      return {
+        kind: 'torrents',
+        key: entry.fileName,
+        title: entry.title,
+        streamUrl: `http://${host}/media/torrents/${entry.fileName}/index.m3u8`,
+        // The full-size film, when it was converted down for the TV.
+        originalUrl: hasOriginal ? `http://${host}/media/torrents/${entry.fileName}/${torrent.ORIGINAL_DIR}/index.m3u8` : null,
+        thumbUrl: `http://${host}/thumb/torrents/${entry.fileName}.jpg`,
+        bytes: torrent.folderBytes(dir) + (hasOriginal ? torrent.folderBytes(origDir) : 0),
+        createdAt: entry.createdAt,
+        lastUsedAt: entry.lastUsedAt
+      };
+    });
     sendJson(res, 200, { entries: list, torrents });
     return;
   }
@@ -670,6 +677,16 @@ const server = http.createServer((req, res) => {
   const mediaMatch = /^\/media\/([0-9a-f]{16}\.mp4)$/.exec(url.pathname);
   if (req.method === 'GET' && mediaMatch) {
     serveMedia(req, res, mediaMatch[1]);
+    return;
+  }
+
+  // The original (full-size) copy of a film that was converted down:
+  // plain files, served as written, for players other than the TV.
+  const originalMatch = /^\/media\/torrents\/([0-9a-f]{40}-(?:-1|\d+))\/original\/(index\.m3u8|seg\d{5}\.ts)$/.exec(url.pathname);
+  if (req.method === 'GET' && originalMatch) {
+    const [, key, name] = originalMatch;
+    const rel = path.join('torrents', key, torrent.ORIGINAL_DIR, name);
+    serveMedia(req, res, rel, name === 'index.m3u8' ? 'application/vnd.apple.mpegurl' : 'video/mp2t');
     return;
   }
 

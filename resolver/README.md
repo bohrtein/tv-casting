@@ -71,8 +71,11 @@ page builds) and saves that film on this server while the TV watches it:
   once the film is saved are answered empty, so the TV just reaches the end. The download keeps going on the server at whatever
   speed the torrent gives, whether the TV is watching, paused or stopped.
   `complete` in the job turns `true` once the whole film is saved.
-- h264/hevc video and aac/mp3/ac3/eac3 audio are copied as they are, so
-  the server does almost no work. Other audio (DTS, FLAC, TrueHD...) is
+- h264/hevc video up to 1080p and aac/mp3/ac3/eac3 audio are copied as
+  they are, so the server does almost no work. Bigger video (4K) is
+  converted down to 1080p for the TV, on the NVIDIA GPU when there is one
+  (`TORRENT_ENCODER`), and the untouched original is kept beside it in
+  `original/` from the same download (`TORRENT_KEEP_ORIGINAL`). Other audio (DTS, FLAC, TrueHD...) is
   converted to AAC stereo, and other video to h264, which is slow on a
   weak CPU. Subtitles are dropped.
 - Finished films are kept, so casting the same one again plays from disk
@@ -194,8 +197,10 @@ the download to get there.
 | `RESOLVER_CACHE_SIZE` | `100` | how many distinct source urls the rewatch cache (see above) keeps on disk at once; delete by hand from the companion's "saved" tab |
 | `TORRENT_CACHE_SIZE` | `100` | how many finished torrent films stay on disk (see "Torrents"; a film is often 2–20 GB, so watch the disk); delete by hand from the "saved" tab |
 | `TORRENT_SERVER_URL` | *(unset)* | read torrents from [`torrent-server/`](../torrent-server/README.md) (e.g. `http://192.168.2.31:11480`) instead of the Stremio server the companion names |
-| `TORRENT_MAX_HEIGHT` | `1080` | films bigger than this (4K) are converted down to it as they're saved; `0` keeps every size |
-| `TORRENT_X264_PRESET` | `superfast` | libx264 speed for any conversion; on a slow CPU a 4K conversion can run slower than the film plays |
+| `TORRENT_MAX_HEIGHT` | `1080` | films bigger than this (4K) are converted down to it as they're saved, for the TV; `0` keeps every size |
+| `TORRENT_KEEP_ORIGINAL` | `1` | when a film is converted down, also keep the untouched original in `<film>/original/` (the saved tab's "copy 4K link"); `0` keeps only the TV's copy. Costs the film's full size again on disk |
+| `TORRENT_ENCODER` | `auto` | `nvenc`: convert on an NVIDIA GPU (h264_nvenc, with CUDA decoding); `x264`: on the CPU; `auto`: nvenc if a test encode works at the first conversion, else x264. The log says which (`video conversions: …`) |
+| `TORRENT_X264_PRESET` | `superfast` | libx264 speed for CPU conversions; on a slow CPU a 4K conversion can run slower than the film plays |
 | `TORRENT_START_TIMEOUT_MS` | `180000` | how long to wait for a torrent to start sending data before giving up |
 | `YTDLP_BIN` | `yt-dlp` | override if it's not on `PATH` for the service user |
 

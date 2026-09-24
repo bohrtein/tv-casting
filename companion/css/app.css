@@ -520,8 +520,13 @@
 
 .cn-saved-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: auto;
+}
+
+.cn-saved-actions .mx-btn[hidden] {
+  display: none;
 }
 
 .cn-saved-actions .cn-confirm {

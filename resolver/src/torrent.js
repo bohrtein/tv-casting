@@ -28,6 +28,15 @@ const MAX_WIDTH = Math.round((MAX_HEIGHT * 16) / 9);
 // on a slow CPU a 4K conversion may still run slower than the film
 // plays, and the TV then waits for it.
 const X264_PRESET = process.env.TORRENT_X264_PRESET || 'superfast';
+// When a film is converted down, also keep it untouched (copied, not
+// re-encoded) in <film>/original/, for watching at full size elsewhere
+// (VLC on a monitor). Costs the film's full size again on disk.
+const KEEP_ORIGINAL = process.env.TORRENT_KEEP_ORIGINAL !== '0';
+// Which h264 encoder conversions use: "nvenc" (an NVIDIA GPU's, with the
+// GPU decoding too), "x264" (the CPU), or "auto" (nvenc if a quick test
+// encode works on this machine, else x264).
+const ENCODER = (process.env.TORRENT_ENCODER || 'auto').toLowerCase();
+const ORIGINAL_DIR = 'original';
 const COPY_AUDIO = ['aac', 'mp3', 'ac3', 'eac3'];
 
 // Only a Stremio server torrent URL: <server>/<infoHash>/<fileIdx>[?...].
@@ -47,6 +56,55 @@ function parseTorrentUrl(value) {
 
 function isKey(value) {
   return /^[0-9a-f]{40}-(-1|\d+)$/.test(value);
+}
+
+// Tried once, on the first conversion: a 0.2 s encode on the GPU. Needs
+// the NVIDIA driver and an ffmpeg built with nvenc (Ubuntu's is).
+let encoderPromise = null;
+function pickEncoder() {
+  if (ENCODER === 'x264') return Promise.resolve('x264');
+  if (!encoderPromise) {
+    encoderPromise = new Promise((resolve) => {
+      const child = spawn(FFMPEG_BIN, [
+        '-v', 'error', '-init_hw_device', 'cuda=gpu',
+        '-f', 'lavfi', '-i', 'color=c=black:s=640x360:r=25', '-t', '0.2',
+        '-c:v', 'h264_nvenc', '-f', 'null', '-'
+      ]);
+      let stderr = '';
+      child.stderr.on('data', (c) => { stderr += c; });
+      child.on('error', () => resolve({ name: 'x264', why: 'ffmpeg not startable' }));
+      child.on('close', (code) => resolve(code === 0
+        ? { name: 'nvenc' }
+        : { name: 'x264', why: stderr.trim().split('\n').pop() || `exit ${code}` }));
+    }).then((result) => {
+      if (result.name === 'nvenc') {
+        console.log(new Date().toISOString(), 'video conversions: NVIDIA GPU (h264_nvenc, cuda decode)');
+      } else {
+        console.log(new Date().toISOString(), `video conversions: CPU (libx264); no NVIDIA encoder${result.why ? ` (${result.why})` : ''}`);
+      }
+      return result.name;
+    });
+  }
+  // Forced on: trust it (a failing GPU then fails the conversion loudly
+  // instead of quietly using the CPU).
+  if (ENCODER === 'nvenc') return Promise.resolve('nvenc');
+  return encoderPromise;
+}
+
+// The h264 encode, on the GPU or the CPU. Keyframes every SEGMENT_SEC so
+// segments can be cut there; on the GPU they're forced as IDR frames,
+// which every segment has to start with.
+function encodeArgs(encoder, box) {
+  const common = [
+    '-pix_fmt', 'yuv420p',
+    '-vf', `scale='min(iw,${box.w})':'min(ih,${box.h})':force_original_aspect_ratio=decrease:force_divisible_by=2`,
+    '-force_key_frames', `expr:gte(t,n_forced*${SEGMENT_SEC})`
+  ];
+  if (encoder === 'nvenc') {
+    return ['-c:v', 'h264_nvenc', '-preset', 'p4', '-rc', 'vbr', '-cq', '23', '-b:v', '0',
+      '-maxrate', '15M', '-bufsize', '30M', '-forced-idr', '1', ...common];
+  }
+  return ['-c:v', 'libx264', '-preset', X264_PRESET, '-crf', '21', ...common];
 }
 
 // Same rule as ytdlp.js: args go straight to execve, never a shell.
@@ -187,16 +245,19 @@ async function download(url, outDir, { onProbed, onReady, onProgress, signal }) 
   const convert = tooBig || !COPY_VIDEO.includes(codec);
   // Only ever shrinks, keeping the shape; never scales a small film up.
   const box = MAX_HEIGHT > 0 ? { w: MAX_WIDTH, h: MAX_HEIGHT } : { w: 1920, h: 1080 };
+  const keepOriginal = tooBig && KEEP_ORIGINAL;
   const converting = !convert ? null
-    : tooBig ? `${width}x${height} ${codec} → ${MAX_HEIGHT}p`
+    : tooBig ? `${width}x${height} ${codec} → ${MAX_HEIGHT}p${keepOriginal ? ', keeping the original' : ''}`
       : `${codec} → h264`;
-  onProbed({ durationSec: info.duration, converting });
+  const encoderLabel = convert ? ((await pickEncoder()) === 'nvenc' ? ' on the GPU' : ' on the CPU') : '';
+  onProbed({ durationSec: info.duration, converting: converting && converting + encoderLabel });
 
-  const videoArgs = !convert
-    ? ['-c:v', 'copy']
-    : ['-c:v', 'libx264', '-preset', X264_PRESET, '-crf', '21', '-pix_fmt', 'yuv420p',
-      '-vf', `scale='min(iw,${box.w})':'min(ih,${box.h})':force_original_aspect_ratio=decrease:force_divisible_by=2`,
-      '-force_key_frames', `expr:gte(t,n_forced*${SEGMENT_SEC})`];
+  const encoder = convert ? await pickEncoder() : null;
+  const videoArgs = !convert ? ['-c:v', 'copy'] : encodeArgs(encoder, box);
+  // GPU decoding hands frames back to the CPU for scaling (plain -hwaccel,
+  // no hw output format), so the filters above work the same either way;
+  // ffmpeg falls back to CPU decoding for anything the GPU can't decode.
+  const decodeArgs = encoder === 'nvenc' ? ['-hwaccel', 'cuda'] : [];
   let audioArgs = [];
   if (info.audio) {
     audioArgs = COPY_AUDIO.includes(info.audio.codec_name)
@@ -206,16 +267,26 @@ async function download(url, outDir, { onProbed, onReady, onProgress, signal }) 
 
   fs.mkdirSync(outDir, { recursive: true });
   const playlist = path.join(outDir, 'index.m3u8');
-  const args = [
-    '-hide_banner', '-nostats', '-loglevel', 'error', '-progress', 'pipe:1',
-    ...httpInputArgs(), '-i', url,
-    '-map', '0:v:0', ...(info.audio ? ['-map', '0:a:0'] : []), '-sn',
-    ...videoArgs, ...audioArgs,
+  const maps = ['-map', '0:v:0', ...(info.audio ? ['-map', '0:a:0'] : []), '-sn'];
+  const hlsOut = (dir) => [
     '-f', 'hls', '-hls_time', String(SEGMENT_SEC), '-hls_list_size', '0',
     '-hls_playlist_type', 'event', '-hls_flags', 'independent_segments+temp_file',
-    '-hls_segment_filename', path.join(outDir, 'seg%05d.ts'),
-    playlist
+    '-hls_segment_filename', path.join(dir, 'seg%05d.ts'),
+    path.join(dir, 'index.m3u8')
   ];
+  // The TV's copy comes first: -progress reports on it, and its folder
+  // is what the TV plays. The original, if kept, is a second output of
+  // the same run, so the torrent is only read once.
+  const args = [
+    '-hide_banner', '-nostats', '-loglevel', 'error', '-progress', 'pipe:1',
+    ...httpInputArgs(), ...decodeArgs, '-i', url,
+    ...maps, ...videoArgs, ...audioArgs, ...hlsOut(outDir)
+  ];
+  if (keepOriginal) {
+    const origDir = path.join(outDir, ORIGINAL_DIR);
+    fs.mkdirSync(origDir, { recursive: true });
+    args.push(...maps, '-c:v', 'copy', ...audioArgs, ...hlsOut(origDir));
+  }
 
   return new Promise((resolve, reject) => {
     const child = spawn(FFMPEG_BIN, args, { signal });
@@ -309,4 +380,4 @@ function describePeers(stats) {
   return parts.join(', ');
 }
 
-module.exports = { parseTorrentUrl, isKey, download, folderBytes, peerStats, describePeers, SEGMENT_SEC };
+module.exports = { parseTorrentUrl, isKey, download, folderBytes, peerStats, describePeers, SEGMENT_SEC, ORIGINAL_DIR };

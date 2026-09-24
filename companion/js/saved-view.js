@@ -3,7 +3,9 @@
 // The "saved" tab: everything the resolver keeps on disk, from its GET
 // /cache: films saved from torrents, and videos downloaded from links.
 // Each has a thumbnail (a frame from 10% in, made by the resolver),
-// its size, a cast button and a delete button. Delete asks for a second
+// its size, a cast button and a delete button. A film that was
+// converted down for the TV (4K) also has "copy 4K link": the untouched
+// original, to open in VLC or another player. Delete asks for a second
 // tap before it deletes, since there's no undo.
 //
 // Items are kept and updated in place, keyed per video, so polling
@@ -67,6 +69,7 @@ function createSavedView(resolver, container, opts) {
         '<span class="cn-saved-meta"></span>' +
         '<div class="cn-saved-actions">' +
           '<button class="mx-btn mx-sm mx-primary" type="button">cast</button>' +
+          '<button class="mx-btn mx-sm" type="button" hidden>copy 4K link</button>' +
           '<button class="mx-btn mx-sm" type="button">delete</button>' +
         '</div>' +
       '</div>';
@@ -78,7 +81,8 @@ function createSavedView(resolver, container, opts) {
       title: item.querySelector('.cn-saved-title'),
       meta: item.querySelector('.cn-saved-meta'),
       cast: buttons[0],
-      del: buttons[1],
+      original: buttons[1],
+      del: buttons[2],
       entry: null,
       confirmTimer: null
     };
@@ -90,6 +94,9 @@ function createSavedView(resolver, container, opts) {
     });
     it.cast.addEventListener('click', function () {
       onCast(it.entry.streamUrl, it.entry.title || 'video');
+    });
+    it.original.addEventListener('click', function () {
+      copyLink(it.entry.originalUrl);
     });
     it.del.addEventListener('click', function () {
       if (!it.del.classList.contains('cn-confirm')) {
@@ -125,6 +132,20 @@ function createSavedView(resolver, container, opts) {
     return it;
   }
 
+  // The clipboard API only exists on https or localhost; the companion is
+  // usually plain http on the LAN, so fall back to a box to copy from.
+  function copyLink(url) {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(url).then(function () {
+        MX.toast(true, 'Copied the 4K link. Open it in VLC: Media > Open Network Stream.');
+      }, function () {
+        window.prompt('Copy this link, then open it in VLC (Media > Open Network Stream):', url);
+      });
+      return;
+    }
+    window.prompt('Copy this link, then open it in VLC (Media > Open Network Stream):', url);
+  }
+
   function update(it, entry) {
     it.entry = entry;
     it.title.textContent = entry.title || entry.sourceUrl || 'video';
@@ -133,6 +154,7 @@ function createSavedView(resolver, container, opts) {
     var date = formatDate(entry.createdAt);
     if (date) meta.push('saved ' + date);
     it.meta.textContent = meta.join(' · ');
+    it.original.hidden = !entry.originalUrl;
     if (entry.thumbUrl && it.img.getAttribute('src') !== entry.thumbUrl) it.img.src = entry.thumbUrl;
   }
 
