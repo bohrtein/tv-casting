@@ -1,0 +1,39 @@
+[Unit]
+Description=TV Casting torrent server - streams torrents from inside the VPN, taking incoming peers on PIA's forwarded port
+Requires=docker.service
+# Inside the VPN container's network, like the Stremio server: starting
+# this starts the VPN, and it stops and restarts along with it.
+BindsTo=tv-casting-vpn.service
+PartOf=tv-casting-vpn.service
+After=docker.service tv-casting-vpn.service
+
+[Service]
+Type=simple
+# The image is built from this repo's checkout on every start, so a git
+# pull + restart picks up changes. Docker's layer cache makes that
+# near-instant when nothing changed. Update the path if the checkout moves.
+ExecStartPre=/usr/bin/docker build -q -t tv-casting-torrent /home/bortein/Desktop/github/apphub/apps/tv-casting/torrent-server
+ExecStartPre=-/usr/bin/docker rm -f tv-casting-torrent
+# Same wait as the Stremio server's unit: joining the VPN container's
+# network only works once it's up and connected.
+ExecStartPre=/bin/sh -c 'for i in $$(seq 120); do [ "$$(/usr/bin/docker inspect -f "{{.State.Health.Status}}" tv-casting-vpn 2>/dev/null)" = healthy ] && exit 0; sleep 2; done; echo "VPN never connected, see: journalctl -u tv-casting-vpn" >&2; exit 1'
+# tv-casting-vpn's volume is read-only here: it's where gluetun writes
+# the forwarded port (VPN_PORT_FORWARDING_STATUS_FILE in the VPN unit).
+# Downloads go in their own volume; the server deletes them when idle
+# and on every start.
+ExecStart=/usr/bin/docker run --rm --name tv-casting-torrent \
+  --network container:tv-casting-vpn \
+  -v tv-casting-vpn:/gluetun:ro \
+  -v tv-casting-torrent-data:/data \
+  tv-casting-torrent
+ExecStop=/usr/bin/docker stop tv-casting-torrent
+# Always, not on-failure: the server exits on purpose when the VPN hands
+# out a new forwarded port, and comes back listening on the new one.
+Restart=always
+RestartSec=5
+# The first start builds the image (downloads node + npm packages).
+TimeoutStartSec=900
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

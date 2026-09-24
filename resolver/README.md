@@ -55,7 +55,9 @@ downloads).
 page builds) and saves that film on this server while the TV watches it:
 
 - ffmpeg reads the file through the Stremio server (which does the actual
-  torrenting, through the VPN) and writes it to
+  torrenting, through the VPN), or through our own torrent server when
+  `TORRENT_SERVER_URL` is set (same URL path, different host; see
+  [`torrent-server/`](../torrent-server/README.md)), and writes it to
   `MEDIA_DIR/torrents/<infoHash>-<fileIdx>/` as an HLS playlist
   (`index.m3u8`) plus `.ts` segments of about 6 seconds each.
 - The job turns `ready` as soon as the first 3 segments are saved, so the
@@ -167,6 +169,7 @@ the download to get there.
 | `MEDIA_TTL_MS` | `21600000` (6h) | sweep interval for deleting old downloaded files and job records not tracked by the rewatch cache |
 | `RESOLVER_CACHE_SIZE` | `5` | how many distinct source urls the rewatch cache (see above) keeps on disk at once |
 | `TORRENT_CACHE_SIZE` | `3` | how many finished torrent films stay on disk (see "Torrents"; a film is often 2–20 GB) |
+| `TORRENT_SERVER_URL` | *(unset)* | read torrents from [`torrent-server/`](../torrent-server/README.md) (e.g. `http://192.168.2.31:11480`) instead of the Stremio server the companion names |
 | `TORRENT_START_TIMEOUT_MS` | `180000` | how long to wait for a torrent to start sending data before giving up |
 | `YTDLP_BIN` | `yt-dlp` | override if it's not on `PATH` for the service user |
 

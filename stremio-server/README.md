@@ -74,10 +74,12 @@ a wrong region name lists the valid ones. You can also print the valid
 region names with
 `sudo docker run --rm qmcgaw/gluetun format-servers -private-internet-access`.
 
-PIA's port forwarding isn't turned on. It only helps a torrent client
-that can be told which port to listen on, and it isn't confirmed that
-the Stremio server supports that. Torrents work without it, but less popular
-ones may find fewer peers.
+PIA's port forwarding is on (in `tv-casting-vpn.service`), but the
+Stremio server can't use it: it only makes outgoing connections, and
+through the VPN few peers answer those. Torrent casts are read from
+[`torrent-server/`](../torrent-server/README.md) instead, which runs in
+this same VPN container and takes incoming peers on the forwarded port.
+The Stremio server stays for header-proxied streams.
 
 ## Using it
 

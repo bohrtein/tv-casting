@@ -17,10 +17,20 @@ ExecStartPre=-/usr/bin/docker rm -f tv-casting-vpn
 # so its ports are published here, not on the Stremio container. gluetun's
 # firewall blocks all internet traffic outside the VPN tunnel, so if the
 # VPN drops, torrents stop instead of falling back to the home IP.
+#
+# Port forwarding: PIA gives the connection one port that peers on the
+# internet can connect in on. gluetun opens it in its firewall and
+# writes it to /gluetun/forwarded_port, where the torrent server
+# (torrent-server/, port 11480) reads it. PORT_FORWARD_ONLY keeps
+# gluetun on PIA servers that support it (not every region does; the
+# US ones don't).
 ExecStart=/usr/bin/docker run --rm --name tv-casting-vpn \
   --cap-add=NET_ADMIN --device /dev/net/tun \
   --env-file /etc/tv-casting/vpn.env \
-  -p 11470:11470 -p 12470:12470 \
+  -e VPN_PORT_FORWARDING=on \
+  -e PORT_FORWARD_ONLY=on \
+  -e VPN_PORT_FORWARDING_STATUS_FILE=/gluetun/forwarded_port \
+  -p 11470:11470 -p 12470:12470 -p 11480:11480 \
   -v tv-casting-vpn:/gluetun \
   qmcgaw/gluetun:latest
 ExecStop=/usr/bin/docker stop tv-casting-vpn

@@ -32,3 +32,6 @@ resolver/media/*
 
 # companion/serve.js's saved settings (the shared Stremio addon list)
 .companion-data/
+
+# torrent-server/ run outside Docker (npm start) keeps its downloads here
+torrent-server/data/

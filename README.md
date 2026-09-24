@@ -28,6 +28,10 @@ pieces in one repo. Full background and open decisions live in
   `stremio/server`) on the home server, for the companion's Stremio page,
   with all its traffic through a PIA VPN (gluetun). Started, stopped and
   updated from App Hub's Developer Tools.
+- **[`torrent-server/`](torrent-server/)** — Node.js (WebTorrent) in
+  Docker, inside the same VPN. Streams the torrents the Stremio page
+  casts, taking incoming peers on PIA's forwarded port, which the Stremio
+  server can't. The resolver reads films from it.
 - **[`resolver/`](resolver/)** — Node.js HTTP service, also on the home
   server. Turns a page URL with an embedded video (YouTube, Twitter/X,
   …) into a plain MP4 via `yt-dlp` + `ffmpeg`, since AVPlay can only load

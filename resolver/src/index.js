@@ -20,6 +20,10 @@ const CACHE_MAX_ENTRIES = parseInt(process.env.RESOLVER_CACHE_SIZE || '5', 10);
 // Films are big, so torrents get their own, smaller cache.
 const TORRENT_CACHE_SIZE = parseInt(process.env.TORRENT_CACHE_SIZE || '3', 10);
 const TORRENT_DIR = path.join(MEDIA_DIR, 'torrents');
+// Where torrent files are read from. The companion builds Stremio server
+// URLs; when this is set, the same path goes to our own torrent server
+// instead (torrent-server/, which takes incoming peers through the VPN).
+const TORRENT_SERVER_URL = (process.env.TORRENT_SERVER_URL || '').replace(/\/+$/, '');
 
 fs.mkdirSync(TORRENT_DIR, { recursive: true });
 
@@ -212,6 +216,12 @@ async function runJob(job, url) {
     jobs.update(job.id, { status: 'error', error: err.message, finishedAt: Date.now() });
     log('resolve failed', job.id, err.message);
   }
+}
+
+function torrentSource(target) {
+  if (!TORRENT_SERVER_URL) return target;
+  const u = new URL(target);
+  return TORRENT_SERVER_URL + u.pathname + u.search;
 }
 
 // Download and playback side by side: the job goes "ready" once the
@@ -434,7 +444,7 @@ const server = http.createServer((req, res) => {
       }
 
       sendJson(res, 202, { id: job.id, status: job.status });
-      runTorrentJob(job, target, parsed.key);
+      runTorrentJob(job, torrentSource(target), parsed.key);
     }).catch((err) => {
       sendJson(res, 400, { error: err.message });
     });
