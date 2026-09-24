@@ -77,7 +77,7 @@ function createRelayClient(config, handlers) {
   function sendCommand(action, payload) {
     var message = { type: 'command', action: action };
     if (payload) message.payload = payload;
-    send(message);
+    return send(message);
   }
 
   // Mobile browsers throttle timers (including our backoff setTimeout)

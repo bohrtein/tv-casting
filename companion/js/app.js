@@ -456,4 +456,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
   relay.connect();
   route();
+  // stremio.html's "remote" link lands here.
+  if (location.hash === '#remote' && MX.view) MX.view.show('remote');
 });

@@ -188,6 +188,19 @@ loop: browse Jellyfin → pair with TV → cast → control → see live status.
 
 ## Current status
 
+2026-09-24 — Added a Stremio page to the companion (`stremio.html`,
+`js/stremio-client.js`, `js/stremio-app.js`). It speaks the Stremio addon
+protocol straight from the browser: Cinemeta for catalogs, search and
+episode lists, plus any stream addons the user adds. Tapping a stream
+casts it over the relay like the other tabs. Torrent and header-proxied
+streams go through Stremio's own streaming server (`stremio-service`,
+`STREMIO_SERVER_URL`, port 11470). It isn't installed on the home server
+yet. YouTube streams go through `resolver/`. Tested against a mock addon,
+the real relay and a scripted TV. **Not verified:** real addons, a real
+streaming server, and AVPlay playing what they return (see the direct-link
+failure noted below). Next action: install `stremio-service` on the home
+server and try a torrent stream on the real TV.
+
 2026-09-24 — Restored `resolver/` (reverted `4ef8121`), by request.
 Casting pasted direct links straight to AVPlay failed on the real TV for
 every link tried, while the resolver path (yt-dlp downloads to a local

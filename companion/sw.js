@@ -12,6 +12,7 @@ var CACHE_NAME = 'tv-casting-shell-__CACHE_VERSION__';
 var SHELL_FILES = [
   './',
   'index.html',
+  'stremio.html',
   'manifest.webmanifest',
   'matrix/matrix.css',
   'matrix/matrix.js',
@@ -20,6 +21,8 @@ var SHELL_FILES = [
   'js/jellyfin-client.js',
   'js/resolver-client.js',
   'js/relay-client.js',
+  'js/stremio-client.js',
+  'js/stremio-app.js',
   'js/app.js',
   'icon-192.png',
   'icon-512.png',
@@ -54,9 +57,10 @@ self.addEventListener('activate', function (event) {
 self.addEventListener('fetch', function (event) {
   var url = new URL(event.request.url);
 
-  // Only ever intercept same-origin shell files. Jellyfin (a different
-  // origin) and anything else just falls through to the network
-  // untouched -- relay traffic is WebSocket, which fetch/SW never sees.
+  // Only ever intercept same-origin shell files. Jellyfin, Stremio addons
+  // (different origins) and anything else just fall through to the
+  // network untouched -- relay traffic is WebSocket, which fetch/SW never
+  // sees.
   if (url.origin !== self.location.origin) return;
 
   var path = url.pathname.replace(/^\//, '');

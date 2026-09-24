@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="Browse Stremio addons and cast to the TV.">
+<title>Stremio · TV Casting</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<!-- Matrix, loaded the same way as index.html: live from the hub, over the synced copy. -->
+<link rel="stylesheet" href="matrix/matrix.css">
+<link rel="stylesheet" href="/ds/1/matrix.css">
+<script src="/ds/1/matrix.js"></script>
+<script src="matrix/matrix.js"></script>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body class="mx">
+
+<div class="mx-shell">
+
+  <div class="mx-topbar">
+    <div class="mx-brand">
+      <span class="mx-mark">tv-casting</span>
+      <h1 class="mx-tagline">stremio</h1>
+    </div>
+    <nav class="mx-topbar-nav">
+      <a class="mx-btn mx-sm" href="./">companion</a>
+      <button class="mx-btn mx-sm" type="button" data-mx-open="addons-sheet">addons</button>
+    </nav>
+    <span id="relay-chip" class="mx-status-chip" data-mx-state="busy">
+      <span class="mx-led" aria-hidden="true"></span><span id="relay-chip-label">connecting</span>
+    </span>
+  </div>
+
+  <!-- Browse: catalog picker + search over a poster grid. -->
+  <section id="view-browse">
+    <section class="mx-panel">
+      <div class="cn-toolbar">
+        <div class="mx-field cn-grow">
+          <div class="mx-field-head"><label class="mx-label" for="browse-search">search</label></div>
+          <input class="mx-input" type="search" id="browse-search" placeholder="a movie or show…" enterkeyhint="search">
+        </div>
+        <div class="mx-field cn-grow">
+          <div class="mx-field-head"><label class="mx-label" for="browse-catalog">catalog</label></div>
+          <select class="mx-input mx-select" id="browse-catalog"></select>
+        </div>
+      </div>
+      <div id="browse-readout" class="mx-readout" style="display:none"></div>
+      <div id="browse-results"></div>
+      <div class="cn-more">
+        <button id="browse-more" class="mx-btn cn-hidden" type="button">load more</button>
+      </div>
+    </section>
+  </section>
+
+  <!-- Detail: one title, its episodes (series), and the streams to cast. -->
+  <section id="view-detail" class="cn-hidden">
+    <button id="detail-back" class="mx-back" type="button">&lsaquo; back</button>
+
+    <section class="mx-hero">
+      <div id="detail-bg" class="mx-hero-bg"></div>
+      <div class="mx-hero-body">
+        <img id="detail-poster" class="mx-hero-media cn-hero-poster" alt="">
+        <div class="mx-hero-text">
+          <h2 id="detail-title" class="mx-title"></h2>
+          <p id="detail-info"></p>
+          <p id="detail-desc" class="cn-desc"></p>
+        </div>
+      </div>
+    </section>
+
+    <section id="episodes-panel" class="mx-panel cn-hidden">
+      <h2 class="mx-panel-title">episodes</h2>
+      <div class="mx-field">
+        <div class="mx-field-head"><label class="mx-label" for="episodes-season">season</label></div>
+        <select class="mx-input mx-select" id="episodes-season"></select>
+      </div>
+      <div id="episodes-list" class="cn-rows"></div>
+    </section>
+
+    <section id="streams-panel" class="mx-panel" style="margin-top:16px">
+      <h2 id="streams-title" class="mx-panel-title">streams</h2>
+      <div id="streams-readout" class="mx-readout" style="display:none"></div>
+      <div id="streams-list" class="cn-rows"></div>
+    </section>
+  </section>
+
+  <!-- Now playing: shown only while the TV has something, with enough to
+       pause/stop without leaving this page; the companion's remote tab
+       has the full seek bar. -->
+  <section id="now-playing" class="mx-panel mx-glass cn-now-playing cn-hidden">
+    <div class="mx-readout" id="np-readout"></div>
+    <div class="cn-np-buttons">
+      <button id="np-playpause" class="mx-btn mx-sm mx-primary" type="button">pause</button>
+      <button id="np-stop" class="mx-btn mx-sm" type="button">stop</button>
+      <a class="mx-btn mx-sm" href="./#remote">remote</a>
+    </div>
+  </section>
+
+</div>
+
+<div class="mx-overlay" id="addons-sheet">
+  <div class="mx-sheet mx-lg" role="dialog" aria-labelledby="addons-title">
+    <div class="mx-sheet-head">
+      <h2 id="addons-title" class="mx-panel-title">addons</h2>
+      <button class="mx-btn mx-sm" type="button" data-mx-close>close</button>
+    </div>
+    <div class="mx-sheet-body">
+      <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 12px">
+        Any Stremio addon works: paste its manifest link
+        (<code>https://…/manifest.json</code> or <code>stremio://…</code>).
+        Cinemeta gives the catalogs and episode lists; streams come from
+        whichever stream addons you add here.
+      </p>
+      <div id="addons-list" class="cn-rows"></div>
+      <div class="mx-field" style="margin-top:14px">
+        <div class="mx-field-head"><label class="mx-label" for="addons-url">add an addon</label></div>
+        <input class="mx-input" type="url" id="addons-url" placeholder="https://example.com/manifest.json">
+      </div>
+      <div id="addons-readout" class="mx-readout" style="display:none"></div>
+      <button id="addons-add" class="mx-btn mx-primary" type="button" style="margin-top:10px">add</button>
+
+      <div class="mx-field" style="margin-top:22px">
+        <div class="mx-field-head"><label class="mx-label" for="addons-server">streaming server</label></div>
+        <input class="mx-input" type="url" id="addons-server" placeholder="http://192.168.2.31:11470">
+      </div>
+      <p style="color:var(--mx-ink-dim); font-size:13px; margin:6px 0 0">
+        Stremio's own streaming server (stremio-service), for torrent
+        streams and addons that need proxied headers. The TV fetches from
+        it directly. Leave empty if you only use direct-link addons.
+      </p>
+      <button id="addons-server-save" class="mx-btn" type="button" style="margin-top:10px">save server</button>
+    </div>
+  </div>
+</div>
+
+<div class="mx-toasts"></div>
+
+<script src="js/config.js" defer></script>
+<script src="js/resolver-client.js" defer></script>
+<script src="js/relay-client.js" defer></script>
+<script src="js/stremio-client.js" defer></script>
+<script src="js/stremio-app.js" defer></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js');
+    });
+  }
+</script>
+</body>
+</html>

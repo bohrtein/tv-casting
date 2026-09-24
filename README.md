@@ -20,6 +20,9 @@ pieces in one repo. Full background and open decisions live in
   load to send play/pause/stop commands and receive status. Styled with the
   [Matrix](https://github.com/bohrtein/matrix_design) design system
   (live from the app hub at `/ds/1/`, with a synced copy in `matrix/`).
+  Its separate **Stremio** page (`stremio.html`) browses Stremio addons
+  (Cinemeta catalogs, any stream addon) and casts the chosen stream; see
+  [`companion/README.md`](companion/README.md#stremio-page-stremiohtml).
 - **[`resolver/`](resolver/)** — Node.js HTTP service, also on the home
   server. Turns a page URL with an embedded video (YouTube, Twitter/X,
   …) into a plain MP4 via `yt-dlp` + `ffmpeg`, since AVPlay can only load

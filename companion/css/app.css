@@ -144,3 +144,116 @@
   font-size: 11px;
   color: var(--mx-ink-dim);
 }
+
+/* --- stremio page ---------------------------------------------------------
+   Poster grid, stream rows and the pinned now-playing panel. Posters are
+   Matrix tiles with the media well reshaped from square to 2:3. */
+
+.cn-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 14px;
+}
+
+.cn-grow {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.cn-posters {
+  --mx-card-min: 128px;
+}
+
+.cn-poster > .mx-slot-lead {
+  aspect-ratio: 2 / 3;
+}
+
+.cn-poster .mx-media {
+  aspect-ratio: 2 / 3;
+}
+
+.cn-poster-blank {
+  font-family: var(--mx-gothic);
+  font-size: var(--mx-text-2xl);
+  color: var(--mx-accent);
+}
+
+.cn-section-title {
+  margin: 18px 0 8px;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--mx-ink-dim);
+}
+
+.cn-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.cn-hero-poster {
+  width: 120px;
+  height: auto;
+  aspect-ratio: 2 / 3;
+}
+
+.cn-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cn-stream-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cn-stream-desc {
+  font-size: 12px;
+  color: var(--mx-ink-dim);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.cn-row[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.cn-row.mx-selected {
+  border-color: var(--mx-accent);
+}
+
+.cn-now-playing {
+  position: sticky;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  z-index: 3;
+  margin-top: 16px;
+  padding: 10px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.cn-now-playing.cn-hidden {
+  display: none;
+}
+
+.cn-now-playing > .mx-readout {
+  flex: 1 1 220px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cn-np-buttons {
+  display: flex;
+  gap: 8px;
+}
