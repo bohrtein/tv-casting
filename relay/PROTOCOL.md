@@ -62,12 +62,18 @@ TV verbatim.
 ```json
 { "type": "command", "action": "play", "payload": { "url": "https://jellyfin.local/.../stream.m3u8", "title": "Episode title", "startPositionSec": 0 } }
 { "type": "command", "action": "pause" }
+{ "type": "command", "action": "resume" }
 { "type": "command", "action": "stop" }
 { "type": "command", "action": "seek", "payload": { "positionSec": 120 } }
 ```
 
-- `action` is one of `play`, `pause`, `stop`, `seek`.
-- `payload` is required for `play` and `seek`, omitted for `pause`/`stop`.
+- `action` is one of `play`, `pause`, `resume`, `stop`, `seek`.
+- `payload` is required for `play` and `seek`, omitted for
+  `pause`/`resume`/`stop`.
+- `resume` un-pauses whatever the TV has loaded, without a url, so any
+  companion can resume, not just the one that cast it. (`play` with the
+  url the TV already has loaded also resumes, and older TV builds only
+  understand that.)
 - `play.payload.url` is the only required field; `title` and
   `startPositionSec` are optional metadata for the TV's UI.
 - If no TV is currently connected, the relay replies to the sender with

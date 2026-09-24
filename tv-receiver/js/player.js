@@ -163,11 +163,10 @@ function createPlayer(handlers) {
     handlers.onStateChange('paused');
   }
 
-  // Local un-pause, distinct from play(url, ...): the TV remote's own
-  // Play button has no url to hand us, it just means "un-pause whatever
-  // is already loaded" -- unlike a companion's resume, which resends
-  // "play" with the url because it has no other way to identify the
-  // stream (see the comment on play() above).
+  // Un-pause whatever is already loaded, no url needed: the TV remote's
+  // own Play button, and a companion's "resume" command (PROTOCOL.md),
+  // which lets any phone resume, not only the one that cast it. Resending
+  // "play" with the same url (see play() above) also still resumes.
   function resume() {
     if (!isAvailable() || !currentUrl) {
       log.warn('resume ignored: nothing loaded');

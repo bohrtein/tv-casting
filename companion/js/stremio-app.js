@@ -12,7 +12,8 @@ document.addEventListener('DOMContentLoaded', function () {
   var catalogs = []; // [{ addon, catalog }] -- the <select>'s options, by index
   var browse = { skip: 0, seen: {}, token: 0 };
   var detail = { token: 0, meta: null };
-  var nowCasting = null; // {url, title} of the last thing this page cast
+  var nowCasting = createNowCasting(); // what this browser last cast, see now-casting.js
+  var lastStatusTitle = ''; // title in the TV's latest status
 
   var el = {
     relayChip: document.getElementById('relay-chip'),
@@ -90,7 +91,7 @@ document.addEventListener('DOMContentLoaded', function () {
       MX.toast(false, 'Not connected to the relay yet, try again in a moment.');
       return;
     }
-    nowCasting = { url: url, title: title };
+    nowCasting.set(url, title);
     MX.toast(true, 'Casting: ' + title);
   }
 
@@ -545,11 +546,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function renderStatus(msg) {
     if (msg.state === 'tv_offline') {
-      nowCasting = null;
+      nowCasting.clear();
       setRelayChip('err', 'tv offline');
       el.nowPlaying.classList.add('cn-hidden');
       return;
     }
+    if (typeof msg.title === 'string') lastStatusTitle = msg.title;
     var label;
     if (msg.state === 'error') {
       label = (msg.title ? msg.title + ': ' : '') + (msg.error ? msg.error.message : 'error');
@@ -564,23 +566,21 @@ document.addEventListener('DOMContentLoaded', function () {
     var hasMedia = msg.state !== 'idle' && msg.state !== 'stopped';
     el.nowPlaying.classList.toggle('cn-hidden', !hasMedia);
     el.npPlayPause.textContent = (msg.state === 'playing' || msg.state === 'buffering') ? 'pause' : 'play';
-    if (msg.state === 'stopped') nowCasting = null;
+    if (msg.state === 'stopped') nowCasting.clear();
   }
 
   el.npPlayPause.addEventListener('click', function () {
     if (el.npPlayPause.textContent === 'pause') {
       relay.sendCommand('pause');
-    } else if (nowCasting) {
-      relay.sendCommand('play', { url: nowCasting.url, title: nowCasting.title });
     } else {
-      // Same limitation as the main page: status doesn't carry the url.
-      MX.toast(false, "Can't resume after a reload — pick the stream again.");
+      var cmd = nowCasting.resumeCommand(lastStatusTitle);
+      relay.sendCommand(cmd.action, cmd.payload);
     }
   });
 
   el.npStop.addEventListener('click', function () {
     relay.sendCommand('stop');
-    nowCasting = null;
+    nowCasting.clear();
   });
 
   // --- downloads on the server (torrents, and anything else the

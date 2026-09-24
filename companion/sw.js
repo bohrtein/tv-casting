@@ -21,6 +21,7 @@ var SHELL_FILES = [
   'js/jellyfin-client.js',
   'js/resolver-client.js',
   'js/downloads-view.js',
+  'js/now-casting.js',
   'js/relay-client.js',
   'js/stremio-client.js',
   'js/stremio-app.js',

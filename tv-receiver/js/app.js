@@ -74,6 +74,9 @@
       case 'pause':
         player.pause();
         break;
+      case 'resume':
+        player.resume();
+        break;
       case 'stop':
         player.stop();
         relay.sendStatus({ state: 'stopped' });

@@ -13,7 +13,7 @@ const TYPES = Object.freeze({
   ERROR: 'error',
 });
 
-const ACTIONS = Object.freeze(['play', 'pause', 'stop', 'seek']);
+const ACTIONS = Object.freeze(['play', 'pause', 'resume', 'stop', 'seek']);
 
 const STATES = Object.freeze([
   'idle',
@@ -61,7 +61,7 @@ function validateCommand(msg) {
   if (msg.action === 'seek') {
     return !!msg.payload && typeof msg.payload.positionSec === 'number';
   }
-  return true; // pause/stop take no payload
+  return true; // pause/resume/stop take no payload
 }
 
 function validateStatus(msg) {

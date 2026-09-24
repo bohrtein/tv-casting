@@ -5,7 +5,8 @@ document.addEventListener('DOMContentLoaded', function () {
   var resolver = createResolverClient(APP_CONFIG);
   var currentFolderId = null;
   var folderStack = []; // [{id, name}, ...] breadcrumb trail
-  var nowCasting = null; // {url, title} of the last thing WE told the TV to play
+  var nowCasting = createNowCasting(); // what this browser last cast, see now-casting.js
+  var lastStatusTitle = ''; // title in the TV's latest status
   var lastPositionSec = 0;
   var lastDurationSec = 0;
   var seeking = false; // true while the user is dragging the seek bar
@@ -192,7 +193,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function castToTv(url, title) {
-    nowCasting = { url: url, title: title };
+    nowCasting.set(url, title);
     relay.sendCommand('play', { url: url, title: title });
     MX.toast(true, 'Casting: ' + title);
     if (MX.view) MX.view.show('remote');
@@ -366,12 +367,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function renderStatus(msg) {
     if (msg.state === 'tv_offline') {
-      nowCasting = null;
+      nowCasting.clear();
       setRelayChip('err', 'tv offline');
       MX.toast(false, 'The TV disconnected.');
       return;
     }
 
+    if (typeof msg.title === 'string') lastStatusTitle = msg.title;
     if (typeof msg.positionSec === 'number') lastPositionSec = msg.positionSec;
     if (typeof msg.durationSec === 'number') lastDurationSec = msg.durationSec;
 
@@ -408,7 +410,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (msg.state === 'stopped') {
-      nowCasting = null;
+      nowCasting.clear();
       lastDurationSec = 0;
     }
   }
@@ -441,19 +443,13 @@ document.addEventListener('DOMContentLoaded', function () {
       relay.sendCommand('pause');
       return;
     }
-    if (nowCasting) {
-      relay.sendCommand('play', { url: nowCasting.url, title: nowCasting.title });
-    } else {
-      // Companion reloaded mid-cast: status broadcasts don't carry the
-      // stream url (PROTOCOL.md keeps status lightweight), so there's
-      // nothing to resume with until something is cast again.
-      MX.toast(false, "Can't resume after a reload — pick something from the library again.");
-    }
+    var cmd = nowCasting.resumeCommand(lastStatusTitle);
+    relay.sendCommand(cmd.action, cmd.payload);
   });
 
   el.remoteStop.addEventListener('click', function () {
     relay.sendCommand('stop');
-    nowCasting = null;
+    nowCasting.clear();
   });
 
   el.remoteBack.addEventListener('click', function () {
