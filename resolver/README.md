@@ -198,10 +198,19 @@ the download to get there.
 - `POST /cache/torrents/<key>/optimize` — makes the 1080p TV copy of a
   saved film that's bigger than `TORRENT_MAX_HEIGHT` and has none yet
   (saved before conversions existed), from the files on disk: no download.
-  The full-size film moves into `original/`, same as a converted download.
-  One runs at a time, the rest queue; `GET /cache` shows each film's
-  `width`/`height`, `canOptimize`, and `optimize` (`queued`, `running` with
-  `pct`, or `error`). `409` if it doesn't need it or is still downloading.
+  The full-size film moves into `original/` first and the copy is written
+  where the TV plays from, as a growing playlist, so it can be cast while
+  it's being made (the same whole-film playlist a download gets). Each run
+  is a job (it shows in `/jobs` and the downloads list; cancel puts the
+  full-size film back). One runs at a time, the rest queue; `?cast=1`
+  starts it right away and answers with its job `id`. A run a restart cut
+  short is undone at startup. `GET /cache` shows each film's
+  `width`/`height`, `needsTvCopy`, `canOptimize`, and `optimize`
+  (`queued`, `running` with `pct`, or `error`). `409` if it doesn't need
+  it, is partial, or is still downloading.
+- A film too big for the TV is never sent to it: casting one
+  (`POST /torrent`) starts its optimize run and answers with that job,
+  which turns `ready` once the first segments of the 1080p copy exist.
 - `POST /cache/<media|torrents>/<key>/delete` — deletes a saved video or
   film (files and thumbnail). `409` for a film that's still downloading
   (cancel it instead), `404` if it isn't saved.

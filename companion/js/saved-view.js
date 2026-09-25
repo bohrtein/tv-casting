@@ -110,7 +110,23 @@ function createSavedView(resolver, container, opts) {
       it.thumb.classList.remove('cn-saved-nothumb');
     });
     it.cast.addEventListener('click', function () {
-      onCast(it.entry.streamUrl, it.entry.title || 'video');
+      var entry = it.entry;
+      if (!entry.needsTvCopy) {
+        onCast(entry.streamUrl, entry.title || 'video');
+        return;
+      }
+      // Too big for the TV: make the 1080p copy and cast it as it's made.
+      it.cast.disabled = true;
+      it.cast.textContent = 'starting…';
+      MX.toast(true, 'Making the 1080p copy; the TV starts in a few seconds.');
+      resolver.castOptimized(entry.key).then(function (result) {
+        onCast(result.streamUrl, entry.title || 'video');
+      }).catch(function (err) {
+        MX.toast(false, err.message);
+      }).then(function () {
+        it.cast.disabled = false;
+        update(it, it.entry);
+      });
     });
     it.resume.addEventListener('click', function () {
       var entry = it.entry;
@@ -196,7 +212,9 @@ function createSavedView(resolver, container, opts) {
     it.title.textContent = entry.title || entry.sourceUrl || 'video';
     it.title.title = entry.title || entry.sourceUrl || '';
     var meta = [formatBytes(entry.bytes)];
-    if (entry.height) meta.unshift(entry.height + 'p' + (entry.originalUrl ? ' (TV: 1080p)' : ''));
+    if (entry.height) {
+      meta.unshift(entry.height + 'p' + (entry.originalUrl ? ' (TV: 1080p)' : entry.needsTvCopy ? ', TV gets 1080p' : ''));
+    }
     if (entry.partial) {
       var part = entry.durationSec
         ? formatClock(entry.savedSec) + ' of ' + formatClock(entry.durationSec) +
@@ -214,8 +232,11 @@ function createSavedView(resolver, container, opts) {
     it.original.hidden = !entry.originalUrl;
     it.resume.hidden = !entry.canResume;
     // The server refuses to delete a film that's downloading right now.
-    it.del.hidden = !!entry.downloading;
+    it.del.hidden = !!entry.downloading || !!(opt && (opt.state === 'running' || opt.state === 'queued'));
     it.cast.classList.toggle('mx-primary', !entry.canResume);
+    // Never cast a film bigger than the TV plays: for one of those, cast
+    // makes the 1080p copy and plays that (see the click handler).
+    if (!it.cast.disabled) it.cast.textContent = entry.needsTvCopy ? 'cast (1080p)' : 'cast';
     it.optimize.hidden = !(entry.canOptimize || (opt && opt.state === 'error'));
     it.optimize.textContent = opt && opt.state === 'error' ? 'try optimizing again' : 'optimize for TV (1080p)';
     if (entry.thumbUrl && it.img.getAttribute('src') !== entry.thumbUrl) it.img.src = entry.thumbUrl;

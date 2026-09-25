@@ -36,32 +36,71 @@ const mediaCache = new MediaCache(MEDIA_DIR, CACHE_MAX_ENTRIES);
 // Keyed by "<infoHash>-<fileIdx>"; fileName is that key's folder.
 const torrentCache = new MediaCache(TORRENT_DIR, TORRENT_CACHE_SIZE);
 const activeTorrents = new Map(); // key -> job, while ffmpeg is running
-// "optimize for TV" jobs on saved films, one at a time (it's heavy on
-// the CPU/GPU): key -> { state: 'queued' | 'running', pct } or
-// { state: 'error', error }. Done ones are dropped.
+// "optimize for TV" runs on saved films: key -> { state: 'queued' } or
+// { state: 'running', pct, jobId, durationSec } or { state: 'error',
+// error }. Done ones are dropped. They queue one at a time (heavy on the
+// CPU/GPU), except one started by a cast, which starts right away. Each
+// run is also a job (kind torrent), so it shows in the downloads list and
+// can be cast while the copy is being made, like a download.
 const optimizing = new Map();
 
-async function runOptimizeQueue() {
-  if ([...optimizing.values()].some((o) => o.state === 'running')) return;
-  const next = [...optimizing.entries()].find(([, o]) => o.state === 'queued');
-  if (!next) return;
-  const [key, state] = next;
-  state.state = 'running';
-  state.pct = 0;
-  const entry = torrentCache.find(key);
-  log('optimizing for TV', key, entry && entry.title);
-  try {
-    const encoder = await torrent.makeTvCopy(path.join(TORRENT_DIR, key), {
-      onProgress: (pct) => { state.pct = pct; }
-    });
+function startOptimize(key) {
+  const entry = torrentCache.get(key);
+  const job = jobs.create();
+  job.title = entry ? entry.title : key;
+  job.sourceUrl = (entry && entry.resumeUrl) || key;
+  job.controller = new AbortController();
+  const state = { state: 'running', pct: 0, jobId: job.id, durationSec: null };
+  optimizing.set(key, state);
+  const size = entry && entry.width ? `${entry.width}x${entry.height} → 1080p` : '→ 1080p';
+  jobs.update(job.id, {
+    status: 'downloading', phase: 'saving', torrentKey: key, complete: false,
+    bytes: 0, converting: `optimizing for TV, ${size}`, durationSec: entry && entry.durationSec
+  });
+  const dir = path.join(TORRENT_DIR, key);
+  log('optimizing for TV', key, job.title);
+  torrent.makeTvCopy(dir, {
+    signal: job.controller.signal,
+    onReady: (total) => {
+      state.durationSec = total;
+      jobs.update(job.id, { status: 'ready', durationSec: total });
+    },
+    onProgress: (pct, doneSec) => {
+      state.pct = pct;
+      jobs.update(job.id, { progress: pct, savedSec: doneSec, bytes: torrent.folderBytes(dir) });
+    }
+  }).then((encoder) => {
     optimizing.delete(key);
     thumbs.remove('torrents', key);
+    jobs.update(job.id, { status: 'ready', progress: 100, phase: 'done', complete: true, bytesPerSec: 0, finishedAt: Date.now() });
     log('optimized for TV', key, `(${encoder === 'nvenc' ? 'GPU' : 'CPU'})`);
-  } catch (err) {
-    optimizing.set(key, { state: 'error', error: err.message });
-    log('optimize failed', key, err.message);
-  }
-  runOptimizeQueue();
+  }, (err) => {
+    // makeTvCopy has already put the full-size film back.
+    if (job.controller.signal.aborted) {
+      optimizing.delete(key);
+      finishCancelled(job, 'Stopped: back to the full-size film; optimize again any time.');
+    } else {
+      optimizing.set(key, { state: 'error', error: err.message });
+      jobs.update(job.id, { status: 'error', error: err.message, complete: true, finishedAt: Date.now() });
+      log('optimize failed', key, err.message);
+    }
+  }).then(runOptimizeQueue);
+  return job;
+}
+
+function runOptimizeQueue() {
+  if ([...optimizing.values()].some((o) => o.state === 'running')) return;
+  const next = [...optimizing.entries()].find(([, o]) => o.state === 'queued');
+  if (next) startOptimize(next[0]);
+}
+
+// What's writing a film's TV copy right now (a download or an optimize
+// run), with the film's length when known, or null.
+function writerOf(key) {
+  const job = activeTorrents.get(key);
+  if (job) return job;
+  const opt = optimizing.get(key);
+  return opt && opt.state === 'running' ? opt : null;
 }
 
 // Films saved before their picture size was recorded get measured once,
@@ -92,6 +131,7 @@ fs.readdirSync(TORRENT_DIR).forEach((name) => {
     return;
   }
   const dir = path.join(TORRENT_DIR, name);
+  if (torrent.undoOptimize(dir)) log('undid an optimize a restart cut short', name);
   [dir, path.join(dir, torrent.ORIGINAL_DIR)].forEach((d) => {
     try { torrent.finalizeResume(d); } catch (e) { /* left as is */ }
   });
@@ -102,7 +142,7 @@ fs.readdirSync(TORRENT_DIR).forEach((name) => {
 // Saved all the way (not partial, not downloading).
 function isComplete(key) {
   const entry = torrentCache.get(key);
-  return !!entry && !entry.partial && !activeTorrents.has(key);
+  return !!entry && !entry.partial && !writerOf(key);
 }
 
 // Adds a film to the torrent cache (or refreshes its fields), deleting
@@ -424,7 +464,7 @@ function servePlaylist(res, filePath, key) {
       res.end();
       return;
     }
-    const job = activeTorrents.get(key);
+    const job = writerOf(key);
     const entry = torrentCache.get(key);
     let body;
     if (job && job.durationSec && !/#EXT-X-ENDLIST/.test(text)) {
@@ -471,7 +511,7 @@ function waitForSegment(file, key) {
   return new Promise((resolve) => {
     (function check() {
       if (fs.existsSync(file)) return resolve(true);
-      if (!activeTorrents.has(key) || Date.now() >= until) return resolve(fs.existsSync(file));
+      if (!writerOf(key) || Date.now() >= until) return resolve(fs.existsSync(file));
       setTimeout(check, 500);
     })();
   });
@@ -599,8 +639,20 @@ const server = http.createServer((req, res) => {
       job.sourceUrl = target;
       job.title = title;
 
-      // A finished film plays from disk; a partial one continues.
+      // A finished film plays from disk; a partial one continues. One too
+      // big for the TV (4K saved before conversions existed) is never
+      // sent to it: its 1080p copy is started right away instead, and the
+      // cast plays that as it's made, like a download.
       const cached = torrentCache.find(parsed.key);
+      const cachedDir = path.join(TORRENT_DIR, parsed.key);
+      if (cached && !cached.partial && cached.width &&
+          torrent.needsTvCopy(cachedDir, { width: cached.width, height: cached.height })) {
+        const opt = optimizing.get(parsed.key);
+        const job = opt && opt.state === 'running' ? jobs.get(opt.jobId) : startOptimize(parsed.key);
+        log('cast of a film too big for the TV: optimizing it', parsed.key);
+        sendJson(res, 202, { id: job.id, status: job.status });
+        return;
+      }
       if (cached && !cached.partial) {
         jobs.update(job.id, {
           status: 'ready',
@@ -687,6 +739,10 @@ const server = http.createServer((req, res) => {
         // "optimize for TV". optimize is that job's state, if any.
         canOptimize: !entry.partial && !optimizing.has(entry.fileName) && !activeTorrents.has(entry.fileName) &&
           torrent.needsTvCopy(dir, entry.width ? { width: entry.width, height: entry.height } : null),
+        // Too big for the TV with no TV copy (optimizing or not): the
+        // saved tab doesn't offer cast until the copy exists.
+        needsTvCopy: !entry.partial && !activeTorrents.has(entry.fileName) &&
+          torrent.needsTvCopy(dir, entry.width ? { width: entry.width, height: entry.height } : null),
         optimize: optimizing.get(entry.fileName) || null,
         thumbUrl: `http://${host}/thumb/torrents/${entry.fileName}.jpg`,
         bytes: torrent.folderBytes(dir) + (hasOriginal ? torrent.folderBytes(origDir) : 0),
@@ -758,9 +814,16 @@ const server = http.createServer((req, res) => {
       sendJson(res, 404, { error: 'Not in the cache.' });
       return;
     }
+    // ?cast=1: someone wants to watch it now. Start right away (not
+    // queued) and answer with the job, to follow and cast once playable.
+    const castNow = url.searchParams.get('cast') === '1';
     const current = optimizing.get(key);
-    if (current && current.state !== 'error') {
-      sendJson(res, 202, { key, ...current });
+    if (current && current.state === 'running') {
+      sendJson(res, 202, { key, id: current.jobId, state: current.state, pct: current.pct || 0 });
+      return;
+    }
+    if (current && current.state === 'queued' && !castNow) {
+      sendJson(res, 202, { key, state: current.state, pct: 0 });
       return;
     }
     if (activeTorrents.has(key)) {
@@ -776,9 +839,15 @@ const server = http.createServer((req, res) => {
       sendJson(res, 409, { error: 'Already the right size for the TV (or already optimized).' });
       return;
     }
+    if (castNow) {
+      const job = startOptimize(key);
+      sendJson(res, 202, { key, id: job.id, status: job.status, state: 'running', pct: 0 });
+      return;
+    }
     optimizing.set(key, { state: 'queued', pct: 0 });
     runOptimizeQueue();
-    sendJson(res, 202, { key, ...optimizing.get(key) });
+    const now = optimizing.get(key) || { state: 'done' };
+    sendJson(res, 202, { key, id: now.jobId, state: now.state, pct: now.pct || 0 });
     return;
   }
 
@@ -873,7 +942,7 @@ const server = http.createServer((req, res) => {
       serveMedia(req, res, rel, 'video/mp2t');
       return;
     }
-    if (!activeTorrents.has(key)) {
+    if (!writerOf(key)) {
       serveMissingSegment(res, key);
       return;
     }

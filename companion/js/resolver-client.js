@@ -100,6 +100,13 @@ function createResolverClient(config) {
     return getCache().then(function (body) { return body.entries || []; });
   }
 
+  // Casts a saved film that's too big for the TV: the resolver starts its
+  // 1080p copy right away, and this resolves with { streamUrl } as soon
+  // as the TV can start on it, while the rest is still being made.
+  function castOptimized(key, onProgress) {
+    return follow(startJob('/cache/torrents/' + encodeURIComponent(key) + '/optimize?cast=1', {}), onProgress);
+  }
+
   // Continues a partial film's download from where its saved part ends.
   // Resolves with the job ({ id, status }), which shows in listJobs().
   function resumeSaved(key) {
@@ -155,6 +162,7 @@ function createResolverClient(config) {
     listCache: listCache,
     deleteSaved: deleteSaved,
     optimizeSaved: optimizeSaved,
+    castOptimized: castOptimized,
     resumeSaved: resumeSaved
   };
 }
