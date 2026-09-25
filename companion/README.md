@@ -7,7 +7,9 @@ Jellyfin integration has been removed.
   YouTube videos, Porn, or Other videos. Episodes with Stremio metadata are grouped
   by show and ordered by season and episode. YouTube videos use a thumbnail grid;
   their category and delete controls are under More options. Categories can be corrected per file.
-- **Stremio:** the existing catalog, search, add-on management, and episode picker.
+- **Stremio:** official Stremio Core runs in a Web Worker and supplies addon
+  management, catalogs, search, metadata, episodes, streams, and subtitles.
+  The page adapts a selected stream to the existing resolver and TV command.
   Selecting a stream saves the metadata with the download. Enable “Save to Library
   without casting” to download only. “Match Stremio metadata” on an existing library
   item opens this page to apply movie or episode details without downloading again.
@@ -22,9 +24,17 @@ thumbnail locally when available; other files use a Stremio poster or a video fr
 Existing files without metadata can be matched manually; deleted files cannot be recovered.
 
 Run `node companion/serve.js`. Configure server addresses in `js/config.js`.
+The checked-in `vendor/stremio-core/` worker and WASM are built from pinned
+`@stremio/stremio-core-web@0.63.2`. To rebuild, run `npm ci` and
+`npm run build:core` from `companion/`. The upstream MIT license is in
+`vendor/stremio-core/LICENSE.md`. The companion server serves WASM with
+`application/wasm`.
 The service worker caches only the shell and automatically changes version as files
 change. Stremio add-on settings are shared using the companion server's settings API.
 Media goes from resolver to TV directly; the relay only carries playback commands.
+Normal and Plus18 use separate Core workers and profiles. Automatic next episode
+downloads may run after the page closes, so the resolver has a limited server-side
+stream lookup using the saved addon URLs for that background path.
 
 ## Local series library and watch history
 

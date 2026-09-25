@@ -7,6 +7,7 @@
 // still loads but webapis.avplay is undefined.
 function createPlayer(handlers) {
   var currentUrl = null;
+  var currentSubtitleUrl = null;
   var generation = 0, seekTarget = null, seekBusy = false, seekTimer = null;
   var seekFailures = 0, buffering = false;
 
@@ -106,6 +107,7 @@ function createPlayer(handlers) {
   function resetAfterFailure() {
     resetSeek();
     currentUrl = null;
+    currentSubtitleUrl = null;
     try {
       webapis.avplay.close();
     } catch (e) {
@@ -185,8 +187,9 @@ function createPlayer(handlers) {
     webapis.avplay.setListener(listeners);
   }
 
-  function openAndPlay(url, startPositionSec) {
+  function openAndPlay(url, startPositionSec, subtitleUrl) {
     currentUrl = url;
+    currentSubtitleUrl = subtitleUrl || null;
     lastLoggedPlayTimeSec = -1;
     log.info('open', url, 'start=' + (startPositionSec || 0) + 's');
     try {
@@ -194,7 +197,7 @@ function createPlayer(handlers) {
       attachListeners();
       fitDisplay();
       var token = generation;
-      webapis.avplay.prepareAsync(
+      function prepare() { webapis.avplay.prepareAsync(
         function () {
           if (token !== generation) return;
           fitDisplay(); buffering = false;
@@ -212,7 +215,28 @@ function createPlayer(handlers) {
           resetAfterFailure();
           handlers.onError({ code: 'PREPARE_FAILED', message: describeError(err) });
         }
-      );
+      ); }
+      if (subtitleUrl) {
+        if (typeof tizen === 'undefined' || !tizen.download || !webapis.avplay.setExternalSubtitlePath) {
+          throw new Error('External subtitles are unavailable on this TV.');
+        }
+        var request = new tizen.DownloadRequest(subtitleUrl, 'wgt-private-tmp');
+        tizen.download.start(request, {
+          oncompleted: function (id, localPath) {
+            if (token !== generation) return;
+            try { webapis.avplay.setExternalSubtitlePath(localPath); prepare(); }
+            catch (error) {
+              resetAfterFailure();
+              handlers.onError({ code: 'SUBTITLE_FAILED', message: describeError(error) });
+            }
+          },
+          onfailed: function (id, error) {
+            if (token !== generation) return;
+            resetAfterFailure();
+            handlers.onError({ code: 'SUBTITLE_FAILED', message: describeError(error) });
+          }
+        });
+      } else prepare();
     } catch (e) {
       // Thrown synchronously (bad URI, wrong player state). Previously
       // uncaught, so the companion never heard anything back at all.
@@ -222,7 +246,7 @@ function createPlayer(handlers) {
     }
   }
 
-  function play(url, startPositionSec) {
+  function play(url, startPositionSec, subtitleUrl) {
     if (!isAvailable()) {
       log.error('webapis.avplay unavailable (webapis=' + typeof webapis + ')');
       handlers.onError({ code: 'AVPLAY_UNAVAILABLE', message: 'webapis.avplay is not available on this device.' });
@@ -233,14 +257,14 @@ function createPlayer(handlers) {
     // url. Reopening/re-preparing that stream from scratch would lose
     // position and add latency, so treat "same url, already loaded" as
     // resume instead of a fresh open.
-    if (currentUrl === url) {
+    if (currentUrl === url && currentSubtitleUrl === (subtitleUrl || null)) {
       log.info('same url already loaded -- resuming instead of reopening');
       webapis.avplay.play();
       handlers.onStateChange('playing');
       return;
     }
     stop();
-    openAndPlay(url, startPositionSec);
+    openAndPlay(url, startPositionSec, subtitleUrl);
   }
 
   function pause() {
@@ -303,12 +327,14 @@ function createPlayer(handlers) {
     log.info('stop + close');
     try {
       webapis.avplay.stop();
-      webapis.avplay.close();
     } catch (e) {
-      // Already stopped/closed -- nothing to clean up.
-      log.warn('stop/close threw (already stopped?)', e);
+      // AVPlay cannot stop while it is still IDLE (e.g. subtitle download).
+      log.warn('stop threw (already stopped or not prepared)', e);
     }
+    try { webapis.avplay.close(); }
+    catch (e) { log.warn('close threw (already closed)', e); }
     currentUrl = null;
+    currentSubtitleUrl = null;
   }
 
   return {

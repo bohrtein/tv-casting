@@ -1,0 +1,16 @@
+{
+  "name": "tv-casting-companion",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build:core": "esbuild core/worker-entry.js --bundle --platform=browser --format=iife --loader:.wasm=file --outdir=vendor/stremio-core --entry-names=worker --asset-names=[name] --log-level=warning",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@stremio/stremio-core-web": "0.63.2"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "playwright-core": "1.56.1"
+  }
+}

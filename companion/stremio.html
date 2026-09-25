@@ -52,8 +52,9 @@
         <div class="mx-field cn-grow">
           <div class="mx-field-head"><label class="mx-label" for="browse-catalog">catalog</label></div>
           <select class="mx-input mx-select" id="browse-catalog"></select>
+          </div>
         </div>
-      </div>
+        <div id="browse-filters" class="cn-toolbar"></div>
       <div id="browse-readout" class="mx-readout" style="display:none"></div>
       <div id="browse-results"></div>
       <div class="cn-more">
@@ -171,6 +172,16 @@
   </div>
 </div>
 
+<div class="mx-overlay" id="subtitles-sheet">
+  <div class="mx-sheet" role="dialog" aria-labelledby="subtitles-title">
+    <div class="mx-sheet-head">
+      <h2 id="subtitles-title" class="mx-panel-title">subtitles</h2>
+      <button class="mx-btn mx-sm" type="button" data-mx-close>cancel</button>
+    </div>
+    <div id="subtitles-list" class="mx-sheet-body cn-rows"></div>
+  </div>
+</div>
+
 <!-- Full picture: the poster (or backdrop) at its own size, uncropped. -->
 <div class="mx-overlay cn-viewer" id="image-viewer">
   <div class="cn-viewer-body" role="dialog" aria-label="picture">
@@ -187,7 +198,11 @@
 <script src="js/downloads-view.js" defer></script>
 <script src="js/now-casting.js" defer></script>
 <script src="js/relay-client.js" defer></script>
-<script src="js/stremio-client.js" defer></script>
+<script src="js/stremio-cast-adapter.js" defer></script>
+<script src="js/stremio-stream-presentation.js" defer></script>
+<script src="js/stremio-settings.js" defer></script>
+<script src="js/stremio-core-transport.js" defer></script>
+<script src="js/stremio-core-client.js" defer></script>
 <script src="js/stremio-app.js" defer></script>
 <script>
   if ('serviceWorker' in navigator) {

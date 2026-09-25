@@ -29,7 +29,8 @@ const MIME = {
   '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.png': 'image/png',
   '.ttf': 'font/ttf',
-  '.txt': 'text/plain; charset=utf-8'
+  '.txt': 'text/plain; charset=utf-8',
+  '.wasm': 'application/wasm'
 };
 
 // sw.js hardcodes __CACHE_VERSION__ as a placeholder; fill it in here

@@ -10,6 +10,7 @@ const ytdlp = require('./ytdlp');
 const torrent = require('./torrent');
 const { createThumbs } = require('./thumbs');
 const { fullLengthPlaylist } = require('./hls');
+const subtitles = require('./subtitles');
 const { log } = require('./logger');
 
 const PORT = process.env.PORT || 8788;
@@ -673,6 +674,15 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (req.method === 'POST' && url.pathname === '/subtitle') {
+    readJsonBody(req, 4096).then(async (body) => {
+      if (typeof body.url !== 'string') throw new Error('Body must include a subtitle URL.');
+      const fileName = await subtitles.download(body.url, MEDIA_DIR);
+      sendJson(res, 200, { url: `http://${req.headers.host}/media/${fileName}` });
+    }).catch((error) => sendJson(res, 400, { error: error.message }));
+    return;
+  }
+
   if (req.method === 'POST' && url.pathname === '/resolve') {
     readJsonBody(req, 8 * 1024 * 1024).then((body) => {
       const target = typeof body.url === 'string' ? body.url.trim() : '';
@@ -836,11 +846,8 @@ const server = http.createServer((req, res) => {
           try {
             const m = { ...entry.metadata, videoId: episode.id, season: episode.season, episode: episode.episode,
               episodeTitle: episode.name || episode.title || '' };
-            const client = require('../../companion/js/stremio-client')({ STREMIO_ADDONS: m.streamAddons, STREMIO_SERVER_URL: m.streamingServer });
-            const addons = await client.loadAddons('normal');
-            const result = await client.getStreams(addons, 'series', episode.id);
-            const castable = result.streams.map(client.toCastable).find(s => s.kind !== 'unsupported');
-            if (!castable) throw new Error('Next episode has no playable stream.');
+            const { firstPlayable } = require('./next-episode-sources');
+            const castable = await firstPlayable(m.streamAddons, m.streamingServer, 'series', episode.id);
             const title = m.name + ' S' + m.season + ' E' + m.episode + ' ' + m.episodeTitle;
             const resolver = require('../../companion/js/resolver-client')({ RESOLVER_URL: origin });
             const job = await resolver.startDownload(castable.url, { metadata: m, category: entry.category, title }, castable.torrent);
@@ -1048,6 +1055,16 @@ const server = http.createServer((req, res) => {
   const mediaMatch = /^\/media\/([0-9a-f]{16}\.mp4)$/.exec(url.pathname);
   if (req.method === 'GET' && mediaMatch) {
     serveMedia(req, res, mediaMatch[1]);
+    return;
+  }
+
+  const subtitleMatch = /^\/media\/(subtitle-[0-9a-f]{16}\.smi)$/.exec(url.pathname);
+  if (req.method === 'GET' && subtitleMatch) {
+    fs.readFile(path.join(MEDIA_DIR, subtitleMatch[1]), (error, data) => {
+      if (error) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'Content-Type': 'application/smil; charset=utf-8' });
+      res.end(data);
+    });
     return;
   }
 

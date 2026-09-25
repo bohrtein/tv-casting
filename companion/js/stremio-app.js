@@ -4,7 +4,7 @@
 // a stream, cast it. Same relay/resolver clients as the main companion
 // page -- this page is just another companion as far as the relay knows.
 document.addEventListener('DOMContentLoaded', function () {
-  var stremio = createStremioClient(APP_CONFIG);
+  var stremio = createStremioCoreClient(APP_CONFIG);
   var resolver = createResolverClient(APP_CONFIG);
   var CATALOG_KEY = 'tvc.stremio.catalog';
   var requestedSection = new URLSearchParams(location.search).get('section');
@@ -75,6 +75,8 @@ document.addEventListener('DOMContentLoaded', function () {
     ++browse.token;
     ++detail.token;
     ++streamsToken;
+    ++subtitleToken;
+    MX.sheet.close('subtitles-sheet');
     lastStreams = null;
     addons = [];
     catalogs = [];
@@ -130,8 +132,10 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  function castToTv(url, title) {
-    if (!relay.sendCommand('play', { url: url, title: title })) {
+  function castToTv(url, title, subtitleUrl) {
+    var payload = { url: url, title: title };
+    if (subtitleUrl) payload.subtitleUrl = subtitleUrl;
+    if (!relay.sendCommand('play', payload)) {
       MX.toast(false, 'Not connected to the relay yet, try again in a moment.');
       return;
     }
@@ -142,6 +146,7 @@ document.addEventListener('DOMContentLoaded', function () {
   // --- views (browse <-> detail), with the phone's back button working ---
 
   function showView(name) {
+    if (name !== 'detail') ++subtitleToken;
     el.viewBrowse.classList.toggle('cn-hidden', name !== 'browse');
     el.viewDetail.classList.toggle('cn-hidden', name !== 'detail');
     window.scrollTo(0, 0);
@@ -225,10 +230,49 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     el.browseCatalog.value = String(selected);
     el.browseCatalog.disabled = catalogs.length === 0;
+    defaultCatalogExtra(currentCatalog() && currentCatalog().catalog);
+    document.getElementById('browse-filters').innerHTML = '';
   }
 
   function currentCatalog() {
     return catalogs[Number(el.browseCatalog.value)] || null;
+  }
+
+  var catalogExtra = {};
+  function defaultCatalogExtra(catalog) {
+    catalogExtra = {};
+    (catalog && catalog.extra || []).forEach(function (item) {
+      if (item.isRequired && item.options && item.options.length) catalogExtra[item.name] = item.options[0];
+    });
+  }
+  function renderCatalogFilters(filters) {
+    var container = document.getElementById('browse-filters');
+    container.innerHTML = '';
+    filters.forEach(function (filter) {
+      if (!filter.options || !filter.options.length || filter.name === 'skip') return;
+      var wrapper = document.createElement('div');
+      wrapper.className = 'mx-field';
+      var label = document.createElement('label');
+      label.className = 'mx-label';
+      label.textContent = filter.name;
+      var select = document.createElement('select');
+      select.className = 'mx-input mx-select';
+      filter.options.forEach(function (choice) {
+        var option = document.createElement('option');
+        option.value = choice.value == null ? '' : choice.value;
+        option.textContent = choice.value == null ? 'All' : choice.value;
+        option.selected = !!choice.selected;
+        select.appendChild(option);
+      });
+      select.addEventListener('change', function () {
+        if (select.value) catalogExtra[filter.name] = select.value;
+        else delete catalogExtra[filter.name];
+        loadCatalogPage(true);
+      });
+      wrapper.appendChild(label);
+      wrapper.appendChild(select);
+      container.appendChild(wrapper);
+    });
   }
 
   function loadCatalogPage(reset) {
@@ -254,8 +298,11 @@ document.addEventListener('DOMContentLoaded', function () {
       grid = el.browseResults.querySelector('.cn-posters');
     }
     el.browseMore.disabled = true;
-    stremio.getCatalog(c.addon, c.catalog, browse.skip).then(function (metas) {
+    stremio.getCatalog(c.addon, c.catalog, browse.skip, catalogExtra).then(function (metas) {
       if (token !== browse.token) return;
+      stremio.getCatalogFilters().then(function (filters) {
+        if (token === browse.token) renderCatalogFilters(filters);
+      });
       setReadout(el.browseReadout, reset && !metas.length ? 'This catalog is empty.' : '', false);
       appendPosters(grid, metas);
       browse.skip += metas.length;
@@ -263,6 +310,9 @@ document.addEventListener('DOMContentLoaded', function () {
       el.browseMore.classList.toggle('cn-hidden', metas.length === 0);
     }).catch(function (err) {
       if (token !== browse.token) return;
+      stremio.getCatalogFilters().then(function (filters) {
+        if (token === browse.token) renderCatalogFilters(filters);
+      }).catch(function () {});
       el.browseMore.disabled = false;
       setReadout(el.browseReadout, err.message, true);
     });
@@ -290,6 +340,8 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   el.browseCatalog.addEventListener('change', function () {
+    defaultCatalogExtra(currentCatalog() && currentCatalog().catalog);
+    document.getElementById('browse-filters').innerHTML = '';
     var c = currentCatalog();
     if (c) {
       try { localStorage.setItem(CATALOG_KEY + '.' + section, c.addon.url + '|' + c.catalog.type + '|' + c.catalog.id); } catch (e) {}
@@ -498,6 +550,8 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   function loadStreams(type, id, title) {
+    ++subtitleToken;
+    MX.sheet.close('subtitles-sheet');
     lastStreams = { type: type, id: id, title: title };
     matchButton.hidden = !(['media', 'torrents'].indexOf(matchKind) !== -1 && matchKey && libraryMetadata().metadata);
     var token = ++streamsToken;
@@ -569,11 +623,62 @@ document.addEventListener('DOMContentLoaded', function () {
       row.disabled = true;
       return row;
     }
-    row.addEventListener('click', function () { castStream(castable, title); });
+    row.addEventListener('click', function () { selectStream(stream, castable, title); });
     return row;
   }
 
-  function castStream(castable, title) {
+  var subtitleToken = 0;
+  function selectStream(stream, castable, title) {
+    var token = ++subtitleToken;
+    if (document.getElementById('stream-save-only').checked) {
+      castStreamReady(castable, title, null);
+      return;
+    }
+    setReadout(el.streamsReadout, 'checking subtitles…', false);
+    stremio.getSubtitles(stream, lastStreams.type, lastStreams.id).then(function (subtitles) {
+      if (token !== subtitleToken) return;
+      setReadout(el.streamsReadout, '', false);
+      if (!subtitles.length) { castStream(castable, title, null); return; }
+      var list = document.getElementById('subtitles-list');
+      list.innerHTML = '';
+      function addChoice(label, subtitle) {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'cn-row';
+        button.textContent = label;
+        button.addEventListener('click', function () {
+          if (token !== subtitleToken) return;
+          MX.sheet.close('subtitles-sheet');
+          castStream(castable, title, subtitle, token);
+        });
+        list.appendChild(button);
+      }
+      addChoice('Play without subtitles', null);
+      subtitles.forEach(function (subtitle) {
+        addChoice((subtitle.label || subtitle.lang || 'Subtitle') +
+          (subtitle.origin ? ' · ' + subtitle.origin : ''), subtitle);
+      });
+      MX.sheet.open('subtitles-sheet');
+    }).catch(function (error) {
+      if (token !== subtitleToken) return;
+      setReadout(el.streamsReadout, 'Subtitles unavailable: ' + error.message, true);
+      castStream(castable, title, null);
+    });
+  }
+
+  function castStream(castable, title, subtitle, token) {
+    if (subtitle && !document.getElementById('stream-save-only').checked) {
+      setReadout(el.streamsReadout, 'preparing subtitles…', false);
+        resolver.resolveSubtitle(subtitle.url).then(function (url) {
+          if (token !== subtitleToken) return;
+          castStreamReady(castable, title, url);
+        }).catch(function (error) { if (token === subtitleToken) setReadout(el.streamsReadout, error.message, true); });
+      return;
+    }
+    castStreamReady(castable, title, null);
+  }
+
+  function castStreamReady(castable, title, subtitleUrl) {
     var fields = libraryMetadata();
     if (section === 'plus18') fields.category = 'plus18';
     fields.title = title;
@@ -591,7 +696,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!refreshed) { refreshed = true; refreshSaving(); }
       }, fields).then(function (result) {
         setReadout(el.streamsReadout, '', false);
-        if (!saveOnly) castToTv(result.streamUrl, title);
+        if (!saveOnly) castToTv(result.streamUrl, title, subtitleUrl);
         else setReadout(el.streamsReadout, 'Saving to Library. Progress is shown in Downloads.', false);
       }).catch(function (err) {
         setReadout(el.streamsReadout, err.message, true);
@@ -605,7 +710,7 @@ document.addEventListener('DOMContentLoaded', function () {
       setReadout(el.streamsReadout, job.status === 'downloading' ? 'downloading…' + pct : 'looking up that video…', false);
     }, fields).then(function (result) {
       setReadout(el.streamsReadout, '', false);
-      if (!saveOnly) castToTv(result.streamUrl, title);
+      if (!saveOnly) castToTv(result.streamUrl, title, subtitleUrl);
       else setReadout(el.streamsReadout, 'Saved to Library.', false);
     }).catch(function (err) {
       setReadout(el.streamsReadout, err.message, true);

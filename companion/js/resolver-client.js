@@ -156,6 +156,7 @@ function createResolverClient(config) {
     isDirectMediaUrl: isDirectMediaUrl,
     resolve: resolve,
     resolveTorrent: resolveTorrent,
+    resolveSubtitle: function (url) { return startJob('/subtitle', { url: url }).then(function (body) { return body.url; }); },
     listJobs: listJobs,
     getCache: getCache,
     listCache: listCache,

@@ -13,6 +13,11 @@ YouTube thumbnails are saved locally (5 MB limit, 15-second fetch timeout); a fa
 image request retains the remote image URL or falls back to a video frame.
 Requires Node 18+. Run npm test in resolver for persistence/API regression tests.
 
+`POST /subtitle` accepts `{ "url": "https://.../captions.srt" }` and returns
+`{ "url": "http://resolver/media/subtitle-....smi" }`. It downloads a bounded
+subtitle file and converts SRT or WebVTT to UTF-8 SAMI for Samsung AVPlay.
+The companion sends that local URL as the optional `subtitleUrl` play field.
+
 # Resolver
 
 Turns a page URL with an *embedded* video — a YouTube watch page, a

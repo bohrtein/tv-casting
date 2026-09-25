@@ -23,16 +23,19 @@ test('Stremio and Plus18 addons remain separate in shared settings', async () =>
       return { ok: true, json: async () => ({ id: String(url), name: String(url), resources: [] }) };
     }
   });
-  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', 'stremio-client.js'), 'utf8'), context);
-  const client = context.createStremioClient({ STREMIO_ADDONS: ['https://normal.example/manifest.json'] });
-  assert.equal((await client.loadAddons('normal')).length, 1);
-  assert.equal((await client.loadAddons('plus18')).length, 0);
-  await client.addAddon('https://adult.example/manifest.json', 'plus18');
+  for (const file of ['stremio-settings.js']) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', file), 'utf8'), context);
+  }
+  const settings = context.createStremioSettings({ STREMIO_ADDONS: ['https://normal.example/manifest.json'] });
+  await settings.sync();
+  assert.equal(settings.getUrls('normal').length, 1);
+  assert.equal(settings.getUrls('plus18').length, 0);
+  await settings.change('plus18', urls => urls.concat(['https://adult.example/manifest.json']));
   assert.deepEqual(shared.addons, ['https://normal.example/manifest.json']);
   assert.deepEqual(shared.plus18, ['https://adult.example/manifest.json']);
-  assert.equal((await client.loadAddons('normal')).length, 1);
-  assert.equal((await client.loadAddons('plus18')).length, 1);
-  await client.removeAddon('https://adult.example/manifest.json', 'plus18');
+  assert.equal(settings.getUrls('normal').length, 1);
+  assert.equal(settings.getUrls('plus18').length, 1);
+  await settings.change('plus18', urls => urls.filter(url => url !== 'https://adult.example/manifest.json'));
   assert.deepEqual(shared.addons, ['https://normal.example/manifest.json']);
   assert.deepEqual(shared.plus18, []);
 });

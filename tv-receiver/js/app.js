@@ -148,7 +148,7 @@
         elements.nowPlayingState.textContent = 'Loading';
         updateControls();
         showPlayerScreen();
-        player.play(payload.url, payload.startPositionSec || 0);
+        player.play(payload.url, payload.startPositionSec || 0, payload.subtitleUrl || null);
   }
 
   function onPlaybackStateChange(state) {

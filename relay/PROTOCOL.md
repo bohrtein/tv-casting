@@ -75,7 +75,9 @@ TV verbatim.
   url the TV already has loaded also resumes, and older TV builds only
   understand that.)
 - `play.payload.url` is the only required field; `title` and
-  `startPositionSec` are optional metadata for the TV's UI.
+  `startPositionSec` are optional metadata for the TV's UI. `subtitleUrl` may
+  point to a resolver-hosted UTF-8 SAMI file. The receiver downloads it locally
+  before preparing AVPlay.
 - If no TV is currently connected, the relay replies to the sender with
   `{ "type": "error", "code": "TV_NOT_FOUND", ... }` instead of forwarding.
 
