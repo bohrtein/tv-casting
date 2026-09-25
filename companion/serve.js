@@ -84,11 +84,12 @@ function sendJson(res, status, body) {
 function readStremioSettings() {
   try {
     const saved = JSON.parse(fs.readFileSync(STREMIO_SETTINGS_FILE, 'utf8'));
-    return { addons: Array.isArray(saved.addons) ? saved.addons : null };
+    return { addons: Array.isArray(saved.addons) ? saved.addons : null,
+      plus18: Array.isArray(saved.plus18) ? saved.plus18 : [] };
   } catch (e) {
     // Nothing saved yet (or a corrupt file): null tells the page to seed
     // it from its own list rather than wipe that list out.
-    return { addons: null };
+    return { addons: null, plus18: [] };
   }
 }
 
@@ -118,15 +119,18 @@ function handleStremioSettings(req, res) {
   });
   req.on('end', () => {
     if (size > MAX_BODY_BYTES) return;
-    let addons;
+    let addons, plus18;
     try {
-      addons = JSON.parse(Buffer.concat(chunks).toString('utf8')).addons;
+      const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      addons = body.addons;
+      plus18 = body.plus18;
     } catch (e) {
       sendJson(res, 400, { error: 'body must be JSON' });
       return;
     }
-    const valid = Array.isArray(addons) && addons.length <= MAX_ADDONS &&
-      addons.every((u) => typeof u === 'string' && /^https?:\/\/\S+$/i.test(u) && u.length <= 2048);
+    const validList = (list) => Array.isArray(list) && list.length <= MAX_ADDONS &&
+      list.every((u) => typeof u === 'string' && /^https?:\/\/\S+$/i.test(u) && u.length <= 2048);
+    const valid = validList(addons) && validList(plus18);
     if (!valid) {
       sendJson(res, 400, { error: 'addons must be a list of http(s) URLs' });
       return;
@@ -135,11 +139,11 @@ function handleStremioSettings(req, res) {
     const tmp = STREMIO_SETTINGS_FILE + '.tmp';
     fs.mkdir(DATA_DIR, { recursive: true }, (mkErr) => {
       if (mkErr) return sendJson(res, 500, { error: mkErr.message });
-      fs.writeFile(tmp, JSON.stringify({ addons }, null, 2), (wErr) => {
+      fs.writeFile(tmp, JSON.stringify({ addons, plus18 }, null, 2), (wErr) => {
         if (wErr) return sendJson(res, 500, { error: wErr.message });
         fs.rename(tmp, STREMIO_SETTINGS_FILE, (rErr) => {
           if (rErr) return sendJson(res, 500, { error: rErr.message });
-          sendJson(res, 200, { addons });
+          sendJson(res, 200, { addons, plus18 });
         });
       });
     });

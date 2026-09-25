@@ -36,6 +36,11 @@
     </span>
   </div>
 
+  <nav class="cn-mode-tabs" aria-label="Stremio sections">
+    <button id="mode-normal" class="mx-btn mx-primary" type="button" aria-current="page">Stremio</button>
+    <button id="mode-plus18" class="mx-btn" type="button">Plus18</button>
+  </nav>
+
   <!-- Browse: catalog picker + search over a poster grid. -->
   <section id="view-browse">
     <section class="mx-panel">
@@ -125,7 +130,7 @@
     </div>
     <div class="mx-sheet-body">
       <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 12px">
-        Any Stremio addon works: paste its manifest link
+        Addons here belong to the selected Stremio section. Paste a manifest link
         (<code>https://…/manifest.json</code> or <code>stremio://…</code>).
         Cinemeta gives the catalogs and episode lists; streams come from
         whichever stream addons you add here.
@@ -149,6 +154,19 @@
         it directly. Leave empty if you only use direct-link addons.
       </p>
       <button id="addons-server-save" class="mx-btn" type="button" style="margin-top:10px">save server</button>
+    </div>
+  </div>
+</div>
+
+<div class="mx-overlay" id="plus18-confirm">
+  <div class="mx-sheet" role="dialog" aria-labelledby="plus18-confirm-title">
+    <div class="mx-sheet-head"><h2 id="plus18-confirm-title" class="mx-panel-title">Switch to Plus18?</h2></div>
+    <div class="mx-sheet-body">
+      <p>Do you want to switch to Plus18?</p>
+      <div class="cn-np-buttons">
+        <button id="plus18-cancel" class="mx-btn" type="button">Cancel</button>
+        <button id="plus18-yes" class="mx-btn mx-primary" type="button">Yes, switch</button>
+      </div>
     </div>
   </div>
 </div>

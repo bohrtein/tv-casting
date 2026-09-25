@@ -567,3 +567,4 @@
 .cn-saved-actions[hidden], .cn-saved-thumb[hidden] { display: none; }
 .cn-library-hero .cn-desc { white-space: pre-line; }
 .cn-posters[hidden], .cn-poster[hidden], .cn-saved-group[hidden] { display: none; }
+.cn-mode-tabs { display: flex; gap: 8px; margin: 14px 0; }
