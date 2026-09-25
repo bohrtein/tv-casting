@@ -15,8 +15,6 @@ document.addEventListener('DOMContentLoaded', function () {
     linkTitle: document.getElementById('link-title'),
     linkReadout: document.getElementById('link-readout'),
     linkCast: document.getElementById('link-cast'),
-    linkDownloaded: document.getElementById('link-downloaded'),
-    linkDownloadedList: document.getElementById('link-downloaded-list'),
     downloadsList: document.getElementById('downloads-list'),
     downloadsEmpty: document.getElementById('downloads-empty'),
     activityList: document.getElementById('activity-list'),
@@ -68,8 +66,8 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function castToTv(url, title) {
+    if (!relay.sendCommand('play', { url: url, title: title })) { MX.toast(false, 'Relay is disconnected. Try again when connected.'); return; }
     nowCasting.set(url, title);
-    relay.sendCommand('play', { url: url, title: title });
     MX.toast(true, 'Casting: ' + title);
     if (MX.view) MX.view.show('remote');
   }
@@ -117,26 +115,6 @@ document.addEventListener('DOMContentLoaded', function () {
       setReadout(el.linkReadout, err.message, true);
     });
   });
-
-  // --- previously downloaded: instant recast from the resolver's
-  // rewatch cache, no url needed ---
-
-  function renderDownloaded(entries) {
-    el.linkDownloaded.classList.toggle('cn-hidden', entries.length === 0);
-    el.linkDownloadedList.innerHTML = '';
-    entries.forEach(function (entry) {
-      var row = document.createElement('button');
-      row.type = 'button';
-      row.className = 'cn-row';
-      row.innerHTML =
-        '<span class="cn-row-name">' + escapeHtml(entry.title || entry.sourceUrl) + '</span>' +
-        '<span class="mx-pill">saved</span>';
-      row.addEventListener('click', function () {
-        castToTv(entry.streamUrl, entry.title || entry.sourceUrl);
-      });
-      el.linkDownloadedList.appendChild(row);
-    });
-  }
 
   // --- job activity: downloads-in-progress + activity log ---
   // Polls the resolver directly (same LAN, no auth, same pattern the
@@ -204,6 +182,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function pollJobs() {
     resolver.listJobs().then(function (allJobs) {
+      allJobs = allJobs.filter(ContentPolicy.visible);
       downloadsView.render(allJobs);
       markNewDownloads(allJobs);
       renderActivity(allJobs);
@@ -211,9 +190,7 @@ document.addEventListener('DOMContentLoaded', function () {
       // Resolver unreachable -- leave whatever was last rendered up
       // rather than blank a working UI over a transient LAN hiccup.
     });
-    resolver.getCache().then(function (cache) {
-      renderDownloaded(cache.entries || []);
-    }).catch(function () {});
+
   }
 
   pollJobs();
@@ -231,14 +208,19 @@ document.addEventListener('DOMContentLoaded', function () {
     if (msg.state === 'tv_offline') {
       nowCasting.clear();
       setRelayChip('err', 'tv offline');
-      MX.toast(false, 'The TV disconnected.');
+      setReadout(el.remoteReadout, 'Selected playback target is offline.', false);
+      [el.remotePlayPause, el.remoteStop, el.remoteBack, el.remoteFwd, el.remoteSeek].forEach(function (button) { button.disabled = true; });
+      document.getElementById('remote-pending').textContent = '';
+      lastPositionSec = 0; lastDurationSec = 0; lastStatusTitle = '';
       return;
     }
 
+    if (msg.state === 'idle' || msg.state === 'stopped' || msg.state === 'ended') { lastPositionSec = 0; lastDurationSec = 0; document.getElementById('remote-pending').textContent = ''; }
     if (typeof msg.title === 'string') lastStatusTitle = msg.title;
     if (typeof msg.positionSec === 'number') lastPositionSec = msg.positionSec;
     if (typeof msg.durationSec === 'number') lastDurationSec = msg.durationSec;
 
+    if (msg.pendingSeek) document.getElementById('remote-pending').textContent = msg.pendingSeek.targetSec === null ? '' : 'Seek to ' + Math.round(msg.pendingSeek.targetSec) + 's pending' + (msg.pendingSeek.error ? ' — press seek to retry' : '');
     var label;
     if (msg.state === 'error') {
       label = msg.error ? msg.error.message : 'error';
@@ -250,7 +232,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     setReadout(el.remoteReadout, label, msg.state === 'error');
 
-    var hasMedia = msg.state !== 'idle' && msg.state !== 'stopped';
+    var hasMedia = ['playing', 'paused', 'buffering'].indexOf(msg.state) !== -1;
     el.remotePlayPause.disabled = !hasMedia;
     el.remotePlayPause.textContent = (msg.state === 'playing' || msg.state === 'buffering') ? 'pause' : 'play';
     el.remoteStop.disabled = !hasMedia;
@@ -305,8 +287,7 @@ document.addEventListener('DOMContentLoaded', function () {
       relay.sendCommand('pause');
       return;
     }
-    var cmd = nowCasting.resumeCommand(lastStatusTitle);
-    relay.sendCommand(cmd.action, cmd.payload);
+    relay.sendCommand('resume');
   });
 
   el.remoteStop.addEventListener('click', function () {
@@ -315,11 +296,11 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   el.remoteBack.addEventListener('click', function () {
-    relay.sendCommand('seek', { positionSec: Math.max(0, lastPositionSec - 10) });
+    relay.sendCommand('seek', { deltaSec: -10 });
   });
 
   el.remoteFwd.addEventListener('click', function () {
-    relay.sendCommand('seek', { positionSec: lastPositionSec + 10 });
+    relay.sendCommand('seek', { deltaSec: 10 });
   });
 
   document.getElementById('link-download').addEventListener('click', function () {
@@ -328,6 +309,16 @@ document.addEventListener('DOMContentLoaded', function () {
       .then(function () { setReadout(el.linkReadout, 'Download started. Follow progress in Downloads.', false); })
       .catch(function (err) { setReadout(el.linkReadout, err.message, true); })
       .then(function () { button.disabled = false; });
+  });
+  function route() {
+    var view = location.hash.slice(1) || new URLSearchParams(location.search).get('view') || 'remote';
+    if (['remote', 'link', 'downloads', 'activity'].indexOf(view) < 0) view = 'remote';
+    if (MX.view) MX.view.show(view);
+  }
+  route();
+  window.addEventListener('hashchange', route);
+  document.querySelectorAll('[data-mx-tab]').forEach(function (tab) {
+    tab.addEventListener('click', function () { history.replaceState(null, '', '#' + tab.getAttribute('data-mx-tab')); });
   });
   relay.connect();
 });

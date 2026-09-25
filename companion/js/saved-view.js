@@ -23,7 +23,7 @@ function createSavedView(resolver, container, opts) {
   var tiles = {};
   var filterText = '';
   var lastCache = null;
-  var categories = { movies: 'Movies', series: 'Television series', plus18: 'Plus18', youtube: 'YouTube videos', porn: 'Porn', other: 'Other videos' };
+  var categories = { movies: 'Movies', series: 'Television series', plus18: '18+', youtube: 'YouTube videos', porn: 'Porn', other: 'Other videos' };
   var categoryFilter = document.createElement('select');
   categoryFilter.className = 'mx-input cn-saved-filter';
   categoryFilter.setAttribute('aria-label', 'Library category');
@@ -36,9 +36,10 @@ function createSavedView(resolver, container, opts) {
   sectionTabs.className = 'cn-mode-tabs';
   sectionTabs.setAttribute('aria-label', 'Library sections');
   var allTab = document.createElement('button'); allTab.type = 'button'; allTab.className = 'mx-btn mx-primary'; allTab.textContent = 'Library';
-  var plus18Tab = document.createElement('button'); plus18Tab.type = 'button'; plus18Tab.className = 'mx-btn'; plus18Tab.textContent = 'Plus18';
+  var plus18Tab = document.createElement('button'); plus18Tab.type = 'button'; plus18Tab.className = 'mx-btn'; plus18Tab.textContent = '18+';
   function setSection(value) {
     categoryFilter.value = value;
+    ContentPolicy.setMode(value === 'plus18' || value === 'porn' ? 'plus18' : 'normal');
     allTab.classList.toggle('mx-primary', value !== 'plus18');
     plus18Tab.classList.toggle('mx-primary', value === 'plus18');
     selectedTitle = null;
@@ -47,11 +48,13 @@ function createSavedView(resolver, container, opts) {
   allTab.addEventListener('click', function () { setSection('all'); });
   plus18Tab.addEventListener('click', function () { setSection('plus18'); });
   categoryFilter.addEventListener('change', function () {
+    ContentPolicy.setMode(categoryFilter.value === 'plus18' || categoryFilter.value === 'porn' ? 'plus18' : 'normal');
     allTab.classList.toggle('mx-primary', categoryFilter.value !== 'plus18');
     plus18Tab.classList.toggle('mx-primary', categoryFilter.value === 'plus18');
   });
   sectionTabs.appendChild(allTab); sectionTabs.appendChild(plus18Tab);
   container.insertBefore(sectionTabs, categoryFilter);
+  setSection(ContentPolicy.mode() === 'plus18' ? 'plus18' : 'all');
 
   var filter = document.createElement('input');
   filter.className = 'mx-input cn-saved-filter';
@@ -400,7 +403,7 @@ function createSavedView(resolver, container, opts) {
     lastCache = cache;
     var allEntries = (cache.entries || []).concat(cache.torrents || []);
     var total = allEntries.filter(function (entry) {
-      return categoryFilter.value === 'plus18' ? entry.category === 'plus18' : entry.category !== 'plus18';
+      return categoryFilter.value === 'plus18' ? ContentPolicy.restricted(entry) : !ContentPolicy.restricted(entry);
     }).length;
     status.textContent = total ? total + ' saved files' : 'No saved files yet. Save a link or choose a Stremio stream to get started.';
     var buckets = {};
@@ -408,15 +411,18 @@ function createSavedView(resolver, container, opts) {
     (cache.entries || []).concat(cache.torrents || []).forEach(function (entry) {
       var category = entry.category || 'other';
       if (!categories[category]) category = 'other';
-      if (categoryFilter.value === 'all' && category === 'plus18') return;
-      if (categoryFilter.value !== 'all' && categoryFilter.value !== category) return;
+      if (categoryFilter.value === 'plus18') { if (!ContentPolicy.restricted(entry)) return; }
+      else {
+        if (categoryFilter.value !== 'porn' && ContentPolicy.restricted(entry)) return;
+        if (categoryFilter.value !== 'all' && categoryFilter.value !== category) return;
+      }
       var m = entry.metadata;
       var key = (category === 'series' || category === 'movies' || category === 'plus18') && m ? 'title:' + titleKey(m) : category;
-      if (!buckets[key]) buckets[key] = { label: (category === 'plus18' ? 'Plus18 · ' : 'Television series · ') + m.name, entries: [] };
+      if (!buckets[key]) buckets[key] = { label: (category === 'plus18' ? '18+ · ' : 'Television series · ') + (m ? m.name : categories[category]), entries: [] };
       buckets[key].entries.push(entry);
     });
     (cache.titles || []).forEach(function (m) {
-      if (m.addon === 'plus18' && categoryFilter.value !== 'plus18') return;
+      if (ContentPolicy.restricted(m) && categoryFilter.value !== 'plus18') return;
       var bucket = buckets['title:' + titleKey(m)];
       // Retain a series even when its last episode is deleted.
       if (!bucket && m.type === 'series' && (categoryFilter.value === 'all' || categoryFilter.value === 'series')) {

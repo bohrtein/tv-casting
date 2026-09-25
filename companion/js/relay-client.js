@@ -5,6 +5,29 @@
 // stays joined to whatever TV the relay currently has.
 function createRelayClient(config, handlers) {
   var socket = null;
+  var targetId = 'tv', targets = [];
+  try { targetId = localStorage.getItem('tvc.target') || 'tv'; } catch (_) {}
+  var select = document.createElement('select');
+  select.className = 'mx-input'; select.setAttribute('aria-label', 'Playback target');
+  var holder = document.querySelector('.mx-topbar-nav') || document.querySelector('.mx-topbar');
+  if (holder) {
+    holder.appendChild(select);
+    var link = document.createElement('a'); link.className = 'mx-btn mx-sm'; link.href = 'receiver.html'; link.target = '_blank'; link.rel = 'noopener'; link.textContent = 'Open receiver'; holder.appendChild(link);
+  }
+  function renderTargets() {
+    select.innerHTML = '';
+    var list = targets.slice();
+    if (!list.some(function (t) { return t.id === targetId; })) list.push({ id: targetId, name: targetId === 'tv' ? 'TV' : 'Selected receiver', online: false });
+    list.forEach(function (t) { var o = document.createElement('option'); o.value = t.id; o.textContent = t.name + (t.online ? '' : ' (offline)'); select.appendChild(o); });
+    select.value = targetId;
+  }
+  select.addEventListener('change', function () {
+    targetId = select.value;
+    handlers.onStatus({ state: 'idle', title: '', positionSec: 0, durationSec: 0 });
+    try { localStorage.setItem('tvc.target', targetId); } catch (_) {}
+    send({ type: 'select-target', targetId: targetId });
+  });
+  renderTargets();
   var reconnectAttempts = 0;
   var reconnectTimer = null;
 
@@ -35,7 +58,7 @@ function createRelayClient(config, handlers) {
     socket.onopen = function () {
       reconnectAttempts = 0;
       handlers.onConnected();
-      send({ type: 'join', role: 'companion' });
+      send({ type: 'join', role: 'companion', targetId: targetId });
     };
 
     socket.onmessage = function (event) {
@@ -60,11 +83,13 @@ function createRelayClient(config, handlers) {
 
   function handleMessage(msg) {
     switch (msg.type) {
+      case 'targets':
+        targets = msg.targets || []; renderTargets(); break;
       case 'joined':
         handlers.onJoined();
         break;
       case 'status':
-        handlers.onStatus(msg);
+        if (!msg.targetId || msg.targetId === targetId) handlers.onStatus(msg);
         break;
       case 'error':
         handlers.onError(msg);

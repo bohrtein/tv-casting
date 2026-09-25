@@ -21,6 +21,7 @@ const STATES = Object.freeze([
   'playing',
   'paused',
   'stopped',
+  'ended',
   'error',
   'tv_offline',
 ]);
@@ -46,7 +47,7 @@ function parseEnvelope(raw) {
 }
 
 function validateRegister(msg) {
-  return msg.role === 'tv';
+  return msg.role === 'tv' || (msg.role === 'receiver' && typeof msg.name === 'string' && msg.name.trim().length > 0 && msg.name.length <= 80);
 }
 
 function validateJoin(msg) {
@@ -59,7 +60,7 @@ function validateCommand(msg) {
     return !!msg.payload && typeof msg.payload.url === 'string' && msg.payload.url.length > 0;
   }
   if (msg.action === 'seek') {
-    return !!msg.payload && typeof msg.payload.positionSec === 'number';
+    return !!msg.payload && (Number.isFinite(msg.payload.positionSec) && msg.payload.positionSec >= 0 || Number.isFinite(msg.payload.deltaSec) && Math.abs(msg.payload.deltaSec) <= 86400);
   }
   return true; // pause/resume/stop take no payload
 }

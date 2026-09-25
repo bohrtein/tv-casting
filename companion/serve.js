@@ -153,6 +153,15 @@ function handleStremioSettings(req, res) {
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://internal');
+  if (url.pathname === '/js/config.js' && (process.env.RELAY_URL || process.env.RESOLVER_URL)) {
+    let config = fs.readFileSync(path.join(ROOT, 'js/config.js'), 'utf8');
+    for (const key of ['RELAY_URL', 'RESOLVER_URL']) if (process.env[key]) config += '\nAPP_CONFIG.' + key + ' = ' + JSON.stringify(process.env[key]) + ';';
+    res.writeHead(200, { 'Content-Type': MIME['.js'], 'Cache-Control': 'no-store' }); res.end(config); return;
+  }
+  if (url.pathname === '/js/playback-history.js') {
+    res.writeHead(200, { 'Content-Type': MIME['.js'], 'Cache-Control': 'no-cache' });
+    res.end(fs.readFileSync(path.join(ROOT, '../tv-receiver/js/playback-history.js'))); return;
+  }
   if (url.pathname === '/api/stremio-settings') {
     handleStremioSettings(req, res);
     return;

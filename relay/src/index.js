@@ -18,6 +18,18 @@ const PORT = process.env.PORT || 8787;
 const HEARTBEAT_INTERVAL_MS = 30000;
 
 const clients = new ClientRegistry();
+const receivers = new Map();
+const { randomUUID } = require('crypto');
+function targetList() {
+  return [{ id: 'tv', name: 'TV', online: !!clients.tvSocket }].concat(
+    [...receivers].map(([id, s]) => ({ id, name: s.receiverName, online: true })));
+}
+function publishTargets() { broadcastToCompanions({ type: 'targets', targets: targetList() }); }
+function selectedSocket(id) { return id === 'tv' ? clients.tvSocket : receivers.get(id); }
+function snapshot(socket) {
+  const id = socket.targetId || 'tv', target = selectedSocket(id);
+  send(socket, { ...(target && target.lastStatus || { type: 'status', state: target ? 'idle' : 'tv_offline' }), targetId: id });
+}
 
 const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url === '/healthz') {
@@ -56,10 +68,18 @@ function handleFirstMessage(socket, msg) {
       sendError(socket, ERROR_CODES.INVALID_MESSAGE, 'register requires role "tv".');
       return;
     }
-    clients.setTv(socket);
-    socket.role = 'tv';
-    send(socket, { type: TYPES.REGISTERED, role: 'tv' });
-    log('tv registered');
+    socket.role = msg.role;
+    if (msg.role === 'tv') {
+      if (clients.tvSocket) clients.tvSocket.close(1000, 'Replaced by another TV');
+      clients.setTv(socket); socket.targetId = 'tv';
+    } else {
+      socket.targetId = 'browser-' + randomUUID();
+      socket.receiverName = msg.name.trim(); receivers.set(socket.targetId, socket);
+    }
+    send(socket, { type: TYPES.REGISTERED, role: msg.role, targetId: socket.targetId });
+    publishTargets();
+    for (const c of clients.companions) if ((c.targetId || 'tv') === socket.targetId) snapshot(c);
+    log('receiver registered', socket.targetId);
     return;
   }
 
@@ -70,7 +90,10 @@ function handleFirstMessage(socket, msg) {
     }
     clients.addCompanion(socket);
     socket.role = 'companion';
+    socket.targetId = typeof msg.targetId === 'string' ? msg.targetId : 'tv';
     send(socket, { type: TYPES.JOINED });
+    send(socket, { type: 'targets', targets: targetList() });
+    snapshot(socket);
     log('companion joined');
     return;
   }
@@ -83,11 +106,13 @@ function handleCommand(socket, msg) {
     sendError(socket, ERROR_CODES.INVALID_MESSAGE, `Invalid command payload for action "${msg.action}".`);
     return;
   }
-  if (!clients.tvSocket || clients.tvSocket.readyState !== clients.tvSocket.OPEN) {
+  const target = selectedSocket(socket.targetId || 'tv');
+  if (!target || target.readyState !== target.OPEN) {
     sendError(socket, ERROR_CODES.TV_NOT_FOUND, 'No TV is connected.');
     return;
   }
-  send(clients.tvSocket, msg);
+  log('command', socket.targetId, msg.action);
+  send(target, msg);
 }
 
 function handleStatus(socket, msg) {
@@ -101,7 +126,9 @@ function handleStatus(socket, msg) {
     const err = msg.error || {};
     log(`TV playback error${msg.title ? ` (${msg.title})` : ''}: ${err.code || '?'}: ${err.message || '(no message)'}`);
   }
-  broadcastToCompanions(msg);
+  if (selectedSocket(socket.targetId) !== socket) return;
+  socket.lastStatus = { ...msg, targetId: socket.targetId };
+  for (const c of clients.companions) if ((c.targetId || 'tv') === socket.targetId) send(c, socket.lastStatus);
 }
 
 wss.on('connection', (socket) => {
@@ -130,12 +157,16 @@ wss.on('connection', (socket) => {
       return;
     }
 
+    if (socket.role === 'companion' && msg.type === 'select-target' && typeof msg.targetId === 'string') {
+      socket.targetId = msg.targetId; snapshot(socket); return;
+    }
+
     if (socket.role === 'companion' && msg.type === TYPES.COMMAND) {
       handleCommand(socket, msg);
       return;
     }
 
-    if (socket.role === 'tv' && msg.type === TYPES.STATUS) {
+    if ((socket.role === 'tv' || socket.role === 'receiver') && msg.type === TYPES.STATUS) {
       handleStatus(socket, msg);
       return;
     }
@@ -148,9 +179,11 @@ wss.on('connection', (socket) => {
   });
 
   socket.on('close', () => {
-    if (socket.role === 'tv') {
-      clients.clearTv(socket);
-      broadcastToCompanions({ type: TYPES.STATUS, state: 'tv_offline' });
+    if (socket.role === 'tv' || socket.role === 'receiver') {
+      if (selectedSocket(socket.targetId) !== socket) return;
+      clients.clearTv(socket); receivers.delete(socket.targetId);
+      for (const c of clients.companions) if ((c.targetId || 'tv') === socket.targetId) send(c, { type: TYPES.STATUS, state: 'tv_offline', targetId: socket.targetId });
+      publishTargets();
       log('tv disconnected');
     } else if (socket.role === 'companion') {
       clients.removeCompanion(socket);
@@ -176,5 +209,5 @@ const heartbeat = setInterval(() => {
 wss.on('close', () => clearInterval(heartbeat));
 
 server.listen(PORT, () => {
-  log(`relay listening on :${PORT} (ws + http GET /healthz)`);
+  log(`relay listening on :${server.address().port} (ws + http GET /healthz)`);
 });

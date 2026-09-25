@@ -165,3 +165,5 @@ function createResolverClient(config) {
     resumeSaved: resumeSaved
   };
 }
+
+if (typeof module !== "undefined") module.exports = createResolverClient;

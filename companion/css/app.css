@@ -568,3 +568,11 @@
 .cn-library-hero .cn-desc { white-space: pre-line; }
 .cn-posters[hidden], .cn-poster[hidden], .cn-saved-group[hidden] { display: none; }
 .cn-mode-tabs { display: flex; gap: 8px; margin: 14px 0; }
+
+/* Keep the primary view primary on wide screens too. */
+.mx-tabbed [data-mx-panel]:not(.mx-shown) { display: none; }
+.mx-topbar-nav { flex-wrap: wrap; }
+.mx-topbar-nav select { width: auto; max-width: 240px; }
+
+.mx-tabbed .mx-tabs { display: flex; }
+.mx-tabbed .mx-layout-split { display: block; }

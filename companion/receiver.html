@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Browser receiver · TV Casting</title>
+<link rel="stylesheet" href="matrix/matrix.css">
+<link rel="stylesheet" href="css/receiver.css">
+</head>
+<body class="mx">
+<main>
+  <h1>Browser receiver</h1>
+  <p>Keep this page open on the same network as the casting server. Select its name in the companion’s playback targets.</p>
+  <form id="receiver-join">
+    <label for="receiver-name">Device name</label>
+    <input class="mx-input" id="receiver-name" maxlength="80" required value="Browser receiver">
+    <button class="mx-btn mx-primary" type="submit">Enable receiver</button>
+  </form>
+  <p id="receiver-status" role="status" aria-live="polite">Receiver is disabled.</p>
+  <h2 id="receiver-title"></h2>
+  <video id="receiver-video" controls playsinline preload="metadata"></video>
+  <button id="receiver-play" class="mx-btn mx-primary" hidden>Tap to start playback</button>
+  <button id="receiver-stop" class="mx-btn" hidden>Stop</button>
+  <a class="mx-btn" href="index.html">Companion</a>
+</main>
+<script src="js/config.js"></script>
+<script src="vendor/hls.min.js"></script>
+<script src="js/playback-history.js"></script>
+<script src="js/browser-receiver.js"></script>
+</body>
+</html>

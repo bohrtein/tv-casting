@@ -618,3 +618,5 @@ function createStremioClient(config) {
     isTorrent: isTorrent
   };
 }
+
+if (typeof module !== "undefined") module.exports = createStremioClient;

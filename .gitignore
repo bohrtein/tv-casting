@@ -35,3 +35,5 @@ resolver/media/*
 
 # torrent-server/ run outside Docker (npm start) keeps its downloads here
 torrent-server/data/
+
+.npm-cache/

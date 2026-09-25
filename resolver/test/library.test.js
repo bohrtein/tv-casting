@@ -37,7 +37,7 @@ test('classification and metadata validation avoid treating any age restriction 
   assert.equal(libraryFields({ category: 'plus18' }).category, 'plus18');
   assert.equal(classify('https://youtu.be/abc', {}), 'youtube');
   assert.equal(classify('https://www.pornhub.com/view_video.php?id=test', {}), 'porn');
-  assert.equal(classify('https://example.com/film', { age_limit: 18 }), 'other');
+  assert.equal(classify('https://example.com/film', { age_limit: 18 }), 'plus18');
   assert.throws(() => libraryFields({ category: 'invalid' }));
   assert.throws(() => libraryFields({ metadata: { type: 'series', id: 'tt123', name: 'Show' } }));
   const fields = libraryFields({ metadata: { type: 'series', id: 'tt123', name: 'Show', videoId: 'tt123:1:2', season: 1, episode: 2, fileName: '../bad' } });
@@ -83,6 +83,11 @@ test('resolver persists downloads, deduplicates jobs, validates updates and serv
   async function stop() { const closed = once(child, 'exit'); child.kill(); await closed; }
   const root = `http://127.0.0.1:${port}`;
   async function post(url, body) { return fetch(root + url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
+  const addon = http.createServer((req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify(req.url === '/manifest.json' ? {id:'fixture', name:'Fixture provider', resources:['stream'], types:['series']} : {streams:[{url:'https://example.com/next-episode.mp4'}]}));
+  });
+  addon.listen(0, '127.0.0.1'); await once(addon, 'listening');
   try {
     await start();
     const metadata = { id: 'tt123', type: 'series', name: 'Fixture Show', videoId: 'tt123:1:2', season: 1, episode: 2, videos: [{ id: 'tt123:1:1', season: 1, episode: 1 }, { id: 'tt123:1:2', season: 1, episode: 2 }, { id: 'tt123:2:1', season: 2, episode: 1 }] };
@@ -116,7 +121,8 @@ test('resolver persists downloads, deduplicates jobs, validates updates and serv
     assert.equal(resumed.startPositionSec, 87);
     const completed = await (await post('/playback', { url: entries[0].streamUrl, event: 'completed', positionSec: 900, durationSec: 900 })).json();
     assert.equal(completed.progress.watched, true);
-    assert.equal(completed.next, null);
+    assert.equal(completed.next, undefined);
+    assert.match(completed.autoplayError, /not saved/);
     const replay = await (await post('/playback', { url: entries[0].streamUrl, event: 'start' })).json();
     assert.equal(replay.startPositionSec, 0);
     const cached = await (await post('/resolve', { url: 'https://example.com/test' })).json();
@@ -130,7 +136,24 @@ test('resolver persists downloads, deduplicates jobs, validates updates and serv
     await stop(); await start();
     const afterRestart = await (await fetch(root + '/library')).json();
     assert.equal(afterRestart.torrents[0].metadata.name, 'Fixture Show');
+    const withProvider = {...metadata, streamAddons: ['http://127.0.0.1:' + addon.address().port + '/manifest.json']};
+    await post('/library/media/' + entries[0].fileName, {metadata:withProvider});
+    const continuation = await (await post('/playback', {url:entries[0].streamUrl, event:'completed', positionSec:900, durationSec:900})).json();
+    assert.ok(continuation.nextJob, JSON.stringify(continuation));
+    let nextJob;
+    for (let i=0;i<50;i++) {
+      nextJob = await (await fetch(root + '/resolve/' + continuation.nextJob.id)).json();
+      if (nextJob.status === 'ready') break;
+      await new Promise(r=>setTimeout(r,25));
+    }
+    assert.equal(nextJob.status, 'ready');
+    const nextLibrary = await (await fetch(root+'/library')).json();
+    const nextEntry = nextLibrary.entries.find(e=>e.metadata && e.metadata.season===2);
+    assert.equal(nextEntry.metadata.episode,1);
+    const finale = await (await post('/playback', {url:nextEntry.streamUrl,event:'completed',positionSec:900,durationSec:900})).json();
+    assert.equal(finale.next,null); assert.equal(finale.nextJob,null);
   } finally {
+    addon.closeAllConnections(); addon.close();
     if (child && child.exitCode === null) await stop();
     const target = path.resolve(dir);
     assert.ok(target.startsWith(path.resolve(os.tmpdir()) + path.sep + 'casting-api-'));

@@ -59,7 +59,7 @@ async function enrichSavedYoutube() {
       const info = await ytdlp.getInfo(entry.sourceUrl);
       const thumbnail = await saveThumbnail(info.thumbnail, MEDIA_DIR, path.basename(entry.fileName, '.mp4'));
       if (mediaCache.has(entry.fileName)) mediaCache.update(entry.fileName, { thumbnail: thumbnail || info.thumbnail,
-        category: entry.category || 'youtube' });
+        category: ['porn', 'plus18'].includes(classify(entry.sourceUrl, info)) ? classify(entry.sourceUrl, info) : entry.category || 'youtube' });
     } catch (err) { log('saved YouTube thumbnail unavailable', entry.fileName, err.message); }
   }
 }
@@ -301,6 +301,8 @@ function isHttpUrl(value) {
 
 function jobPublicShape(job, req) {
   const shape = {
+    category: job.libraryFields && job.libraryFields.category || classify(job.sourceUrl, {}),
+    metadata: job.libraryFields && job.libraryFields.metadata,
     id: job.id,
     status: job.status,
     progress: job.progress,
@@ -397,6 +399,8 @@ async function runJob(job, url) {
       info = await ytdlp.getInfo(downloadUrl, headerOpts);
     }
     if (signal.aborted) throw new Error('Cancelled.');
+    const detected = classify(url, info);
+    if (['porn', 'plus18'].includes(detected)) job.libraryFields = { ...job.libraryFields, category: detected };
     jobs.update(job.id, { title: info.title, status: 'downloading' });
 
     const outPathNoExt = path.join(MEDIA_DIR, job.id);
@@ -421,7 +425,7 @@ async function runJob(job, url) {
       throw new Error('Cancelled.');
     }
     const evicted = mediaCache.add({ sourceUrl: job.sourceUrl, fileName, title: info.title,
-      category: classify(url, info), thumbnail, ...job.libraryFields });
+      thumbnail, ...job.libraryFields, category: ['porn', 'plus18'].includes(classify(url, info)) ? classify(url, info) : job.libraryFields.category || classify(url, info) });
     jobs.update(job.id, { status: 'ready', progress: 100, fileName, finishedAt: Date.now() });
     evicted.forEach((e) => {
       fs.unlink(path.join(MEDIA_DIR, e.fileName), () => {});
@@ -808,7 +812,7 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (req.method === 'POST' && url.pathname === '/playback') {
-    readJsonBody(req, 16384).then(body => {
+    readJsonBody(req, 16384).then(async body => {
       const origin = `http://${req.headers.host}`;
       const entries = mediaCache.list().map(e => ({ ...e, kind: 'media', key: e.fileName, streamUrl: origin + '/media/' + e.fileName }))
         .concat(torrentCache.list().map(e => ({ ...e, kind: 'torrents', key: e.fileName,
@@ -823,8 +827,36 @@ const server = http.createServer((req, res) => {
       else if (body.event !== 'start') throw new Error('Unknown playback event.');
       const progress = libraryState.progress(entry);
       const next = body.event === 'completed' ? libraryState.next(entry, entries) : null;
+      let nextJob = null;
+      if (body.event === 'completed') {
+        log('natural end detected', entry.title);
+        const episode = libraryState.nextEpisode(entry);
+        if (next) log('next episode resolved from library', next.title);
+        else if (episode && entry.metadata.streamAddons && entry.metadata.streamAddons.length) {
+          try {
+            const m = { ...entry.metadata, videoId: episode.id, season: episode.season, episode: episode.episode,
+              episodeTitle: episode.name || episode.title || '' };
+            const client = require('../../companion/js/stremio-client')({ STREMIO_ADDONS: m.streamAddons, STREMIO_SERVER_URL: m.streamingServer });
+            const addons = await client.loadAddons('normal');
+            const result = await client.getStreams(addons, 'series', episode.id);
+            const castable = result.streams.map(client.toCastable).find(s => s.kind !== 'unsupported');
+            if (!castable) throw new Error('Next episode has no playable stream.');
+            const title = m.name + ' S' + m.season + ' E' + m.episode + ' ' + m.episodeTitle;
+            const resolver = require('../../companion/js/resolver-client')({ RESOLVER_URL: origin });
+            const job = await resolver.startDownload(castable.url, { metadata: m, category: entry.category, title }, castable.torrent);
+            nextJob = { id: job.id, title };
+            log(episode.season !== entry.metadata.season ? 'next season transition' : 'next episode resolved', title);
+          } catch (err) {
+            log('autoplay failure', err.message);
+            sendJson(res, 200, { progress, autoplayError: err.message }); return;
+          }
+        } else if (episode) {
+          log('autoplay failure: next episode is unavailable', entry.title);
+          sendJson(res, 200, { progress, autoplayError: 'Next episode is not saved and no stream provider is associated with this title.' }); return;
+        } else log('no next episode', entry.title);
+      }
       sendJson(res, 200, { progress, startPositionSec: progress.watched ? 0 : progress.positionSec,
-        next: next ? { url: next.streamUrl, title: next.title } : null });
+        next: next ? { url: next.streamUrl, title: next.title } : null, nextJob });
     }).catch(err => sendJson(res, 400, { error: err.message }));
     return;
   }

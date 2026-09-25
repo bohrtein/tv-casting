@@ -69,3 +69,30 @@ These are enforced in code review, not just convention:
 ## Status
 
 See the "Current status" section at the bottom of [PLAN.md](PLAN.md).
+
+## Playback improvements (September 2026)
+
+- Root companion launches Remote; #link, #remote, #downloads and #activity remain explicit routes.
+- Library's 18+ section includes legacy Porn items and explicit adult/rating metadata.
+  Catalog mode persists across navigation. Unrated media stays usable; absent ratings are
+  not a guarantee of suitability. Mode is a browsing filter, not an access-control boundary.
+- Downloaded videos live in Library; Links contains acquisition controls only.
+- Open companion/receiver.html on a phone or computer, enable it, then select its name
+  in the companion target selector. Keep the receiver open. Browser autoplay restrictions
+  may require tapping Start on that device. Native HTML5 playback and bundled HLS.js
+  reuse server streams without making another saved copy. Codec support depends on the browser.
+- TV seeks combine relative button presses, serialize AVPlay calls, retain failed targets,
+  retry transient failures and show pending feedback. After repeated failure, press seek to retry.
+- TV uses contain fitting, dynamic viewport sizing, and Samsung's documented AVPlay coordinate
+  conversion: https://developer.samsung.com/smarttv/develop/guides/multimedia/media-playback/using-avplay.html
+- Natural episode completion uses the saved ordered catalog (excluding specials and future
+  releases). It plays the next saved episode or resolves it using saved addon settings and
+  the existing stream-selection/download clients. Manual stop, replacement, errors and
+  disconnect cancel continuation. Older library entries without provider settings can
+  continue through downloaded episodes; select a catalog stream again to save provider settings.
+
+Validation: node --test relay/test/*.test.js companion/test/*.test.js tv-receiver/tests/*.test.js resolver/test/*.test.js
+Browser smoke checks used synthetic media and library data, not personal downloads.
+Real Samsung firmware, physical mobile devices and live third-party provider compatibility
+still need on-device checks. Rebuild and sideload tv-receiver for the TV changes; deploy relay,
+resolver and companion together. All three use files from this repository, so deploy the full clone.

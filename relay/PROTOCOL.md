@@ -121,3 +121,19 @@ asked), and the relay broadcasts it to every connected companion:
 | `INVALID_MESSAGE` | malformed JSON or missing/wrong-typed required fields |
 | `UNKNOWN_TYPE` | `type` isn't one of the types above |
 | `ALREADY_REGISTERED` | a socket sends `register`/`join` twice |
+
+## Browser receivers and target routing
+
+Browser receivers register with {type: "register", role: "receiver", name: "Device name"}.
+The response includes an assigned targetId. TV retains the stable id "tv".
+Companions receive {type: "targets", targets: [{id, name, online}]} on join and when receivers change.
+A join may include targetId; otherwise it selects TV. Change destination with
+{type: "select-target", targetId: "..."}. Commands and status are scoped to that destination.
+An offline destination is never silently replaced with TV. Reconnected browser receivers
+receive a new identity and must be selected again. Status snapshots are sent on selection.
+
+Seek accepts either {positionSec: 30} or {deltaSec: -10}. Relative input is accumulated
+by the receiver. TV status can include pendingSeek: {targetSec, busy, error}; null targetSec
+means the operation was acknowledged. "ended" identifies natural completion, separate
+from "stopped". The receiver's playback-history helper contacts the library resolver for
+continuation; companions never race to autoplay. The relay remains transport-only.

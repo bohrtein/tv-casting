@@ -1,0 +1,61 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { spawn } = require('node:child_process');
+const { once } = require('node:events');
+const WebSocket = require('ws');
+const { validateCommand } = require('../src/messages');
+
+test('relative seek rejects invalid offsets', () => {
+  for (const deltaSec of [NaN, Infinity, '10', 100000]) assert.equal(validateCommand({ action: 'seek', payload: { deltaSec } }), false);
+  assert.equal(validateCommand({ action: 'seek', payload: { deltaSec: -10 } }), true);
+});
+
+test('browser targets coexist with TV, route commands/status, and disconnect independently', async () => {
+  const child = spawn(process.execPath, ['src/index.js'], { cwd: require('path').join(__dirname, '..'), env: { ...process.env, PORT: '0' } });
+  // Port zero is useful for tests; ask the relay to print the actual bound port.
+  const [line] = await once(child.stdout, 'data');
+  const port = /listening on :(\d+)/.exec(String(line))[1];
+  const sockets = [];
+  async function connect(first) {
+    const socket = new WebSocket('ws://127.0.0.1:' + port); sockets.push(socket);
+    socket.messages = []; socket.on('message', raw => socket.messages.push(JSON.parse(raw)));
+    await once(socket, 'open'); socket.send(JSON.stringify(first)); return socket;
+  }
+  async function wait(socket, predicate) {
+    for (let i = 0; i < 100; i++) {
+      const index = socket.messages.findIndex(predicate);
+      if (index >= 0) return socket.messages.splice(index, 1)[0];
+      await new Promise(r => setTimeout(r, 10));
+    }
+    throw new Error('Expected relay message missing: ' + JSON.stringify(socket.messages));
+  }
+  const send = (s, m) => s.send(JSON.stringify(m));
+  try {
+    const tv = await connect({ type: 'register', role: 'tv' });
+    await wait(tv, m => m.type === 'registered');
+    const pc = await connect({ type: 'register', role: 'receiver', name: 'Desktop' });
+    const registered = await wait(pc, m => m.type === 'registered');
+    const c = await connect({ type: 'join', role: 'companion' });
+    const targets = await wait(c, m => m.type === 'targets');
+    assert.equal(targets.targets.length, 2);
+    send(c, { type: 'command', action: 'pause' });
+    await wait(tv, m => m.action === 'pause');
+    send(c, { type: 'select-target', targetId: registered.targetId });
+    send(c, { type: 'command', action: 'seek', payload: { deltaSec: 30 } });
+    assert.equal((await wait(pc, m => m.action === 'seek')).payload.deltaSec, 30);
+    send(pc, { type: 'status', state: 'playing', positionSec: 42 });
+    assert.equal((await wait(c, m => m.state === 'playing')).positionSec, 42);
+    pc.close();
+    await wait(c, m => m.state === 'tv_offline' && m.targetId === registered.targetId);
+    send(c, { type: 'command', action: 'stop' });
+    await wait(c, m => m.code === 'TV_NOT_FOUND');
+    assert.equal(tv.messages.some(m => m.action === 'stop'), false);
+    send(c, { type: 'select-target', targetId: 'tv' });
+    send(c, { type: 'command', action: 'resume' });
+    await wait(tv, m => m.action === 'resume');
+  } finally {
+    sockets.forEach(s => s.terminate());
+    const ended = once(child, 'exit'); child.kill(); await ended;
+  }
+});

@@ -71,7 +71,7 @@ class LibraryState {
     this.save();
     return this.progress(entry);
   }
-  next(entry, entries) {
+  nextEpisode(entry) {
     const m = entry.metadata;
     if (!m || m.type !== 'series' || !m.season || entry.partial) return null;
     const title = this.data.titles[seriesId(m)] || m;
@@ -82,6 +82,12 @@ class LibraryState {
       // Old downloads without a full catalog: only advance within a known consecutive pair.
       target = { season: m.season, episode: m.episode + 1 };
     }
+    if (target.released && Date.parse(target.released) > Date.now()) return null;
+    return target;
+  }
+  next(entry, entries) {
+    const m = entry.metadata, target = this.nextEpisode(entry);
+    if (!target) return null;
     return entries.find(e => e.metadata && seriesId(e.metadata) === seriesId(m) &&
       e.metadata.season === target.season && e.metadata.episode === target.episode && !e.partial && !e.needsTvCopy) || null;
   }

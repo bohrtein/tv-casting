@@ -17,17 +17,17 @@
     errorBanner: document.getElementById('error-banner')
   };
 
-  var history = createPlaybackHistory();
+  var history = createPlaybackHistory({
+    onWaiting: function () { onPlaybackStateChange('buffering'); },
+    onIdle: function () { onPlaybackStateChange('stopped'); },
+    onError: function (message) { onPlaybackError({ code: 'AUTOPLAY_FAILED', message: message }); }
+  });
   var currentTitle = '';
   var currentPlaybackState = 'idle';
   var errorBannerTimer = null;
   var controlsTimer = null;
   var CONTROLS_TIMEOUT_MS = 4000;
   var SEEK_STEP_SEC = 10; // matches companion's own <<10s/10s>> buttons
-  var queuedSeekSec = 0;
-  var seekFlushTimer = null;
-  var seekIndicatorTimer = null;
-  var SEEK_COALESCE_MS = 250;
 
   var relay = createRelayClient(APP_CONFIG, {
     onRegistered: onRegistered,
@@ -38,10 +38,15 @@
   });
 
   var player = createPlayer({
+    onSeek: function (seek) {
+      elements.seekIndicator.textContent = seek.targetSec === null ? '' : 'Seek to ' + Math.round(seek.targetSec) + 's pending' + (seek.error ? ' — retry with seek' : '');
+      elements.seekIndicator.classList.toggle('hidden', seek.targetSec === null);
+      relay.sendStatus({ state: currentPlaybackState, title: currentTitle, pendingSeek: seek });
+    },
     onStateChange: onPlaybackStateChange,
     onPlayTime: onPlayTime,
     onError: onPlaybackError,
-    onCompleted: function () { history.completed(function (payload) { onCommand({ action: 'play', payload: payload }); }); }
+    onCompleted: function () { relay.sendStatus({ state: 'ended', title: currentTitle }); history.completed(function (payload) { onCommand({ action: 'play', payload: payload }); }); }
   });
 
   function showIdleScreen() {
@@ -78,42 +83,13 @@
   function updateControls() {
     elements.playPause.textContent = currentPlaybackState === 'paused' ? 'Play' : 'Pause';
     elements.playPause.disabled = !canControlPlayback();
-    elements.rewind.disabled = !canControlPlayback();
-    elements.forward.disabled = !canControlPlayback();
+    elements.rewind.disabled = !canControlPlayback() && currentPlaybackState !== 'buffering';
+    elements.forward.disabled = elements.rewind.disabled;
   }
 
   function skipBy(seconds) {
     showControls();
-    if (canControlPlayback() || currentPlaybackState === 'buffering') {
-      queuedSeekSec += seconds;
-      showSeekIndicator();
-      if (canControlPlayback()) scheduleSeekFlush();
-    }
-  }
-
-  function showSeekIndicator() {
-    elements.seekIndicator.textContent = (queuedSeekSec > 0 ? '+' : '') + queuedSeekSec + 's';
-    elements.seekIndicator.classList.remove('hidden');
-    clearTimeout(seekIndicatorTimer);
-    seekIndicatorTimer = setTimeout(function () {
-      if (!queuedSeekSec) elements.seekIndicator.classList.add('hidden');
-    }, 1800);
-  }
-
-  function scheduleSeekFlush() {
-    clearTimeout(seekFlushTimer);
-    seekFlushTimer = setTimeout(flushQueuedSeek, SEEK_COALESCE_MS);
-  }
-
-  function flushQueuedSeek() {
-    if (!queuedSeekSec || !canControlPlayback()) return;
-    var delta = queuedSeekSec;
-    queuedSeekSec = 0;
-    player.seekBy(delta);
-    clearTimeout(seekIndicatorTimer);
-    seekIndicatorTimer = setTimeout(function () {
-      elements.seekIndicator.classList.add('hidden');
-    }, 900);
+    if (canControlPlayback() || currentPlaybackState === 'buffering') player.seekBy(seconds);
   }
 
   function onRegistered() {
@@ -122,6 +98,7 @@
   }
 
   function onDisconnected() {
+    history.stop();
     elements.connectionNote.textContent = 'Reconnecting to relay…';
   }
 
@@ -139,8 +116,6 @@
     log.info('command: ' + msg.action, msg.payload || '');
     switch (msg.action) {
       case 'play':
-        queuedSeekSec = 0;
-        clearTimeout(seekFlushTimer);
         elements.seekIndicator.classList.add('hidden');
         history.start(msg.payload, beginPlayback, player.stop);
         break;
@@ -157,7 +132,8 @@
         showIdleScreen();
         break;
       case 'seek':
-        player.seek(msg.payload.positionSec);
+        if (typeof msg.payload.deltaSec === 'number') player.seekBy(msg.payload.deltaSec);
+        else player.seek(msg.payload.positionSec);
         break;
       default:
         log.warn('unknown command action', msg.action);
@@ -180,7 +156,6 @@
     currentPlaybackState = state;
     elements.nowPlayingState.textContent = state;
     updateControls();
-    if ((state === 'playing' || state === 'paused') && queuedSeekSec) scheduleSeekFlush();
     if (state === 'paused') { history.flush(); showControls(); }
     var durationSec = player.getDurationSec();
     var status = { state: state, title: currentTitle };
@@ -210,8 +185,6 @@
       elements.errorBanner.classList.add('hidden');
     }, 5000);
     showIdleScreen();
-    queuedSeekSec = 0;
-    clearTimeout(seekFlushTimer);
     elements.seekIndicator.classList.add('hidden');
   }
 

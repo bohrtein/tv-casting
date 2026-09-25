@@ -22,7 +22,7 @@
 <script src="matrix/matrix.js"></script>
 <link rel="stylesheet" href="css/app.css">
 </head>
-<body class="mx">
+<body class="mx" data-mx-view="remote">
 
 <div class="mx-shell">
 
@@ -42,8 +42,8 @@
 
   <section id="screen-app">
     <nav class="mx-tabs" role="tablist">
-      <button class="mx-tab" data-mx-tab="link" aria-selected="true">link</button>
-      <button class="mx-tab" data-mx-tab="remote">remote</button>
+      <button class="mx-tab" data-mx-tab="link">link</button>
+      <button class="mx-tab" data-mx-tab="remote" aria-selected="true">remote</button>
       <button class="mx-tab" data-mx-tab="downloads">downloads</button>
       <button class="mx-tab" data-mx-tab="activity">activity</button>
     </nav>
@@ -66,7 +66,7 @@
             <input class="mx-input" type="text" id="link-title" placeholder="what's this called?">
           </div>
           <label for="link-category">Save under</label>
-          <select id="link-category" class="mx-input"><option value="auto">Automatic</option><option value="porn">Porn</option><option value="movies">Movies</option><option value="series">Television series</option><option value="youtube">YouTube videos</option><option value="other">Other videos</option></select>
+          <select id="link-category" class="mx-input"><option value="auto">Automatic</option><option value="plus18">18+</option><option value="movies">Movies</option><option value="series">Television series</option><option value="youtube">YouTube videos</option><option value="other">Other videos</option></select>
           <label><input id="link-save" type="checkbox" checked> Save direct video links too</label>
           <button id="link-download" class="mx-btn" type="button">Save without casting</button>
           <div id="link-readout" class="mx-readout" style="display:none"></div>
@@ -74,18 +74,14 @@
             <button id="link-cast" class="mx-btn mx-primary" type="button">cast</button>
           </div>
 
-          <div id="link-downloaded" class="cn-hidden" style="margin-top:20px">
-            <h3 style="font-size:12px; color:var(--mx-ink-dim); text-transform:uppercase; letter-spacing:.04em; margin:0 0 8px">
-              previously downloaded
-            </h3>
-            <div id="link-downloaded-list" class="cn-rows"></div>
-          </div>
+
         </section>
 
         <section class="mx-panel" data-mx-panel="remote" style="margin-top:16px">
           <h2 class="mx-panel-title">remote</h2>
 
           <div class="mx-readout" id="remote-readout">nothing casting</div>
+          <div id="remote-pending" role="status" aria-live="polite"></div>
           <div class="cn-seekbar" style="margin-top:14px">
             <input class="cn-seek-range" id="remote-seek" type="range" min="0" max="0" value="0" step="1" disabled aria-label="seek position">
             <div class="cn-seek-times">
@@ -133,6 +129,7 @@
 
 <div class="mx-toasts"></div>
 
+<script src="js/content-policy.js" defer></script>
 <script src="js/config.js" defer></script>
 <script src="js/resolver-client.js" defer></script>
 <script src="js/downloads-view.js" defer></script>

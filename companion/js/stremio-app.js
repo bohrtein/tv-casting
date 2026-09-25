@@ -7,7 +7,9 @@ document.addEventListener('DOMContentLoaded', function () {
   var stremio = createStremioClient(APP_CONFIG);
   var resolver = createResolverClient(APP_CONFIG);
   var CATALOG_KEY = 'tvc.stremio.catalog';
-  var section = new URLSearchParams(location.search).get('section') === 'plus18' ? 'plus18' : 'normal';
+  var requestedSection = new URLSearchParams(location.search).get('section');
+  var section = requestedSection ? (requestedSection === 'plus18' ? 'plus18' : 'normal') : ContentPolicy.mode();
+  ContentPolicy.setMode(section);
 
   var addons = [];
   var catalogs = []; // [{ addon, catalog }] -- the <select>'s options, by index
@@ -68,6 +70,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function switchSection(next) {
     if (section === next) return;
     section = next;
+    ContentPolicy.setMode(section);
     history.replaceState(null, '', location.pathname + (section === 'plus18' ? '?section=plus18' : ''));
     ++browse.token;
     ++detail.token;
@@ -162,7 +165,7 @@ document.addEventListener('DOMContentLoaded', function () {
   el.detailBack.addEventListener('click', function () {
     if (history.state && history.state.stremioDetail) history.back();
     else {
-      history.replaceState(null, '', location.pathname);
+      history.replaceState(null, '', location.pathname + (section === 'plus18' ? '?section=plus18' : '?section=normal'));
       showView('browse');
     }
   });
@@ -192,6 +195,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function appendPosters(grid, metas) {
     metas.forEach(function (meta) {
+      if (section === 'normal' && ContentPolicy.restricted(meta)) return;
       if (!meta || !meta.id || browse.seen[meta.type + ':' + meta.id]) return;
       browse.seen[meta.type + ':' + meta.id] = true;
       grid.appendChild(posterTile(meta));
@@ -371,7 +375,7 @@ document.addEventListener('DOMContentLoaded', function () {
     lastStreams = null;
     if (matchButton) matchButton.hidden = true;
     showView('detail');
-    fillHero(preview || { name: '' });
+    fillHero(section === 'normal' && ContentPolicy.restricted(preview) ? { name: '18+ content hidden' } : preview || { name: '' });
     el.episodesPanel.classList.add('cn-hidden');
     el.streamsList.innerHTML = '';
     el.streamsTitle.textContent = 'streams';
@@ -382,6 +386,11 @@ document.addEventListener('DOMContentLoaded', function () {
     }).then(function (meta) {
       if (token !== detail.token) return;
       meta = meta || preview || { id: id, type: type, name: id };
+      if (section === 'normal' && ContentPolicy.restricted(meta)) {
+        fillHero({ name: '18+ content hidden' });
+        setReadout(el.streamsReadout, 'Enable 18+ mode to open this title.', false);
+        return;
+      }
       detail.meta = meta;
       fillHero(meta);
       var videos = meta.videos || [];
@@ -461,7 +470,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function libraryMetadata() {
     var meta = detail.meta;
     if (!meta || !lastStreams || ['movie', 'series'].indexOf(lastStreams.type) === -1) return {};
-    var m = Object.assign({}, meta, { type: lastStreams.type });
+    var m = Object.assign({}, meta, { type: lastStreams.type, streamAddons: addons.map(function (a) { return a.url; }), streamingServer: stremio.getServerUrl() });
     if (section === 'plus18') m.addon = 'plus18';
     if (m.type === 'series') {
       var video = (meta.videos || []).find(function (v) { return v.id === lastStreams.id; });
@@ -640,8 +649,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (el.npPlayPause.textContent === 'pause') {
       relay.sendCommand('pause');
     } else {
-      var cmd = nowCasting.resumeCommand(lastStatusTitle);
-      relay.sendCommand(cmd.action, cmd.payload);
+      relay.sendCommand('resume');
     }
   });
 
@@ -660,7 +668,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function refreshSaving() {
     clearTimeout(savingTimer);
-    resolver.listJobs().then(downloads.render, function () { return false; }).then(function (busy) {
+    resolver.listJobs().then(function (jobs) { return downloads.render(jobs.filter(ContentPolicy.visible)); }, function () { return false; }).then(function (busy) {
       savingTimer = setTimeout(refreshSaving, busy ? SAVING_FAST_MS : SAVING_SLOW_MS);
     });
   }

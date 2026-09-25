@@ -20,7 +20,7 @@ function setup() {
     const classes = new Set();
     nodes[match[1]] = {
       textContent: '', disabled: false, handlers: {},
-      classList: { add: c => classes.add(c), remove: c => classes.delete(c), contains: c => classes.has(c) },
+      classList: { add: c => classes.add(c), remove: c => classes.delete(c), contains: c => classes.has(c), toggle: (c, on) => on ? classes.add(c) : classes.delete(c) },
       addEventListener(type, fn) { this.handlers[type] = fn; }
     };
   }
@@ -36,7 +36,7 @@ function setup() {
     getState: () => state,
     getDuration: () => 60000,
     getCurrentTime: () => position,
-    seekTo(target) { calls.push(target); position = target; }
+    seekTo(target, ok) { calls.push(target); position = target; if (ok) ok(); }
   };
   const context = vm.createContext({
     document: { getElementById: id => nodes[id], addEventListener(type, fn) { if (type === 'keydown') keydown = fn; } },
@@ -138,4 +138,30 @@ test('skips during buffering wait for playback and rapid skips coalesce', () => 
   assert.equal(app.calls.at(-1), 50000);
   app.key(37); app.key(37); app.flushSeek();
   assert.equal(app.calls.at(-1), 30000);
+});
+
+
+test('seeks arriving during an outstanding operation accumulate and failure retains target', () => {
+  const app = setup(); app.start(); app.prepared();
+  const pending = [];
+  app.avplay.seekTo = (target, ok, fail) => { pending.push({target, ok, fail}); };
+  app.command({action:'seek', payload:{deltaSec:10}}); app.flushSeek();
+  assert.equal(pending[0].target, 40000);
+  app.command({action:'seek', payload:{deltaSec:10}});
+  app.command({action:'seek', payload:{deltaSec:10}});
+  assert.equal(pending.length, 1);
+  pending[0].ok();
+  assert.equal(pending[1].target, 59000);
+  pending[1].fail(new Error('Busy'));
+  assert.equal(app.statuses.at(-1).pendingSeek.targetSec, 59);
+  app.command({action:'seek', payload:{deltaSec:-20}}); app.flushSeek();
+  assert.equal(pending[2].target, 39000);
+  app.command({action:'stop'});
+  pending[2].ok();
+  assert.equal(app.statuses.at(-1).state, 'stopped');
+});
+
+test('new media invalidates old prepare callbacks', () => {
+  const app = setup(); app.start(); app.command({action:'stop'}); app.prepared();
+  assert.equal(app.calls.includes('play'), false);
 });

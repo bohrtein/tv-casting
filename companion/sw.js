@@ -15,6 +15,7 @@ var SHELL_FILES = [
   'matrix/matrix.css',
   'matrix/matrix.js',
   'css/app.css',
+  'js/content-policy.js',
   'js/config.js',
   'js/resolver-client.js',
   'js/downloads-view.js',
