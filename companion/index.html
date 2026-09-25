@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
 <meta name="color-scheme" content="dark">
-<meta name="description" content="Browse Jellyfin and cast to the TV.">
+<meta name="description" content="Browse saved videos and cast to the TV.">
 <title>TV Casting</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -45,41 +45,19 @@
       <button class="mx-tab" data-mx-tab="link">link</button>
       <button class="mx-tab" data-mx-tab="remote">remote</button>
       <button class="mx-tab" data-mx-tab="downloads">downloads</button>
-      <button class="mx-tab" data-mx-tab="saved">saved</button>
       <button class="mx-tab" data-mx-tab="activity">activity</button>
     </nav>
 
     <div class="mx-layout-split cn-split-3">
       <div class="mx-col">
-        <section class="mx-panel" data-mx-panel="library">
+        <section class="mx-panel" data-mx-panel="library" style="margin-top:16px">
           <h2 class="mx-panel-title">library</h2>
-
-          <div id="library-login">
-            <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 16px">
-              Sign in to Jellyfin to browse your library. Not needed for the "link" tab.
-            </p>
-            <div class="mx-field">
-              <div class="mx-field-head"><label class="mx-label" for="login-server">server url</label></div>
-              <input class="mx-input" type="url" id="login-server" placeholder="http://192.168.2.31:8096" autocomplete="url">
-            </div>
-            <div class="mx-field">
-              <div class="mx-field-head"><label class="mx-label" for="login-user">username</label></div>
-              <input class="mx-input" type="text" id="login-user" autocomplete="username">
-            </div>
-            <div class="mx-field">
-              <div class="mx-field-head"><label class="mx-label" for="login-pass">password</label></div>
-              <input class="mx-input" type="password" id="login-pass" autocomplete="current-password">
-            </div>
-            <div id="login-readout" class="mx-readout" style="display:none"></div>
-            <div class="demo" style="margin-top:14px; display:flex; gap:10px">
-              <button id="login-submit" class="mx-btn mx-primary" type="button">sign in</button>
-            </div>
-          </div>
-
-          <div id="library-browser" class="cn-hidden">
-            <div id="library-breadcrumb" class="cn-breadcrumb"></div>
-            <div id="library-list" class="cn-rows"></div>
-          </div>
+          <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 16px">
+            Everything kept on the server: films saved from torrents, and
+            videos downloaded from links. They stay until you delete them
+            here. Browse movies, television series, YouTube videos, and porn separately.
+          </p>
+          <div id="saved-view"></div>
         </section>
       </div>
 
@@ -89,8 +67,7 @@
           <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 16px">
             A direct video URL (.mp4, .m3u8, &hellip;), or a page with a video
             embedded in it (YouTube, Twitter/X, &hellip;) &mdash; those get
-            resolved to a castable file first, which can take a minute. No
-            Jellyfin needed either way.
+            downloaded and saved first, which can take a minute.
           </p>
           <div class="mx-field">
             <div class="mx-field-head"><label class="mx-label" for="link-url">video url</label></div>
@@ -100,6 +77,10 @@
             <div class="mx-field-head"><label class="mx-label" for="link-title">title (optional)</label></div>
             <input class="mx-input" type="text" id="link-title" placeholder="what's this called?">
           </div>
+          <label for="link-category">Save under</label>
+          <select id="link-category" class="mx-input"><option value="auto">Automatic</option><option value="porn">Porn</option><option value="movies">Movies</option><option value="series">Television series</option><option value="youtube">YouTube videos</option><option value="other">Other videos</option></select>
+          <label><input id="link-save" type="checkbox" checked> Save direct video links too</label>
+          <button id="link-download" class="mx-btn" type="button">Save without casting</button>
           <div id="link-readout" class="mx-readout" style="display:none"></div>
           <div class="demo" style="margin-top:14px; display:flex; gap:10px">
             <button id="link-cast" class="mx-btn mx-primary" type="button">cast</button>
@@ -146,15 +127,7 @@
           <span id="downloads-empty" class="mx-empty">nothing downloading.</span>
         </section>
 
-        <section class="mx-panel" data-mx-panel="saved" style="margin-top:16px">
-          <h2 class="mx-panel-title">saved</h2>
-          <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 16px">
-            Everything kept on the server: films saved from torrents, and
-            videos downloaded from links. They stay until you delete them
-            here (up to 100 of each).
-          </p>
-          <div id="saved-view"></div>
-        </section>
+
 
         <section class="mx-panel mx-glass" data-mx-panel="activity" style="margin-top:16px">
           <h2 class="mx-panel-title">activity</h2>
@@ -173,7 +146,6 @@
 <div class="mx-toasts"></div>
 
 <script src="js/config.js" defer></script>
-<script src="js/jellyfin-client.js" defer></script>
 <script src="js/resolver-client.js" defer></script>
 <script src="js/downloads-view.js" defer></script>
 <script src="js/now-casting.js" defer></script>

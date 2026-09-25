@@ -326,6 +326,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var token = ++detail.token;
     detail.meta = null;
     lastStreams = null;
+    if (matchButton) matchButton.hidden = true;
     showView('detail');
     fillHero(preview || { name: '' });
     el.episodesPanel.classList.add('cn-hidden');
@@ -414,8 +415,37 @@ document.addEventListener('DOMContentLoaded', function () {
   var streamsToken = 0;
   var lastStreams = null; // {type, id, title} -- re-asked when the addon list changes
 
+  function libraryMetadata() {
+    var meta = detail.meta;
+    if (!meta || !lastStreams || ['movie', 'series'].indexOf(lastStreams.type) === -1) return {};
+    var m = { id: meta.id, type: lastStreams.type, name: meta.name, poster: meta.poster, description: meta.description };
+    if (m.type === 'series') {
+      var video = (meta.videos || []).find(function (v) { return v.id === lastStreams.id; });
+      if (!video) return {};
+      Object.assign(m, { videoId: video.id, season: video.season, episode: video.episode != null ? video.episode : video.number, episodeTitle: video.name || video.title });
+    }
+    var adult = (meta.genres || []).some(function (g) { return /^(adult|porn|pornography|xxx)$/i.test(g); });
+    return adult ? { metadata: m, category: 'porn' } : { metadata: m };
+  }
+
+  var matchParams = new URLSearchParams(location.search);
+  var matchKind = matchParams.get('matchKind'), matchKey = matchParams.get('matchKey');
+  var matchButton = document.createElement('button');
+  matchButton.className = 'mx-btn mx-primary'; matchButton.textContent = 'Apply metadata to saved file'; matchButton.hidden = true;
+  el.streamsTitle.parentNode.insertBefore(matchButton, el.streamsTitle);
+  matchButton.addEventListener('click', function () {
+    var fields = libraryMetadata();
+    if (!fields.metadata) return;
+    matchButton.disabled = true;
+    resolver.updateLibrary(matchKind, matchKey, fields).then(function () {
+      setReadout(el.streamsReadout, 'Metadata saved. Return to Library to see it.', false);
+    }).catch(function (err) { setReadout(el.streamsReadout, err.message, true); })
+      .then(function () { matchButton.disabled = false; });
+  });
+
   function loadStreams(type, id, title) {
     lastStreams = { type: type, id: id, title: title };
+    matchButton.hidden = !(['media', 'torrents'].indexOf(matchKind) !== -1 && matchKey && libraryMetadata().metadata);
     var token = ++streamsToken;
     el.streamsTitle.textContent = 'streams' + (title && title !== (detail.meta && detail.meta.name) ? ' — ' + title : '');
     el.streamsList.innerHTML = '';
@@ -490,6 +520,9 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function castStream(castable, title) {
+    var fields = libraryMetadata();
+    fields.title = title;
+    var saveOnly = document.getElementById('stream-save-only').checked;
     // Torrents skip the Stremio server check: the resolver reads them from
     // its own torrent server when it has one (TORRENT_SERVER_URL), and
     // says so itself when whichever server it uses can't be reached.
@@ -501,26 +534,13 @@ document.addEventListener('DOMContentLoaded', function () {
       var refreshed = false;
       resolver.resolveTorrent(castable.url, title, function () {
         if (!refreshed) { refreshed = true; refreshSaving(); }
-      }).then(function (result) {
+      }, fields).then(function (result) {
         setReadout(el.streamsReadout, '', false);
-        castToTv(result.streamUrl, title);
+        if (!saveOnly) castToTv(result.streamUrl, title);
+        else setReadout(el.streamsReadout, 'Saving to Library. Progress is shown in Downloads.', false);
       }).catch(function (err) {
         setReadout(el.streamsReadout, err.message, true);
       });
-      return;
-    }
-    if (castable.kind === 'direct' && castable.viaServer) {
-      setReadout(el.streamsReadout, 'checking the Stremio server…', false);
-      stremio.checkServer().then(function () {
-        setReadout(el.streamsReadout, '', false);
-        castToTv(castable.url, title);
-      }).catch(function (err) {
-        setReadout(el.streamsReadout, err.message, true);
-      });
-      return;
-    }
-    if (castable.kind === 'direct') {
-      castToTv(castable.url, title);
       return;
     }
     // YouTube: same resolver the link tab uses, which hands back an MP4.
@@ -528,9 +548,10 @@ document.addEventListener('DOMContentLoaded', function () {
     resolver.resolve(castable.url, function (job) {
       var pct = typeof job.progress === 'number' ? ' ' + Math.round(job.progress) + '%' : '';
       setReadout(el.streamsReadout, job.status === 'downloading' ? 'downloading…' + pct : 'looking up that video…', false);
-    }).then(function (result) {
+    }, fields).then(function (result) {
       setReadout(el.streamsReadout, '', false);
-      castToTv(result.streamUrl, title);
+      if (!saveOnly) castToTv(result.streamUrl, title);
+      else setReadout(el.streamsReadout, 'Saved to Library.', false);
     }).catch(function (err) {
       setReadout(el.streamsReadout, err.message, true);
     });

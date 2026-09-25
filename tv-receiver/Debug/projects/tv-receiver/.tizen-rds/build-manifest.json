@@ -31,7 +31,7 @@
       "hash": "cce3b30ae8ad3b2eafcaff747c533044"
     },
     "README.md": {
-      "hash": "980c3f3f0f83b503bc07427894e34035"
+      "hash": "d74ee7d9f03500fd57940db6e79141e8"
     },
     "tizen_web_project.yaml": {
       "hash": "8d70338d68d00d269054c8f0c2cb5d9d"
@@ -41,32 +41,35 @@
     },
     "js/player.js": {
       "hash": "abd61c1ae7a13ff9c4a60ecfa171c9a6"
+    },
+    "js/app.js": {
+      "hash": "fecab7d875a3010b26f318e3c3f2688f"
     }
   },
   "output": {
     "Debug/projects/tv-receiver/css/style.css": {
-      "hash": "9efda7a14875d6f04a8aab1777b348a8"
+      "hash": "51bb4abce195d2b81ffed1964f83d9d1"
     },
     "Debug/projects/tv-receiver/index.html": {
-      "hash": "3228afc92274f435381889d393f53429"
+      "hash": "093f6f4fde6fecd3e3817ed5bc08f49f"
     },
     "Debug/projects/tv-receiver/js/app.js": {
-      "hash": "8f2776e74dba2a6c99bbe9870681265c"
+      "hash": "fecab7d875a3010b26f318e3c3f2688f"
     },
     "Debug/projects/tv-receiver/js/log.js": {
       "hash": "436aaebb000a269b31ef30c748c2a663"
     },
     "Debug/projects/tv-receiver/js/player.js": {
-      "hash": "abd61c1ae7a13ff9c4a60ecfa171c9a6"
+      "hash": "08c1f202c7ef4f9a499d0db8b51e96e1"
     },
     "Debug/projects/tv-receiver/js/relay-client.js": {
-      "hash": "5d9040ae0da8f82979cf3c02db1bd68d"
+      "hash": "b1ba561cbd45e7011a0e71ebf27818c2"
     },
     "Debug/projects/tv-receiver/media/idle-background.jpg": {
       "hash": "6d08eb7830b3222bbeba2c706c635eba"
     },
     "Debug/projects/tv-receiver/README.md": {
-      "hash": "980c3f3f0f83b503bc07427894e34035"
+      "hash": "d74ee7d9f03500fd57940db6e79141e8"
     },
     "Debug/projects/tv-receiver/matrix/fonts/OFL.txt": {
       "hash": "1223916b1a89adc59991ec4a437ff320"
@@ -88,6 +91,12 @@
     },
     "Debug/projects/tv-receiver/matrix/VERSION": {
       "hash": "cce3b30ae8ad3b2eafcaff747c533044"
+    },
+    "Debug/projects/tv-receiver/js/config.js": {
+      "hash": "6c2277957038a4a986034f806e6f6f88"
+    },
+    "Debug/projects/tv-receiver/tests/remote-controls.test.js": {
+      "hash": "ae848edc12d4e62ef2e1f469d0d501d8"
     }
   }
 }

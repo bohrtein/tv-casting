@@ -43,6 +43,26 @@ messages this app sends and receives.
   own on-screen transport controls, for whoever's holding the physical
   remote instead of a phone).
 
+## Playback controls
+
+The title and three transport buttons appear when playback starts and hide
+after four seconds without input, including while paused. On the remote:
+
+- **OK:** reveal the overlay; when it is visible, pause or resume.
+- **Left / Right:** skip back or forward 10 seconds and reveal the overlay.
+- **Down:** hide the controls and title immediately without changing playback.
+- **Back:** dismiss the visible overlay; otherwise retain the app exit action.
+- Dedicated media keys still play, pause, stop, and skip as before.
+
+Transport controls are disabled while loading/buffering. Skips are bounded
+by the video duration when known; streams that reject seeking keep playing.
+
+Run `node --test tv-receiver/tests/remote-controls.test.js` from the repository
+root for the mocked AVPlay/remote tests. These cover the overlay timer,
+OK toggle, arrow skips and bounds, paused state after buffering, loading,
+click controls, media keys, and stop. Physical-TV validation still requires
+rebuilding and installing the receiver through the Tizen extension.
+
 ## Tooling note: "Tizen Studio" no longer exists
 
 Classic Tizen Studio was replaced by Samsung with Tizen SDK 10 (Nov

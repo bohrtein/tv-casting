@@ -1,6 +1,6 @@
 # TV Casting
 
-A home-network "cast to TV" system for Jellyfin, built as four independent
+A home-network "cast to TV" system for saved videos, built as four independent
 pieces in one repo. Full background and open decisions live in
 [PLAN.md](PLAN.md).
 
@@ -14,24 +14,10 @@ pieces in one repo. Full background and open decisions live in
 - **[`tv-receiver/`](tv-receiver/)** — Samsung Tizen app (HTML/CSS/JS +
   AVPlay). Connects to the relay on boot, plays whatever stream URL it's
   sent, and reports playback status back through the relay.
-- **[`companion/`](companion/)** — Phone/desktop PWA. Talks to Jellyfin
-  directly for library browsing and to obtain stream URLs, and to the
-  resolver for non-direct links. Connects to the relay automatically on
-  load to send play/pause/stop commands and receive status. Styled with the
-  [Matrix](https://github.com/bohrtein/matrix_design) design system
-  (live from the app hub at `/ds/1/`, with a synced copy in `matrix/`).
-  Its separate **Stremio** page (`stremio.html`) browses Stremio addons
-  (Cinemeta catalogs, any stream addon) and casts the chosen stream; see
-  [`companion/README.md`](companion/README.md#stremio-page-stremiohtml).
-- **[`stremio-server/`](stremio-server/)** — no code, just the systemd
-  unit that runs Stremio's own streaming server (Docker image
-  `stremio/server`) on the home server, for the companion's Stremio page,
-  with all its traffic through a PIA VPN (gluetun). Started, stopped and
-  updated from App Hub's Developer Tools.
-- **[`torrent-server/`](torrent-server/)** — Node.js (WebTorrent) in
-  Docker, inside the same VPN. Streams the torrents the Stremio page
-  casts, taking incoming peers on PIA's forwarded port, which the Stremio
-  server can't. The resolver reads films from it.
+- **[`companion/`](companion/)** — Phone/desktop PWA with a permanent saved library,
+  categorized as Movies, Television series, YouTube videos, Porn, and Other videos.
+  Stremio add-ons provide catalog browsing and movie/episode metadata. Downloads
+  and locally saved thumbnails live on the resolver; playback commands use the relay.
 - **[`resolver/`](resolver/)** — Node.js HTTP service, also on the home
   server. Turns a page URL with an embedded video (YouTube, Twitter/X,
   …) into a plain MP4 via `yt-dlp` + `ffmpeg`, since AVPlay can only load
@@ -41,11 +27,11 @@ pieces in one repo. Full background and open decisions live in
 
 These are enforced in code review, not just convention:
 
-- **The relay never touches media files and never calls Jellyfin.** It is
+- **The relay never touches media files and never calls media providers.** It is
   transport only — it forwards small control/status JSON messages between
   a TV and its companions and knows nothing about media.
 - **The companion never streams media through the relay.** Media flows
-  Jellyfin/resolver → TV directly; only control/status JSON goes through
+  Resolver → TV directly; only control/status JSON goes through
   the relay.
 - **The resolver is a separate process from the relay**, on its own port,
   so "the relay never touches media" stays true at the process level, not

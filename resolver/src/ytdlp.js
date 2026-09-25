@@ -48,7 +48,7 @@ async function getInfo(url, opts) {
   const firstLine = stdout.split('\n').find((l) => l.trim().startsWith('{'));
   if (!firstLine) throw new Error('yt-dlp returned no video info for that url.');
   const info = JSON.parse(firstLine);
-  return { title: info.title || url, duration: info.duration || null };
+  return { title: info.title || url, duration: info.duration || null, thumbnail: info.thumbnail || null, extractor: info.extractor_key || info.extractor || '', categories: info.categories || [] };
 }
 
 const PROGRESS_RE = /\[download\]\s+([\d.]+)%/;
@@ -88,6 +88,7 @@ function download(url, outPathNoExt, { maxHeight = 1080, maxFilesize = '2G', ref
   const args = [
     '-f', format,
     '--merge-output-format', 'mp4',
+    '--recode-video', 'mp4',
     '--no-playlist',
     '--no-warnings',
     '--newline',
@@ -113,6 +114,11 @@ function download(url, outPathNoExt, { maxHeight = 1080, maxFilesize = '2G', ref
     });
     child.on('close', (code) => {
       if (code === 0 && !(signal && signal.aborted)) {
+        if (!fs.existsSync(`${outPathNoExt}.mp4`) || !fs.statSync(`${outPathNoExt}.mp4`).size) {
+          cleanupPartials(outPathNoExt);
+          reject(new Error('Download did not produce an MP4 (it may exceed the file size limit).'));
+          return;
+        }
         resolve(`${outPathNoExt}.mp4`);
       } else {
         cleanupPartials(outPathNoExt);

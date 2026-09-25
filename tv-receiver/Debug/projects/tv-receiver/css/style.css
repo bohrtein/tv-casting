@@ -150,6 +150,7 @@ html, body {
   border-left: 4px solid var(--mx-accent);
   border-radius: var(--mx-r-sm);
   max-width: 60%;
+  min-width: 640px;
 }
 
 .now-playing-title {
@@ -157,8 +158,40 @@ html, body {
   font-size: var(--mx-text-lg);
   font-weight: 700;
   color: var(--mx-ink-hot);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .now-playing-title + .now-playing-state { margin-top: 8px; }
+
+.transport-controls {
+  display: flex;
+  align-items: center;
+  margin-top: 24px;
+}
+.transport-controls button {
+  min-width: 160px;
+  min-height: var(--mx-tap);
+  padding: 12px 24px;
+  border: 1px solid var(--mx-border-strong);
+  border-radius: var(--mx-r-sm);
+  background: var(--mx-surface-raised);
+  color: var(--mx-ink-hot);
+  font: inherit;
+  font-size: var(--mx-text-lg);
+}
+.transport-controls button + button { margin-left: 20px; }
+.transport-controls .primary-control {
+  background: var(--mx-accent);
+  color: var(--mx-on-accent);
+}
+.transport-controls button:focus { outline: var(--mx-focus); }
+.transport-controls button:disabled { opacity: 0.5; }
+.remote-hint {
+  margin-top: 20px;
+  font-size: var(--mx-text-md);
+  color: var(--mx-ink);
+}
 
 .now-playing-state {
   font-family: var(--mx-mono);

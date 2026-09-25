@@ -1,9 +1,6 @@
 'use strict';
 
-// App-shell cache only. Never caches Jellyfin API responses or media --
-// media never flows through this app to begin with (Jellyfin -> TV
-// directly, root README.md hard rule), and library data goes stale fast,
-// so it's fetched fresh every time rather than served from here.
+// Cache the app shell only; saved files and metadata come from the resolver.
 //
 // __CACHE_VERSION__ is substituted by serve.js with a hash of the shell
 // files' actual contents, so this cache busts itself whenever any of
@@ -18,7 +15,6 @@ var SHELL_FILES = [
   'matrix/matrix.js',
   'css/app.css',
   'js/config.js',
-  'js/jellyfin-client.js',
   'js/resolver-client.js',
   'js/downloads-view.js',
   'js/now-casting.js',
@@ -60,7 +56,7 @@ self.addEventListener('activate', function (event) {
 self.addEventListener('fetch', function (event) {
   var url = new URL(event.request.url);
 
-  // Only ever intercept same-origin shell files. Jellyfin, Stremio addons
+  // Only ever intercept same-origin shell files. Stremio addons
   // (different origins) and anything else just fall through to the
   // network untouched -- relay traffic is WebSocket, which fetch/SW never
   // sees.

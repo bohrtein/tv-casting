@@ -1,9 +1,6 @@
 'use strict';
 
-// Talks to the resolver directly over plain HTTP -- same pattern as
-// jellyfin-client.js, never through the relay (root README.md hard
-// rule: the relay is transport only). See resolver/README.md for the
-// API this wraps.
+// Downloads and saved-library requests go directly to the resolver.
 function createResolverClient(config) {
   var POLL_MS = 1500;
 
@@ -39,15 +36,15 @@ function createResolverClient(config) {
 
   // Resolves with { streamUrl, title }. Calls onProgress(job) after
   // every poll so the caller can render a live status line.
-  function resolve(url, onProgress) {
-    return follow(startJob('/resolve', { url: url }), onProgress);
+  function resolve(url, onProgress, fields) {
+    return follow(startJob('/resolve', Object.assign({ url: url }, fields || {})), onProgress);
   }
 
   // Same, for a Stremio server torrent URL: the resolver saves the film
   // on the server and resolves as soon as the TV can start on it, while
   // the rest keeps downloading there (resolver/README.md, "Torrents").
-  function resolveTorrent(url, title, onProgress) {
-    return follow(startJob('/torrent', { url: url, title: title }), onProgress);
+  function resolveTorrent(url, title, onProgress, fields) {
+    return follow(startJob('/torrent', Object.assign({ url: url, title: title }, fields || {})), onProgress);
   }
 
   function follow(started, onProgress) {
@@ -153,6 +150,8 @@ function createResolverClient(config) {
   }
 
   return {
+    startDownload: function (url, fields, torrent) { return startJob(torrent ? '/torrent' : '/resolve', Object.assign({ url: url }, fields || {})); },
+    updateLibrary: function (kind, key, fields) { return startJob('/library/' + kind + '/' + encodeURIComponent(key), fields); },
     cancel: cancel,
     isDirectMediaUrl: isDirectMediaUrl,
     resolve: resolve,

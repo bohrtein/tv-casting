@@ -1,3 +1,18 @@
+# Saved-library update
+
+Both link and torrent downloads now stay until explicitly deleted; the historical
+RESOLVER_CACHE_SIZE and TORRENT_CACHE_SIZE caps are ignored. Existing indexed files
+are retained automatically. The TTL sweep only removes orphaned files.
+
+POST /resolve and POST /torrent accept category and metadata. Categories are porn,
+movies, series, youtube, other, or auto. Stremio metadata includes id, type, name,
+poster, description, and videoId/season/episode/episodeTitle for series.
+GET /library aliases GET /cache and returns entries and torrents with category and
+metadata fields. POST /library/:kind/:key updates a saved item's category/metadata.
+YouTube thumbnails are saved locally (5 MB limit, 15-second fetch timeout); a failed
+image request retains the remote image URL or falls back to a video frame.
+Requires Node 18+. Run npm test in resolver for persistence/API regression tests.
+
 # Resolver
 
 Turns a page URL with an *embedded* video — a YouTube watch page, a
@@ -10,7 +25,7 @@ can actually cast. AVPlay only knows how to play a direct media URL
 Talks directly to nothing else in this repo except the companion, which
 calls it over plain HTTP before sending a `play` command through the
 relay (same "talks to an external service directly" pattern the
-companion already uses for Jellyfin — see root [README.md](../README.md)
+companion uses for media services — see root [README.md](../README.md)
 hard rules; the relay itself never touches media, this is a separate
 piece for exactly that reason).
 
@@ -26,27 +41,13 @@ always does the same thing: yt-dlp downloads (and ffmpeg muxes, if
 needed) to a local MP4, and the resolver serves that file directly.
 Slower, but it means "cast this link" behaves the same way everywhere.
 
-Downloaded files are treated as transient — swept off disk after
-`MEDIA_TTL_MS` (default 6h) — **except** the last `RESOLVER_CACHE_SIZE`
-(default 5) distinct source urls, which the LRU cache below keeps
-around regardless of age.
+## Permanent library
 
-## Rewatch cache
-
-`src/cache.js` keeps the last `RESOLVER_CACHE_SIZE` (default 100)
-distinct source urls' downloaded files on disk, indexed by source url
-in `MEDIA_DIR/cache-index.json`. Recasting a url that's still in the
-cache skips the download entirely — `POST /resolve` resolves straight
-to `status: "ready"` with the existing file's `streamUrl`, no yt-dlp
-invocation at all. Eviction is by *last used*, not insertion order:
-rewatching an older cached video bumps it back to the front, so the
-one that actually gets evicted when a 6th distinct video is cast is
-whichever entry has gone longest untouched. Evicted files are deleted
-immediately (not left for the TTL sweep). This is independent of, and
-takes priority over, `MEDIA_TTL_MS` — a cached file's lifetime is "one
-of the last N distinct things cast," not a timer; the TTL sweep only
-ever touches files the cache isn't tracking (orphaned partial/error
-downloads).
+`src/cache.js` keeps completed downloads in `MEDIA_DIR/cache-index.json` and torrent
+entries in `MEDIA_DIR/torrents/cache-index.json`. These historical filenames allow
+existing downloads to be retained without migration. Recasting a saved URL returns
+its existing file immediately. Files and their thumbnails stay until deleted from
+Library; `MEDIA_TTL_MS` only applies to orphaned partial/error files and old job records.
 
 ## Torrents
 
@@ -189,7 +190,7 @@ the download to get there.
   `RESOLVER_CACHE_SIZE` entries) — lets a client offer "cast something
   you already downloaded" without re-resolving the source url. Also
   `"torrents": [{ "kind", "key", "title", "streamUrl", "thumbUrl", "bytes", "createdAt", "lastUsedAt" }]`:
-  the films saved from torrents (up to `TORRENT_CACHE_SIZE`), which the
+  the films saved from torrents, which the
   companion's downloads list offers to cast.
 - `GET /thumb/<media|torrents>/<key>.jpg` — a 480 px frame from 10% into a
   saved video or film (`src/thumbs.js`), made on first request and kept in
@@ -225,8 +226,8 @@ the download to get there.
 | `MAX_HEIGHT` | `1080` | caps the requested format so a cast doesn't pull an 8K master onto a home LAN |
 | `MAX_FILESIZE` | `2G` | hard stop passed to yt-dlp's `--max-filesize`, protects disk from a runaway download |
 | `MEDIA_TTL_MS` | `21600000` (6h) | sweep interval for deleting old downloaded files and job records not tracked by the rewatch cache |
-| `RESOLVER_CACHE_SIZE` | `100` | how many distinct source urls the rewatch cache (see above) keeps on disk at once; delete by hand from the companion's "saved" tab |
-| `TORRENT_CACHE_SIZE` | `100` | how many finished torrent films stay on disk (see "Torrents"; a film is often 2–20 GB, so watch the disk); delete by hand from the "saved" tab |
+| `RESOLVER_CACHE_SIZE` | ignored | Saved link videos remain until deleted from Library |
+| `TORRENT_CACHE_SIZE` | ignored | Saved torrents remain until deleted from Library |
 | `TORRENT_SERVER_URL` | *(unset)* | read torrents from [`torrent-server/`](../torrent-server/README.md) (e.g. `http://192.168.2.31:11480`) instead of the Stremio server the companion names |
 | `TORRENT_MAX_HEIGHT` | `1080` | films bigger than this (4K) are converted down to it as they're saved, for the TV; `0` keeps every size |
 | `TORRENT_KEEP_ORIGINAL` | `1` | when a film is converted down, also keep the untouched original in `<film>/original/` (the saved tab's "copy 4K link"); `0` keeps only the TV's copy. Costs the film's full size again on disk |

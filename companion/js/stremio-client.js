@@ -5,7 +5,7 @@
 // same thing the Stremio apps do, just without the Stremio app. Addons
 // answer plain GET <base>/<resource>/<type>/<id>[/<extra>].json with CORS
 // enabled, so the browser can call them with no server of ours in between,
-// and like Jellyfin, never through the relay (root README.md hard rule).
+// never through the relay (root README.md hard rule).
 //
 // What gets cast is worked out by toCastable() below; the TV always ends
 // up with one plain http(s) URL, which it fetches itself.
@@ -17,7 +17,7 @@ function createStremioClient(config) {
   // finds peers over DHT anyway, so trackers are a hint, not a need.
   var MAX_TRACKERS = 12;
 
-  // --- settings (the streaming server is per browser, like the Jellyfin
+  // --- settings (the streaming server is per browser, like the playback
   // session; the addon list is shared, see syncAddons) ---
 
   function readStore(key, fallback) {

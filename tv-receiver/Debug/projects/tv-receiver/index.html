@@ -26,9 +26,15 @@
 
   <div id="player-screen" class="screen hidden">
     <object id="av-player" type="application/avplayer"></object>
-    <div class="now-playing">
+    <div id="player-controls" class="now-playing hidden">
       <div id="now-playing-title" class="now-playing-title"></div>
       <div id="now-playing-state" class="now-playing-state"></div>
+      <div class="transport-controls" role="group" aria-label="Playback controls">
+        <button id="rewind" type="button" aria-label="Back 10 seconds">&#9664; 10s</button>
+        <button id="play-pause" class="primary-control" type="button">Pause</button>
+        <button id="forward" type="button" aria-label="Forward 10 seconds">10s &#9654;</button>
+      </div>
+      <div class="remote-hint">&#8592; Back 10s &nbsp; OK Play / pause &nbsp; Forward 10s &#8594;</div>
     </div>
   </div>
 

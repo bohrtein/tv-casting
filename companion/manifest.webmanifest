@@ -1,7 +1,7 @@
 {
   "name": "TV Casting",
   "short_name": "TV Cast",
-  "description": "Browse Jellyfin and cast to the TV.",
+  "description": "Browse saved videos and cast to the TV.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

@@ -59,10 +59,6 @@
         "type": "delete"
       },
       {
-        "path": "Debug/projects/tv-receiver/js/vendor/qrcode.js",
-        "type": "add"
-      },
-      {
         "path": "Debug/projects/tv-receiver/js/log.js",
         "type": "add"
       },
@@ -96,6 +92,14 @@
       },
       {
         "path": "Debug/projects/tv-receiver/matrix/VERSION",
+        "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/tests",
+        "type": "modify"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/tests/remote-controls.test.js",
         "type": "add"
       }
     ]

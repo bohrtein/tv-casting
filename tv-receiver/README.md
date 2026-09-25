@@ -50,6 +50,7 @@ after four seconds without input, including while paused. On the remote:
 
 - **OK:** reveal the overlay; when it is visible, pause or resume.
 - **Left / Right:** skip back or forward 10 seconds and reveal the overlay.
+- **Down:** hide the controls and title immediately without changing playback.
 - **Back:** dismiss the visible overlay; otherwise retain the app exit action.
 - Dedicated media keys still play, pause, stop, and skip as before.
 

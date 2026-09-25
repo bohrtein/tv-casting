@@ -21,6 +21,15 @@ function createSavedView(resolver, container, opts) {
   var groups = {};
   var filterText = '';
   var lastCache = null;
+  var categories = { movies: 'Movies', series: 'Television series', youtube: 'YouTube videos', porn: 'Porn', other: 'Other videos' };
+  var categoryFilter = document.createElement('select');
+  categoryFilter.className = 'mx-input cn-saved-filter';
+  categoryFilter.setAttribute('aria-label', 'Library category');
+  [['all', 'Everything']].concat(Object.keys(categories).map(function (k) { return [k, categories[k]]; })).forEach(function (pair) {
+    var option = document.createElement('option'); option.value = pair[0]; option.textContent = pair[1]; categoryFilter.appendChild(option);
+  });
+  categoryFilter.addEventListener('change', function () { if (lastCache) render(lastCache); });
+  container.appendChild(categoryFilter);
 
   var filter = document.createElement('input');
   filter.className = 'mx-input cn-saved-filter';
@@ -32,6 +41,8 @@ function createSavedView(resolver, container, opts) {
     if (lastCache) render(lastCache);
   });
   container.appendChild(filter);
+  var status = document.createElement('p'); status.setAttribute('role', 'status');
+  status.textContent = 'Loading library…'; container.appendChild(status);
 
   function formatBytes(n) {
     if (!n) return '0 MB';
@@ -174,12 +185,12 @@ function createSavedView(resolver, container, opts) {
       it.del.disabled = true;
       it.del.textContent = 'deleting…';
       var entry = it.entry;
-      resolver.deleteSaved(group.kind, entry.key).then(function () {
+      resolver.deleteSaved(entry.kind, entry.key).then(function () {
         MX.toast(true, 'Deleted: ' + (entry.title || 'video'));
         it.item.remove();
-        delete group.items[entry.key];
+        delete group.items[entry.kind + ':' + entry.key];
         if (lastCache) {
-          var field = group.kind === 'torrents' ? 'torrents' : 'entries';
+          var field = entry.kind === 'torrents' ? 'torrents' : 'entries';
           lastCache[field] = (lastCache[field] || []).filter(function (e) { return e.key !== entry.key; });
           render(lastCache);
         }
@@ -190,6 +201,21 @@ function createSavedView(resolver, container, opts) {
         MX.toast(false, err.message);
       });
     });
+    var category = document.createElement('select');
+    category.className = 'mx-input'; category.setAttribute('aria-label', 'Saved video category');
+    Object.keys(categories).forEach(function (key) {
+      var option = document.createElement('option'); option.value = key; option.textContent = categories[key]; category.appendChild(option);
+    });
+    it.category = category;
+    category.addEventListener('change', function () {
+      var entry = it.entry;
+      resolver.updateLibrary(entry.kind, entry.key, { category: category.value }).then(function () {
+        entry.category = category.value; render(lastCache);
+      }).catch(function (err) { category.value = entry.category || 'other'; MX.toast(false, err.message); });
+    });
+    item.querySelector('.cn-saved-body').appendChild(category);
+    var match = document.createElement('a'); match.className = 'mx-btn mx-sm'; match.textContent = 'Match Stremio metadata';
+    it.match = match; item.querySelector('.cn-saved-body').appendChild(match);
     return it;
   }
 
@@ -209,6 +235,10 @@ function createSavedView(resolver, container, opts) {
 
   function update(it, entry) {
     it.entry = entry;
+    var m = entry.metadata;
+    if (m) entry.title = m.name + (m.type === 'series' ? ' · S' + m.season + ' E' + m.episode + ' · ' + (m.episodeTitle || '') : '');
+    it.category.value = entry.category || 'other';
+    it.match.href = 'stremio.html?matchKind=' + encodeURIComponent(entry.kind) + '&matchKey=' + encodeURIComponent(entry.key);
     it.title.textContent = entry.title || entry.sourceUrl || 'video';
     it.title.title = entry.title || entry.sourceUrl || '';
     var meta = [formatBytes(entry.bytes)];
@@ -250,8 +280,9 @@ function createSavedView(resolver, container, opts) {
       : entries;
     var keep = {};
     shown.forEach(function (entry, i) {
-      keep[entry.key] = true;
-      var it = group.items[entry.key] || (group.items[entry.key] = makeItem(group));
+      var key = entry.kind + ':' + entry.key;
+      keep[key] = true;
+      var it = group.items[key] || (group.items[key] = makeItem(group));
       update(it, entry);
       if (group.list.children[i] !== it.item) group.list.insertBefore(it.item, group.list.children[i] || null);
     });
@@ -268,13 +299,28 @@ function createSavedView(resolver, container, opts) {
   // Takes the resolver's /cache body ({ entries, torrents }).
   function render(cache) {
     lastCache = cache;
-    if (!groups.torrents) {
-      groups.torrents = makeGroup('torrents', 'films (torrents)');
-      groups.media = makeGroup('media', 'videos (links)');
-    }
-    renderGroup(groups.torrents, cache.torrents || []);
-    renderGroup(groups.media, cache.entries || []);
+    var total = (cache.entries || []).length + (cache.torrents || []).length;
+    status.textContent = total ? total + ' saved files' : 'No saved files yet. Save a link or choose a Stremio stream to get started.';
+    var buckets = {};
+    Object.keys(categories).forEach(function (key) { buckets[key] = { label: categories[key], entries: [] }; });
+    (cache.entries || []).concat(cache.torrents || []).forEach(function (entry) {
+      var category = entry.category || 'other';
+      if (!categories[category]) category = 'other';
+      if (categoryFilter.value !== 'all' && categoryFilter.value !== category) return;
+      var m = entry.metadata;
+      var key = category === 'series' && m ? 'series:' + (m.addon || '') + ':' + m.id : category;
+      if (!buckets[key]) buckets[key] = { label: 'Television series · ' + m.name, entries: [] };
+      buckets[key].entries.push(entry);
+    });
+    Object.keys(buckets).forEach(function (key) {
+      var bucket = buckets[key];
+      if (!groups[key]) groups[key] = makeGroup(key, bucket.label);
+      if (key.indexOf('series:') === 0) bucket.entries.sort(function (a, b) { return a.metadata.season - b.metadata.season || a.metadata.episode - b.metadata.episode; });
+      groups[key].section.hidden = !bucket.entries.length;
+      renderGroup(groups[key], bucket.entries);
+    });
+    Object.keys(groups).forEach(function (key) { if (!buckets[key]) { groups[key].section.hidden = true; renderGroup(groups[key], []); } });
   }
 
-  return { render: render };
+  return { render: render, error: function (err) { status.textContent = 'Library unavailable: ' + err.message; } };
 }

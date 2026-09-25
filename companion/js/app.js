@@ -1,10 +1,7 @@
 'use strict';
 
 document.addEventListener('DOMContentLoaded', function () {
-  var jellyfin = createJellyfinClient();
   var resolver = createResolverClient(APP_CONFIG);
-  var currentFolderId = null;
-  var folderStack = []; // [{id, name}, ...] breadcrumb trail
   var nowCasting = createNowCasting(); // what this browser last cast, see now-casting.js
   var lastStatusTitle = ''; // title in the TV's latest status
   var lastPositionSec = 0;
@@ -14,15 +11,6 @@ document.addEventListener('DOMContentLoaded', function () {
   var el = {
     relayChip: document.getElementById('relay-chip'),
     relayChipLabel: document.getElementById('relay-chip-label'),
-    loginServer: document.getElementById('login-server'),
-    loginUser: document.getElementById('login-user'),
-    loginPass: document.getElementById('login-pass'),
-    loginReadout: document.getElementById('login-readout'),
-    loginSubmit: document.getElementById('login-submit'),
-    libraryLogin: document.getElementById('library-login'),
-    libraryBrowser: document.getElementById('library-browser'),
-    libraryBreadcrumb: document.getElementById('library-breadcrumb'),
-    libraryList: document.getElementById('library-list'),
     linkUrl: document.getElementById('link-url'),
     linkTitle: document.getElementById('link-title'),
     linkReadout: document.getElementById('link-readout'),
@@ -41,17 +29,6 @@ document.addEventListener('DOMContentLoaded', function () {
     remoteBack: document.getElementById('remote-back'),
     remoteFwd: document.getElementById('remote-fwd')
   };
-
-  function route() {
-    updateLibraryAuthUI();
-    if (jellyfin.isAuthenticated() && !currentFolderId) loadLibraryRoot();
-  }
-
-  function updateLibraryAuthUI() {
-    var authed = jellyfin.isAuthenticated();
-    el.libraryLogin.classList.toggle('cn-hidden', authed);
-    el.libraryBrowser.classList.toggle('cn-hidden', !authed);
-  }
 
   function setRelayChip(state, label) {
     el.relayChip.setAttribute('data-mx-state', state);
@@ -73,7 +50,6 @@ document.addEventListener('DOMContentLoaded', function () {
     },
     onJoined: function () {
       setRelayChip('ok', 'connected');
-      route();
     },
     onStatus: function (msg) {
       renderStatus(msg);
@@ -85,111 +61,10 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  // --- login ---
-
-  el.loginSubmit.addEventListener('click', function () {
-    var server = el.loginServer.value.trim();
-    var user = el.loginUser.value.trim();
-    var pass = el.loginPass.value;
-    if (!server || !user) return;
-    el.loginSubmit.disabled = true;
-    setReadout(el.loginReadout, '', false);
-    jellyfin.authenticate(server, user, pass).then(function () {
-      el.loginSubmit.disabled = false;
-      MX.toast(true, 'Signed in to Jellyfin');
-      updateLibraryAuthUI();
-      loadLibraryRoot();
-    }).catch(function (err) {
-      el.loginSubmit.disabled = false;
-      setReadout(el.loginReadout, err.message, true);
-    });
-  });
-
-  // --- library ---
-
   function escapeHtml(s) {
     var div = document.createElement('div');
     div.textContent = s == null ? '' : String(s);
     return div.innerHTML;
-  }
-
-  function renderBreadcrumb() {
-    el.libraryBreadcrumb.innerHTML = '';
-    var homeBtn = document.createElement('button');
-    homeBtn.className = 'mx-badge cn-crumb';
-    homeBtn.type = 'button';
-    homeBtn.textContent = 'library';
-    homeBtn.addEventListener('click', function () { goToBreadcrumb(-1); });
-    el.libraryBreadcrumb.appendChild(homeBtn);
-    folderStack.forEach(function (crumb, i) {
-      var btn = document.createElement('button');
-      btn.className = 'mx-badge cn-crumb';
-      btn.type = 'button';
-      btn.textContent = crumb.name;
-      btn.addEventListener('click', function () { goToBreadcrumb(i); });
-      el.libraryBreadcrumb.appendChild(btn);
-    });
-  }
-
-  function showLibraryError(err) {
-    el.libraryList.innerHTML = '';
-    var readout = document.createElement('div');
-    readout.className = 'mx-readout mx-err';
-    readout.textContent = err.message;
-    el.libraryList.appendChild(readout);
-  }
-
-  function renderItems(items) {
-    el.libraryList.innerHTML = '';
-    if (!items.length) {
-      el.libraryList.innerHTML = '<span class="mx-empty">nothing here.</span>';
-      return;
-    }
-    items.forEach(function (item) {
-      var row = document.createElement('button');
-      row.type = 'button';
-      row.className = 'cn-row';
-      var typePill = item.Type || (item.IsFolder ? 'folder' : 'item');
-      row.innerHTML =
-        '<span class="cn-row-name">' + escapeHtml(item.Name) + '</span>' +
-        '<span class="mx-badge">' + escapeHtml(typePill) + '</span>';
-      row.addEventListener('click', function () {
-        if (item.IsFolder) {
-          openFolder(item);
-        } else {
-          cast(item);
-        }
-      });
-      el.libraryList.appendChild(row);
-    });
-  }
-
-  function loadLibraryRoot() {
-    folderStack = [];
-    currentFolderId = null;
-    renderBreadcrumb();
-    el.libraryList.innerHTML = '<span class="mx-empty">loading…</span>';
-    jellyfin.getLibraries().then(renderItems).catch(showLibraryError);
-  }
-
-  function openFolder(item) {
-    folderStack.push({ id: item.Id, name: item.Name });
-    currentFolderId = item.Id;
-    renderBreadcrumb();
-    el.libraryList.innerHTML = '<span class="mx-empty">loading…</span>';
-    jellyfin.getChildren(item.Id).then(renderItems).catch(showLibraryError);
-  }
-
-  function goToBreadcrumb(index) {
-    if (index < 0) {
-      loadLibraryRoot();
-      return;
-    }
-    folderStack = folderStack.slice(0, index + 1);
-    currentFolderId = folderStack[folderStack.length - 1].id;
-    renderBreadcrumb();
-    el.libraryList.innerHTML = '<span class="mx-empty">loading…</span>';
-    jellyfin.getChildren(currentFolderId).then(renderItems).catch(showLibraryError);
   }
 
   function castToTv(url, title) {
@@ -198,17 +73,6 @@ document.addEventListener('DOMContentLoaded', function () {
     MX.toast(true, 'Casting: ' + title);
     if (MX.view) MX.view.show('remote');
   }
-
-  function cast(item) {
-    castToTv(jellyfin.getStreamUrl(item.Id), item.Name);
-  }
-
-  // --- cast a link (no Jellyfin involved) ---
-  // A direct media url (.mp4/.m3u8/...) goes straight to the TV, same as
-  // before. Anything else (a YouTube/Twitter/etc. page with a video
-  // embedded in it) goes through the resolver first, which downloads and
-  // serves back a plain MP4 the TV can actually load -- AVPlay can't
-  // parse a webpage to find the video itself (resolver/README.md).
 
   function describeResolveProgress(job) {
     if (job.status === 'starting') return 'looking up that video…';
@@ -234,7 +98,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     var typedTitle = el.linkTitle.value.trim();
 
-    if (resolver.isDirectMediaUrl(url)) {
+    if (resolver.isDirectMediaUrl(url) && !document.getElementById('link-save').checked) {
       setReadout(el.linkReadout, '', false);
       castToTv(url, typedTitle || url);
       return;
@@ -244,7 +108,7 @@ document.addEventListener('DOMContentLoaded', function () {
     setReadout(el.linkReadout, 'looking up that video…', false);
     resolver.resolve(url, function (job) {
       setReadout(el.linkReadout, describeResolveProgress(job), false);
-    }).then(function (result) {
+    }, { category: document.getElementById('link-category').value, title: typedTitle }).then(function (result) {
       el.linkCast.disabled = false;
       setReadout(el.linkReadout, '', false);
       castToTv(result.streamUrl, typedTitle || result.title || url);
@@ -266,7 +130,7 @@ document.addEventListener('DOMContentLoaded', function () {
       row.className = 'cn-row';
       row.innerHTML =
         '<span class="cn-row-name">' + escapeHtml(entry.title || entry.sourceUrl) + '</span>' +
-        '<span class="mx-pill">cached</span>';
+        '<span class="mx-pill">saved</span>';
       row.addEventListener('click', function () {
         castToTv(entry.streamUrl, entry.title || entry.sourceUrl);
       });
@@ -353,7 +217,7 @@ document.addEventListener('DOMContentLoaded', function () {
     resolver.getCache().then(function (cache) {
       renderDownloaded(cache.entries || []);
       savedView.render(cache);
-    }).catch(function () {});
+    }).catch(function (err) { savedView.error(err); });
   }
 
   pollJobs();
@@ -462,14 +326,12 @@ document.addEventListener('DOMContentLoaded', function () {
     relay.sendCommand('seek', { positionSec: lastPositionSec + 10 });
   });
 
-  // --- boot ---
-
-  if (jellyfin.isAuthenticated()) {
-    el.loginServer.value = jellyfin.getSession().serverUrl || '';
-  }
-
+  document.getElementById('link-download').addEventListener('click', function () {
+    var button = this; button.disabled = true;
+    resolver.startDownload(el.linkUrl.value.trim(), { category: document.getElementById('link-category').value, title: el.linkTitle.value.trim() })
+      .then(function () { setReadout(el.linkReadout, 'Download started. Follow progress in Downloads.', false); })
+      .catch(function (err) { setReadout(el.linkReadout, err.message, true); })
+      .then(function () { button.disabled = false; });
+  });
   relay.connect();
-  route();
-  // stremio.html's "remote" and "downloads" links land here.
-  if ((location.hash === '#remote' || location.hash === '#downloads') && MX.view) MX.view.show(location.hash.slice(1));
 });

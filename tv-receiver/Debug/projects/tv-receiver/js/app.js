@@ -9,12 +9,18 @@
     connectionNote: document.getElementById('connection-note'),
     nowPlayingTitle: document.getElementById('now-playing-title'),
     nowPlayingState: document.getElementById('now-playing-state'),
+    controls: document.getElementById('player-controls'),
+    playPause: document.getElementById('play-pause'),
+    rewind: document.getElementById('rewind'),
+    forward: document.getElementById('forward'),
     errorBanner: document.getElementById('error-banner')
   };
 
   var currentTitle = '';
   var currentPlaybackState = 'idle';
   var errorBannerTimer = null;
+  var controlsTimer = null;
+  var CONTROLS_TIMEOUT_MS = 4000;
   var SEEK_STEP_SEC = 10; // matches companion's own <<10s/10s>> buttons
 
   var relay = createRelayClient(APP_CONFIG, {
@@ -33,6 +39,8 @@
 
   function showIdleScreen() {
     log.info('screen -> idle');
+    currentPlaybackState = 'idle';
+    hideControls();
     elements.playerScreen.classList.add('hidden');
     elements.idleScreen.classList.remove('hidden');
   }
@@ -41,6 +49,35 @@
     log.info('screen -> player');
     elements.idleScreen.classList.add('hidden');
     elements.playerScreen.classList.remove('hidden');
+    showControls();
+  }
+
+  function hideControls() {
+    clearTimeout(controlsTimer);
+    elements.controls.classList.add('hidden');
+  }
+
+  function showControls() {
+    if (elements.playerScreen.classList.contains('hidden')) return;
+    elements.controls.classList.remove('hidden');
+    clearTimeout(controlsTimer);
+    controlsTimer = setTimeout(hideControls, CONTROLS_TIMEOUT_MS);
+  }
+
+  function canControlPlayback() {
+    return currentPlaybackState === 'playing' || currentPlaybackState === 'paused';
+  }
+
+  function updateControls() {
+    elements.playPause.textContent = currentPlaybackState === 'paused' ? 'Play' : 'Pause';
+    elements.playPause.disabled = !canControlPlayback();
+    elements.rewind.disabled = !canControlPlayback();
+    elements.forward.disabled = !canControlPlayback();
+  }
+
+  function skipBy(seconds) {
+    showControls();
+    if (canControlPlayback()) player.seekBy(seconds);
   }
 
   function onRegistered() {
@@ -68,6 +105,9 @@
       case 'play':
         currentTitle = (msg.payload && msg.payload.title) || '';
         elements.nowPlayingTitle.textContent = currentTitle;
+        currentPlaybackState = 'buffering';
+        elements.nowPlayingState.textContent = 'Loading';
+        updateControls();
         showPlayerScreen();
         player.play(msg.payload.url, msg.payload.startPositionSec || 0);
         break;
@@ -92,6 +132,8 @@
     log.info('playback state: ' + currentPlaybackState + ' -> ' + state);
     currentPlaybackState = state;
     elements.nowPlayingState.textContent = state;
+    updateControls();
+    if (state === 'paused') showControls();
     var durationSec = player.getDurationSec();
     var status = { state: state, title: currentTitle };
     if (durationSec > 0) status.durationSec = durationSec;
@@ -102,7 +144,7 @@
   }
 
   function onPlayTime(positionSec) {
-    var status = { state: 'playing', title: currentTitle, positionSec: positionSec };
+    var status = { state: currentPlaybackState, title: currentTitle, positionSec: positionSec };
     var durationSec = player.getDurationSec();
     if (durationSec > 0) status.durationSec = durationSec;
     relay.sendStatus(status);
@@ -133,7 +175,8 @@
   var KEYCODE_MEDIA_FAST_FORWARD = 417;
 
   function togglePlayPause() {
-    if (currentPlaybackState === 'playing' || currentPlaybackState === 'buffering') {
+    if (!canControlPlayback()) return;
+    if (currentPlaybackState === 'playing') {
       player.pause();
     } else {
       player.resume();
@@ -146,7 +189,6 @@
     // to inconsistent platform defaults depending on the TV model.
     if (typeof tizen === 'undefined' || !tizen.tvinputdevice) {
       log.warn('tizen.tvinputdevice unavailable -- remote media keys not registered');
-      return;
     }
     var keys = [
       'Return',
@@ -158,6 +200,7 @@
       'MediaFastForward'
     ];
     keys.forEach(function (key) {
+      if (typeof tizen === 'undefined' || !tizen.tvinputdevice) return;
       try {
         tizen.tvinputdevice.registerKey(key);
         log.info('registered key ' + key);
@@ -169,29 +212,58 @@
     });
     document.addEventListener('keydown', function (e) {
       log.info('keydown keyCode=' + e.keyCode + ' key=' + e.key);
-      switch (e.keyCode) {
-        case KEYCODE_RETURN:
+      if (e.keyCode === KEYCODE_RETURN) {
+        e.preventDefault();
+        if (!elements.controls.classList.contains('hidden')) {
+          hideControls();
+        } else if (typeof tizen !== 'undefined' && tizen.application) {
           tizen.application.getCurrentApplication().exit();
+        }
+        return;
+      }
+      if (elements.playerScreen.classList.contains('hidden')) return;
+      switch (e.keyCode) {
+        case 40: // Down dismisses the overlay without changing playback.
+          e.preventDefault();
+          hideControls();
+          break;
+        case 13: // OK / Enter is delivered without Tizen key registration.
+          e.preventDefault();
+          if (e.repeat) return;
+          if (!elements.controls.classList.contains('hidden')) togglePlayPause();
+          showControls();
           break;
         case KEYCODE_MEDIA_PLAY_PAUSE:
+          e.preventDefault();
+          if (e.repeat) return;
           togglePlayPause();
+          showControls();
           break;
         case KEYCODE_MEDIA_PLAY:
-          player.resume();
+          e.preventDefault();
+          if (canControlPlayback()) player.resume();
+          showControls();
           break;
         case KEYCODE_MEDIA_PAUSE:
-          player.pause();
+          e.preventDefault();
+          if (canControlPlayback()) player.pause();
+          showControls();
           break;
         case KEYCODE_MEDIA_STOP:
+          e.preventDefault();
           player.stop();
           relay.sendStatus({ state: 'stopped' });
           showIdleScreen();
           break;
         case KEYCODE_MEDIA_REWIND:
-          player.seekBy(-SEEK_STEP_SEC);
+        case 37:
+          e.preventDefault();
+          skipBy(-SEEK_STEP_SEC);
           break;
         case KEYCODE_MEDIA_FAST_FORWARD:
-          player.seekBy(SEEK_STEP_SEC);
+        case 39:
+          e.preventDefault();
+          skipBy(SEEK_STEP_SEC);
           break;
         default:
           break;
@@ -200,6 +272,12 @@
   }
 
   log.info('starting, relay=' + APP_CONFIG.RELAY_URL + ' ua=' + navigator.userAgent);
+  elements.playPause.addEventListener('click', function () {
+    togglePlayPause();
+    showControls();
+  });
+  elements.rewind.addEventListener('click', function () { skipBy(-SEEK_STEP_SEC); });
+  elements.forward.addEventListener('click', function () { skipBy(SEEK_STEP_SEC); });
   registerHardwareKeys();
   showIdleScreen();
   relay.connect();

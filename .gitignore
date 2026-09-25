@@ -25,7 +25,7 @@ tv-receiver/.tproject/
 # PWA / bundler output
 companion/dist/
 
-# Transient downloaded casts -- never a permanent library, see
+# Downloaded library files and metadata stay local; see
 # resolver/README.md
 resolver/media/*
 !resolver/media/.gitkeep

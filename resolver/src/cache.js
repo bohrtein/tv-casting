@@ -147,10 +147,10 @@ class MediaCache {
   // maxEntries. Returns the evicted entries so the caller can delete
   // their files (this class only ever touches the index, never disk
   // media files directly, since index.js already owns MEDIA_DIR cleanup).
-  add({ sourceUrl, fileName, title }) {
+  add({ sourceUrl, fileName, title, category, metadata, thumbnail }) {
     const key = MediaCache.normalize(sourceUrl);
     this.entries = this.entries.filter((e) => e.sourceUrl !== key);
-    this.entries.push({ sourceUrl: key, fileName, title, createdAt: Date.now(), lastUsedAt: Date.now() });
+    this.entries.push({ sourceUrl: key, fileName, title, category, metadata, thumbnail, createdAt: Date.now(), lastUsedAt: Date.now() });
 
     const evicted = [];
     while (this.entries.length > this.maxEntries) {

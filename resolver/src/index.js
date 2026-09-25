@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { JobRegistry } = require('./jobs');
 const { MediaCache } = require('./cache');
+const { libraryFields, classify, saveThumbnail } = require('./library');
 const ytdlp = require('./ytdlp');
 const torrent = require('./torrent');
 const { createThumbs } = require('./thumbs');
@@ -18,11 +19,9 @@ const MAX_FILESIZE = process.env.MAX_FILESIZE || '2G';
 const MEDIA_TTL_MS = parseInt(process.env.MEDIA_TTL_MS || String(6 * 60 * 60 * 1000), 10); // 6h
 const SWEEP_INTERVAL_MS = 15 * 60 * 1000;
 const ENABLE_GENERIC_FALLBACK = process.env.ENABLE_GENERIC_FALLBACK !== '0';
-// Both caches are big on purpose: films and videos stay until deleted by
-// hand from the companion's "saved" tab; these only cap a runaway disk.
-const CACHE_MAX_ENTRIES = parseInt(process.env.RESOLVER_CACHE_SIZE || '100', 10);
-// Films are big, so torrents get their own, smaller cache.
-const TORRENT_CACHE_SIZE = parseInt(process.env.TORRENT_CACHE_SIZE || '100', 10);
+// Library files stay until explicitly deleted, regardless of old cache-size settings.
+const CACHE_MAX_ENTRIES = Infinity;
+const TORRENT_CACHE_SIZE = Infinity;
 const TORRENT_DIR = path.join(MEDIA_DIR, 'torrents');
 // Where torrent files are read from. The companion builds Stremio server
 // URLs; when this is set, the same path goes to our own torrent server
@@ -43,6 +42,19 @@ const activeTorrents = new Map(); // key -> job, while ffmpeg is running
 // run is also a job (kind torrent), so it shows in the downloads list and
 // can be cast while the copy is being made, like a download.
 const optimizing = new Map();
+
+// Upgrade existing YouTube entries without redownloading their videos.
+async function enrichSavedYoutube() {
+  for (const entry of mediaCache.list()) {
+    if (entry.thumbnail || classify(entry.sourceUrl, {}) !== 'youtube') continue;
+    try {
+      const info = await ytdlp.getInfo(entry.sourceUrl);
+      const thumbnail = await saveThumbnail(info.thumbnail, MEDIA_DIR, path.basename(entry.fileName, '.mp4'));
+      if (mediaCache.has(entry.fileName)) mediaCache.update(entry.fileName, { thumbnail: thumbnail || info.thumbnail,
+        category: entry.category || 'youtube' });
+    } catch (err) { log('saved YouTube thumbnail unavailable', entry.fileName, err.message); }
+  }
+}
 
 function startOptimize(key) {
   const entry = torrentCache.get(key);
@@ -323,19 +335,20 @@ async function runJob(job, url) {
     });
 
     const fileName = `${job.id}.mp4`;
-    jobs.update(job.id, {
-      status: 'ready',
-      progress: 100,
-      fileName,
-      finishedAt: Date.now()
-    });
+
     log('resolved', job.id, info.title);
 
-    // Register with the LRU cache so recasting this same source url
-    // later is instant instead of re-downloading. Only ever the 5 (by
-    // default) most recently *used* distinct sources survive -- delete
-    // whichever file(s) that bumps out.
-    const evicted = mediaCache.add({ sourceUrl: job.sourceUrl, fileName, title: info.title });
+    let thumbnail = info.thumbnail;
+    try { thumbnail = await saveThumbnail(info.thumbnail, MEDIA_DIR, job.id) || thumbnail; }
+    catch (err) { log('thumbnail unavailable', err.message); }
+    if (signal.aborted) {
+      fs.unlink(path.join(MEDIA_DIR, fileName), () => {});
+      if (thumbnail && /^[0-9a-f]{16}\.(jpg|png|webp)$/.test(thumbnail)) fs.unlink(path.join(MEDIA_DIR, thumbnail), () => {});
+      throw new Error('Cancelled.');
+    }
+    const evicted = mediaCache.add({ sourceUrl: job.sourceUrl, fileName, title: info.title,
+      category: classify(url, info), thumbnail, ...job.libraryFields });
+    jobs.update(job.id, { status: 'ready', progress: 100, fileName, finishedAt: Date.now() });
     evicted.forEach((e) => {
       fs.unlink(path.join(MEDIA_DIR, e.fileName), () => {});
       thumbs.remove('media', e.fileName);
@@ -370,7 +383,7 @@ async function runTorrentJob(job, url, key) {
   // saves stays there if it stops, to continue or delete later.
   // resumeUrl is the Stremio-shaped URL, as the companion sent it.
   fs.mkdirSync(outDir, { recursive: true });
-  rememberTorrent(key, job.title, { partial: true, resumeUrl: job.sourceUrl });
+  rememberTorrent(key, job.title, { partial: true, resumeUrl: job.sourceUrl, ...job.libraryFields });
   // Speed over roughly the last 5 seconds, so one burst of pieces doesn't
   // make the number jump around.
   const samples = [];
@@ -583,17 +596,24 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === 'POST' && url.pathname === '/resolve') {
-    readJsonBody(req, 8 * 1024).then((body) => {
+    readJsonBody(req, 32 * 1024).then((body) => {
       const target = typeof body.url === 'string' ? body.url.trim() : '';
       if (!isHttpUrl(target)) {
         sendJson(res, 400, { error: 'Body must be { "url": "https://..." }.' });
         return;
       }
+      const fields = libraryFields(body);
+      const active = Array.from(jobs.jobs.values()).find((j) => !j.torrentKey && ['starting', 'downloading'].includes(j.status) && MediaCache.normalize(j.sourceUrl) === MediaCache.normalize(target));
+      if (active) {
+        active.libraryFields = { ...active.libraryFields, ...fields };
+        sendJson(res, 202, { id: active.id, status: active.status }); return;
+      }
       const job = jobs.create();
       job.sourceUrl = target;
-
+      job.libraryFields = fields;
       const cached = mediaCache.find(target);
       if (cached) {
+        mediaCache.update(cached.fileName, fields);
         jobs.update(job.id, {
           status: 'ready',
           progress: 100,
@@ -625,12 +645,15 @@ const server = http.createServer((req, res) => {
         sendJson(res, 400, { error: 'Body must be { "url": "<stremio server>/<infoHash>/<fileIdx>" }.' });
         return;
       }
+      const fields = libraryFields(body);
       const title = typeof body.title === 'string' && body.title ? body.title.slice(0, 300) : parsed.key;
 
       // Already downloading (e.g. cast again, or from another phone):
       // hand back the same job instead of downloading it twice.
       const running = activeTorrents.get(parsed.key);
       if (running) {
+        running.libraryFields = { ...running.libraryFields, ...fields };
+        torrentCache.update(parsed.key, fields);
         sendJson(res, 202, { id: running.id, status: running.status });
         return;
       }
@@ -638,12 +661,14 @@ const server = http.createServer((req, res) => {
       const job = jobs.create();
       job.sourceUrl = target;
       job.title = title;
+      job.libraryFields = fields;
 
       // A finished film plays from disk; a partial one continues. One too
       // big for the TV (4K saved before conversions existed) is never
       // sent to it: its 1080p copy is started right away instead, and the
       // cast plays that as it's made, like a download.
       const cached = torrentCache.find(parsed.key);
+      if (cached) torrentCache.update(parsed.key, fields);
       const cachedDir = path.join(TORRENT_DIR, parsed.key);
       if (cached && !cached.partial && cached.width &&
           torrent.needsTvCopy(cachedDir, { width: cached.width, height: cached.height })) {
@@ -692,23 +717,22 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Lets the companion offer "previously downloaded" as a section
-  // separate from /jobs' activity log -- these are specifically the
-  // still-on-disk, re-castable-without-a-redownload entries the LRU
-  // cache is tracking (mediaCache's max entries, 5 by default), not
-  // every job that's ever run.
   // Everything saved: videos from links ("entries") and films from
   // torrents ("torrents"), most recently used first, each with a
   // thumbnail URL and its size on disk.
-  if (req.method === 'GET' && url.pathname === '/cache') {
+  if (req.method === 'GET' && ['/cache', '/library'].includes(url.pathname)) {
     const host = req.headers.host;
     const list = mediaCache.list().map((entry) => ({
+      category: entry.category || classify(entry.sourceUrl, {}),
+      metadata: entry.metadata || null,
+      fileName: entry.fileName,
       kind: 'media',
       key: entry.fileName,
       sourceUrl: entry.sourceUrl,
       title: entry.title,
       streamUrl: `http://${host}/media/${entry.fileName}`,
-      thumbUrl: `http://${host}/thumb/media/${entry.fileName}.jpg`,
+      thumbUrl: entry.thumbnail ? (/^[0-9a-f]{16}\.(jpg|png|webp)$/.test(entry.thumbnail)
+        ? `http://${host}/media/${entry.thumbnail}` : entry.thumbnail) : `http://${host}/thumb/media/${entry.fileName}.jpg`,
       bytes: fileBytes(path.join(MEDIA_DIR, entry.fileName)),
       createdAt: entry.createdAt,
       lastUsedAt: entry.lastUsedAt
@@ -718,6 +742,8 @@ const server = http.createServer((req, res) => {
       const origDir = path.join(dir, torrent.ORIGINAL_DIR);
       const hasOriginal = fs.existsSync(path.join(origDir, 'index.m3u8'));
       return {
+        category: entry.category || 'other',
+        metadata: entry.metadata || null,
         kind: 'torrents',
         key: entry.fileName,
         title: entry.title,
@@ -744,13 +770,35 @@ const server = http.createServer((req, res) => {
         needsTvCopy: !entry.partial && !activeTorrents.has(entry.fileName) &&
           torrent.needsTvCopy(dir, entry.width ? { width: entry.width, height: entry.height } : null),
         optimize: optimizing.get(entry.fileName) || null,
-        thumbUrl: `http://${host}/thumb/torrents/${entry.fileName}.jpg`,
+        thumbUrl: entry.metadata && /^https?:\/\//.test(entry.metadata.poster || '') ? entry.metadata.poster : `http://${host}/thumb/torrents/${entry.fileName}.jpg`,
         bytes: torrent.folderBytes(dir) + (hasOriginal ? torrent.folderBytes(origDir) : 0),
         createdAt: entry.createdAt,
         lastUsedAt: entry.lastUsedAt
       };
     });
     sendJson(res, 200, { entries: list, torrents });
+    return;
+  }
+
+  const libraryMatch = /^\/library\/(media|torrents)\/([^/]+)$/.exec(url.pathname);
+  if (req.method === 'POST' && libraryMatch) {
+    const [, kind, name] = libraryMatch;
+    if (!validCacheName(kind, name)) { sendJson(res, 400, { error: 'Invalid file name.' }); return; }
+    readJsonBody(req, 32 * 1024).then((body) => {
+      const cache = kind === 'media' ? mediaCache : torrentCache;
+      const entry = cache.update(name, libraryFields(body));
+      sendJson(res, entry ? 200 : 404, entry || { error: 'Saved file not found.' });
+    }).catch((err) => sendJson(res, 400, { error: err.message }));
+    return;
+  }
+
+  const imageMatch = /^\/media\/([0-9a-f]{16}\.(jpg|png|webp))$/.exec(url.pathname);
+  if (req.method === 'GET' && imageMatch) {
+    fs.readFile(path.join(MEDIA_DIR, imageMatch[1]), (err, data) => {
+      if (err) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'Content-Type': `image/${imageMatch[2] === 'jpg' ? 'jpeg' : imageMatch[2]}` });
+      res.end(data);
+    });
     return;
   }
 
@@ -874,6 +922,9 @@ const server = http.createServer((req, res) => {
       sendJson(res, 404, { error: 'Not in the cache (already deleted?).' });
       return;
     }
+    if (kind === 'media' && entry.thumbnail && /^[0-9a-f]{16}\.(jpg|png|webp)$/.test(entry.thumbnail)) {
+      fs.unlink(path.join(MEDIA_DIR, entry.thumbnail), () => {});
+    }
     const target = kind === 'media' ? path.join(MEDIA_DIR, name) : path.join(TORRENT_DIR, name);
     fs.rm(target, { recursive: true, force: true }, () => {});
     thumbs.remove(kind, name);
@@ -960,18 +1011,14 @@ const server = http.createServer((req, res) => {
   res.end();
 });
 
-// Sweeps orphaned in-progress/error leftovers past MEDIA_TTL_MS so a
-// home server's disk doesn't slowly fill up. Files the LRU cache is
-// tracking are exempt -- their lifecycle is "one of the last
-// CACHE_MAX_ENTRIES distinct sources cast," not a time limit, so a
-// video you cast once and rewatch a week later is still there.
+// Only orphaned partial/error files expire; indexed videos and artwork remain.
 setInterval(() => {
   jobs.sweep(MEDIA_TTL_MS);
   fs.readdir(MEDIA_DIR, (err, files) => {
     if (err) return;
     const cutoff = Date.now() - MEDIA_TTL_MS;
     files.forEach((file) => {
-      if (file === 'cache-index.json' || file === 'torrents' || file === 'thumbs' || mediaCache.has(file)) return;
+      if (file === 'cache-index.json' || file === 'torrents' || file === 'thumbs' || mediaCache.has(file) || mediaCache.entries.some((e) => e.thumbnail === file)) return;
       const filePath = path.join(MEDIA_DIR, file);
       fs.stat(filePath, (statErr, stat) => {
         if (!statErr && stat.mtimeMs < cutoff) fs.unlink(filePath, () => {});
@@ -981,6 +1028,7 @@ setInterval(() => {
 }, SWEEP_INTERVAL_MS);
 
 measureSavedFilms();
+enrichSavedYoutube();
 
 server.listen(PORT, () => {
   log(`resolver listening on :${PORT} (POST /resolve, POST /torrent, GET /resolve/:id, GET /jobs, GET /cache, GET /thumb/:kind/:name.jpg, POST /cache/:kind/:name/delete, POST /cache/torrents/:key/optimize, POST /cache/torrents/:key/resume, GET /media/:file, GET /healthz)`);
