@@ -69,8 +69,6 @@ function createSavedView(resolver, container, opts) {
     section.className = 'cn-saved-group';
     section.innerHTML =
       '<h3 class="cn-saved-head"><span></span><span class="cn-saved-total"></span></h3>' +
-      '<div class="cn-show-hero" hidden><img class="cn-show-poster" alt="" loading="lazy"><div class="cn-show-copy"><strong></strong><span></span></div></div>' +
-      '<div class="cn-saved-guide" hidden></div>' +
       '<div class="cn-saved-list"></div>' +
       '<span class="mx-empty"></span>';
     section.querySelector('.cn-saved-head span').textContent = label;
@@ -81,11 +79,6 @@ function createSavedView(resolver, container, opts) {
       total: section.querySelector('.cn-saved-total'),
       list: section.querySelector('.cn-saved-list'),
       empty: section.querySelector('.mx-empty'),
-      hero: section.querySelector('.cn-show-hero'),
-      heroImg: section.querySelector('.cn-show-poster'),
-      heroTitle: section.querySelector('.cn-show-copy strong'),
-      heroDescription: section.querySelector('.cn-show-copy span'),
-      guide: section.querySelector('.cn-saved-guide'),
       items: {},
       seasonHeads: {}
     };
@@ -296,55 +289,7 @@ function createSavedView(resolver, container, opts) {
 
   function renderGroup(group, entries) {
     var total = entries.reduce(function (n, e) { return n + (e.bytes || 0); }, 0);
-    var isSeries = group.kind.indexOf('series:') === 0;
-    var sample = entries.find(function (e) { return e.metadata && e.metadata.type === 'series'; });
-    if (isSeries && sample) {
-      var meta = sample.metadata;
-      var videos = Array.isArray(meta.videos) ? meta.videos : [];
-      group.hero.hidden = false;
-      group.heroTitle.textContent = meta.name || group.kind;
-      group.heroDescription.textContent = meta.description || (videos.length ? videos.length + ' episodes across all seasons' : 'Your saved episodes');
-      if (meta.poster && group.heroImg.getAttribute('src') !== meta.poster) group.heroImg.src = meta.poster;
-      group.heroImg.hidden = !meta.poster;
-      var savedIds = {};
-      entries.forEach(function (e) { if (e.metadata && e.metadata.videoId) savedIds[e.metadata.videoId] = true; });
-      var signature = videos.map(function (v) { return v.id + ':' + (savedIds[v.id] ? '1' : '0'); }).join('|');
-      if (signature && signature !== group.guide.dataset.signature) {
-        group.guide.dataset.signature = signature;
-        group.guide.textContent = '';
-        var guideTitle = document.createElement('h4');
-        guideTitle.className = 'cn-guide-head';
-        guideTitle.textContent = 'series guide · ' + Object.keys(savedIds).length + ' of ' + videos.length + ' episodes saved';
-        group.guide.appendChild(guideTitle);
-        var seasons = {};
-        videos.forEach(function (v) {
-          var s = Number.isInteger(v.season) ? v.season : 0;
-          (seasons[s] = seasons[s] || []).push(v);
-        });
-        Object.keys(seasons).map(Number).sort(function (a, b) { return (a === 0) - (b === 0) || a - b; }).forEach(function (season) {
-          var seasonTitle = document.createElement('h5');
-          seasonTitle.className = 'cn-guide-season';
-          seasonTitle.textContent = season === 0 ? 'specials' : 'season ' + season;
-          group.guide.appendChild(seasonTitle);
-          var grid = document.createElement('div'); grid.className = 'cn-guide-episodes';
-          seasons[season].slice().sort(function (a, b) { return (a.episode || a.number || 0) - (b.episode || b.number || 0); }).forEach(function (v) {
-            var row = document.createElement('div'); row.className = 'cn-guide-episode';
-            if (v.thumbnail) { var img = document.createElement('img'); img.alt = ''; img.loading = 'lazy'; img.src = v.thumbnail; row.appendChild(img); }
-            var label = document.createElement('span');
-            var ep = v.episode != null ? v.episode : v.number;
-            label.textContent = (ep != null ? 'E' + String(ep).padStart(2, '0') + ' · ' : '') + (v.name || v.title || 'Episode') + (savedIds[v.id] ? ' · saved' : ' · not saved');
-            row.appendChild(label); grid.appendChild(row);
-          });
-          group.guide.appendChild(grid);
-        });
-      }
-      group.guide.hidden = !videos.length;
-      group.total.textContent = videos.length ? Object.keys(savedIds).length + ' / ' + videos.length + ' episodes · ' + formatBytes(total) : entries.length + ' episodes · ' + formatBytes(total);
-    } else {
-      group.hero.hidden = true;
-      group.guide.hidden = true;
-      group.total.textContent = entries.length ? entries.length + ' · ' + formatBytes(total) : '';
-    }
+    group.total.textContent = entries.length ? entries.length + ' · ' + formatBytes(total) : '';
     var shown = filterText
       ? entries.filter(function (e) { return (e.title || e.sourceUrl || '').toLowerCase().indexOf(filterText) !== -1; })
       : entries;
