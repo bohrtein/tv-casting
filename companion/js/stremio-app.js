@@ -50,8 +50,7 @@ document.addEventListener('DOMContentLoaded', function () {
     addonsFilter: $('addons-filter'), addonsList: $('addons-list'), addonsNote: $('addons-section-note'),
     addonsUrl: $('addons-url'), addonsReadout: $('addons-readout'), addonsAdd: $('addons-add'),
     settingsServer: $('settings-server'), settingsReadout: $('settings-readout'),
-    savingPanel: $('saving-panel'), savingList: $('saving-list'),
-    nowPlaying: $('now-playing'), npReadout: $('np-readout'), npPlayPause: $('np-playpause'), npStop: $('np-stop')
+    savingPanel: $('saving-panel'), savingList: $('saving-list')
   };
 
   // --- small helpers ---
@@ -200,36 +199,17 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     nowCasting.set(url, title);
     MX.toast(true, 'Casting: ' + title);
+    remoteSheet.open();
   }
 
-  function formatTime(totalSec) {
-    var m = Math.floor(totalSec / 60), s = Math.floor(totalSec % 60);
-    return m + ':' + (s < 10 ? '0' : '') + s;
-  }
+  // The remote sheet at the bottom (remote-sheet.js, remote-controls.js).
+  var remoteSheet = createRemoteSheet($('remote-sheet'));
+  var remote = createRemoteControls(relay, nowCasting);
   function renderStatus(msg) {
-    if (msg.state === 'tv_offline') {
-      nowCasting.clear();
-      setRelayChip('err', 'tv offline');
-      hidden(el.nowPlaying, true);
-      return;
-    }
-    var label;
-    if (msg.state === 'error') label = (msg.title ? msg.title + ': ' : '') + (msg.error ? msg.error.message : 'error');
-    else {
-      label = (msg.title ? msg.title + ' — ' : '') + msg.state;
-      if (typeof msg.positionSec === 'number') {
-        label += ' (' + formatTime(msg.positionSec) + (msg.durationSec ? ' / ' + formatTime(msg.durationSec) : '') + ')';
-      }
-    }
-    setReadout(el.npReadout, label, msg.state === 'error');
-    hidden(el.nowPlaying, msg.state === 'idle' || msg.state === 'stopped');
-    el.npPlayPause.textContent = (msg.state === 'playing' || msg.state === 'buffering') ? 'pause' : 'play';
-    if (msg.state === 'stopped') { nowCasting.clear(); refreshLibrary(); }
+    if (msg.state === 'tv_offline') setRelayChip('err', 'tv offline');
+    remote.render(msg);
+    if (msg.state === 'stopped') refreshLibrary();
   }
-  el.npPlayPause.addEventListener('click', function () {
-    relay.sendCommand(el.npPlayPause.textContent === 'pause' ? 'pause' : 'resume');
-  });
-  el.npStop.addEventListener('click', function () { relay.sendCommand('stop'); nowCasting.clear(); });
 
   var savingTimer = null;
   var downloads = createDownloadsView(resolver, el.savingPanel, el.savingList, { onCast: castToTv });

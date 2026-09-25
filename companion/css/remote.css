@@ -1,42 +1,13 @@
-/* index.html: your library, a tools sheet, and the remote as a bottom
-   sheet. Colours all come from Matrix tokens. */
+/* The remote (#remote-sheet, remote-sheet.js) on the Stremio page: a bottom
+   sheet over the page on a phone, just above Stremio's nav bar; docked
+   bottom right and always open on a computer. Colours are Matrix tokens. */
 
-/* --- library ------------------------------------------------------------ */
-.cn-home-library {
-  /* Room under the grid for the collapsed remote. */
-  padding-bottom: calc(110px + env(safe-area-inset-bottom));
+/* Room under the page for the collapsed remote. */
+body.cn-st { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
+@media (max-width: 599px) {
+  body.cn-st.mx-has-nav { padding-bottom: calc(var(--mx-nav-h) + 110px + env(safe-area-inset-bottom)); }
 }
-.cn-home-selects { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mx-space-2); margin-bottom: var(--mx-space-4); }
-.cn-home-selects .mx-input { flex: 0 1 220px; min-width: 0; width: auto; }
-.cn-home-selects input[type="search"] { flex: 1 1 180px; }
-.cn-home-info { color: var(--mx-ink-dim); font-size: 13px; margin: 0 0 var(--mx-space-3); }
-#title-sheet-files .cn-st-file + .cn-st-file { margin-top: 0; }
 
-/* --- tools button's unread dot ------------------------------------------ */
-#tools-open { position: relative; }
-#tools-open .mx-dot {
-  position: absolute;
-  top: 4px; right: 4px;
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--mx-accent);
-  opacity: 0;
-}
-#tools-open.mx-has-update .mx-dot { opacity: 1; }
-
-/* --- tools sheet: its tabs work at every width -------------------------- */
-#tools-sheet .mx-tabs {
-  display: grid;
-  position: static;
-  margin: 0;
-  padding: 0;
-  background: none;
-}
-body.cn-home.mx-tabbed #tools-sheet [data-mx-panel] { display: none; }
-body.cn-home.mx-tabbed #tools-sheet [data-mx-panel].mx-shown { display: block; }
-#tools-sheet label { display: block; margin: var(--mx-space-2) 0; }
-
-/* --- remote ------------------------------------------------------------- */
 .cn-remote {
   position: fixed;
   left: 0;
@@ -115,5 +86,16 @@ body.cn-home.mx-tabbed #tools-sheet [data-mx-panel].mx-shown { display: block; }
   .cn-remote-grip { display: none; }
   .cn-remote-head { padding-top: var(--mx-space-4); touch-action: auto; cursor: auto; user-select: auto; }
   /* Scroll the last row clear of the docked remote. */
-  .cn-home-library { padding-bottom: 260px; }
+  body.cn-st { padding-bottom: 260px; }
+}
+
+/* A phone: sit on top of Stremio's bottom nav bar. */
+@media (max-width: 599px) {
+  /* Under the nav bar (z 25), so the tucked-away part hides behind it. */
+  body.mx-has-nav .cn-remote { bottom: calc(var(--mx-nav-h) + env(safe-area-inset-bottom)); padding-bottom: var(--mx-space-4); z-index: 24; }
+  body.mx-has-nav .mx-toasts { bottom: calc(var(--mx-nav-h) + 90px + env(safe-area-inset-bottom)); }
+}
+/* A tablet: clear the nav rail on the left. */
+@media (min-width: 600px) and (max-width: 899px) {
+  body.mx-has-nav .cn-remote { margin-left: calc(min(-280px, -50vw) + var(--mx-rail-w) / 2); }
 }

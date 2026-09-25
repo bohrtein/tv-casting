@@ -13,8 +13,9 @@ function createRemoteSheet(sheet) {
   var open = false;
   var drag = null;
 
-  // How far the sheet sits below its open position when collapsed.
-  function hiddenBy() { return body.offsetHeight; }
+  // How far the sheet sits below its open position when collapsed:
+  // everything under the head, bottom padding included.
+  function hiddenBy() { return sheet.offsetHeight - (head.offsetTop + head.offsetHeight); }
 
   function place(offset, animate) {
     sheet.classList.toggle('cn-remote-dragging', !animate);

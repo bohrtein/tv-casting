@@ -17,6 +17,7 @@
 <script src="matrix/matrix.js"></script>
 <link rel="stylesheet" href="css/app.css">
 <link rel="stylesheet" href="css/stremio.css">
+<link rel="stylesheet" href="css/remote.css">
 </head>
 <body class="mx mx-has-nav cn-st">
 
@@ -59,7 +60,7 @@
     </form>
     <div class="cn-st-top-actions" data-relay-targets>
       <button id="plus18-toggle" class="mx-btn mx-sm" type="button" aria-pressed="false">18+</button>
-      <a class="mx-btn mx-sm" href="./">my library</a>
+      <a class="mx-btn mx-sm" href="tools.html">tools</a>
       <span id="relay-chip" class="mx-status-chip" data-mx-state="busy">
         <span class="mx-led" aria-hidden="true"></span><span id="relay-chip-label">connecting</span>
       </span>
@@ -206,17 +207,33 @@
     <div id="saving-list"></div>
   </section>
 
-  <!-- Now playing: shown only while the TV has something. -->
-  <section id="now-playing" class="mx-panel mx-glass cn-now-playing cn-hidden">
-    <div class="mx-readout" id="np-readout"></div>
-    <div class="cn-np-buttons">
-      <button id="np-playpause" class="mx-btn mx-sm mx-primary" type="button">pause</button>
-      <button id="np-stop" class="mx-btn mx-sm" type="button">stop</button>
-      <a class="mx-btn mx-sm" href="./#remote">remote</a>
-    </div>
-  </section>
 
 </div>
+
+<!-- The remote: peeks from the bottom on a phone (drag the grip up for
+     everything, down to tuck it away), always open on a computer. -->
+<section id="remote-sheet" class="mx-panel mx-glass cn-remote" aria-label="Remote">
+  <div class="cn-remote-head">
+    <button class="cn-remote-grip" type="button" aria-expanded="false" aria-controls="remote-body"><span aria-hidden="true"></span></button>
+    <div class="mx-readout" id="remote-readout">nothing casting</div>
+    <button id="remote-playpause" class="mx-btn mx-sm mx-primary" type="button" disabled>play</button>
+  </div>
+  <div class="cn-remote-body" id="remote-body">
+    <div id="remote-pending" role="status" aria-live="polite"></div>
+    <div class="cn-seekbar">
+      <input class="cn-seek-range" id="remote-seek" type="range" min="0" max="0" value="0" step="1" disabled aria-label="seek position">
+      <div class="cn-seek-times">
+        <span id="remote-seek-pos">0:00</span>
+        <span id="remote-seek-dur">0:00</span>
+      </div>
+    </div>
+    <div class="cn-remote-buttons">
+      <button id="remote-back" class="mx-btn" type="button" disabled>&laquo; 10s</button>
+      <button id="remote-stop" class="mx-btn" type="button" disabled>stop</button>
+      <button id="remote-fwd" class="mx-btn" type="button" disabled>10s &raquo;</button>
+    </div>
+  </div>
+</section>
 
 <div class="mx-overlay" id="addon-sheet">
   <div class="mx-sheet" role="dialog" aria-labelledby="addon-sheet-title">
@@ -275,6 +292,8 @@
 <script src="js/downloads-view.js" defer></script>
 <script src="js/now-casting.js" defer></script>
 <script src="js/relay-client.js" defer></script>
+<script src="js/remote-sheet.js" defer></script>
+<script src="js/remote-controls.js" defer></script>
 <script src="js/library-model.js" defer></script>
 <script src="js/stremio-cast-adapter.js" defer></script>
 <script src="js/stremio-stream-presentation.js" defer></script>

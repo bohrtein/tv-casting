@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="Cast a link, and follow the server's downloads and activity.">
+<title>Tools · TV Casting</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<!-- Matrix: live from the app hub at /ds/1/ (one copy shared by every
+     app, never cached by sw.js so it's always current), on top of the
+     synced copy in matrix/, which the service worker caches so the
+     remote still looks right offline or outside the hub. The second
+     matrix.js does nothing if the first loaded. Update the copy with
+     ../matrix_design/tools/sync.py companion/matrix -->
+<link rel="stylesheet" href="matrix/matrix.css">
+<link rel="stylesheet" href="/ds/1/matrix.css">
+<script src="/ds/1/matrix.js"></script>
+<script src="matrix/matrix.js"></script>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body class="mx" data-mx-view="link">
+
+<div class="mx-shell">
+
+  <div class="mx-topbar">
+    <div class="mx-brand">
+      <span class="mx-mark">tv-casting</span>
+      <h1 class="mx-tagline">tools</h1>
+    </div>
+    <nav class="mx-topbar-nav">
+      <a class="mx-btn mx-sm" href="stremio.html#/library">library</a>
+    </nav>
+    <span id="relay-chip" class="mx-status-chip" data-mx-state="busy">
+      <span class="mx-led" aria-hidden="true"></span><span id="relay-chip-label">connecting</span>
+    </span>
+  </div>
+
+  <section id="screen-app">
+    <nav class="mx-tabs" role="tablist">
+      <button class="mx-tab" data-mx-tab="link" aria-selected="true">link</button>
+      <button class="mx-tab" data-mx-tab="downloads">downloads</button>
+      <button class="mx-tab" data-mx-tab="activity">activity</button>
+    </nav>
+
+    <div class="mx-layout-split">
+      <div class="mx-col">
+        <section class="mx-panel" data-mx-panel="link">
+          <h2 class="mx-panel-title">cast a link</h2>
+          <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 16px">
+            A direct video URL (.mp4, .m3u8, &hellip;), or a page with a video
+            embedded in it (YouTube, Twitter/X, &hellip;) &mdash; those get
+            downloaded and saved first, which can take a minute.
+          </p>
+          <div class="mx-field">
+            <div class="mx-field-head"><label class="mx-label" for="link-url">video url</label></div>
+            <input class="mx-input" type="url" id="link-url" placeholder="https://example.com/video.mp4">
+          </div>
+          <div class="mx-field">
+            <div class="mx-field-head"><label class="mx-label" for="link-title">title (optional)</label></div>
+            <input class="mx-input" type="text" id="link-title" placeholder="what's this called?">
+          </div>
+          <label for="link-category">Save under</label>
+          <select id="link-category" class="mx-input"><option value="auto">Automatic</option><option value="plus18">18+</option><option value="movies">Movies</option><option value="series">Television series</option><option value="youtube">YouTube videos</option><option value="other">Other videos</option></select>
+          <label><input id="link-save" type="checkbox" checked> Save direct video links too</label>
+          <button id="link-download" class="mx-btn" type="button">Save without casting</button>
+          <div id="link-readout" class="mx-readout" style="display:none"></div>
+          <div class="demo" style="margin-top:14px; display:flex; gap:10px">
+            <button id="link-cast" class="mx-btn mx-primary" type="button">cast</button>
+          </div>
+
+
+        </section>
+
+      </div>
+
+      <div class="mx-col">
+        <section class="mx-panel" data-mx-panel="downloads">
+          <h2 class="mx-panel-title">downloads</h2>
+          <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 16px">
+            What the server is downloading right now, from any device. Cast
+            plays one on the TV, even while it's still saving. Stop keeps what
+            a torrent saved in the library, to continue later; cancel (link
+            downloads) deletes it.
+          </p>
+          <div id="downloads-list"></div>
+          <span id="downloads-empty" class="mx-empty">nothing downloading.</span>
+        </section>
+
+
+
+        <section class="mx-panel mx-glass" data-mx-panel="activity" style="margin-top:16px">
+          <h2 class="mx-panel-title">activity</h2>
+          <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 16px">
+            Every link resolved recently, from any device — what it's
+            called, whether it's downloading, cached, or failed.
+          </p>
+          <div id="activity-list" class="mx-log"></div>
+        </section>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div class="mx-toasts"></div>
+
+<script src="js/content-policy.js" defer></script>
+<script src="js/config.js" defer></script>
+<script src="js/resolver-client.js" defer></script>
+<script src="js/downloads-view.js" defer></script>
+<script src="js/now-casting.js" defer></script>
+<script src="js/relay-client.js" defer></script>
+<script src="js/app.js" defer></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js');
+    });
+  }
+</script>
+</body>
+</html>
