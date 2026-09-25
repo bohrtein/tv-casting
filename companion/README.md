@@ -3,7 +3,7 @@
 Phone/desktop PWA for a persistent video library, Stremio browsing, and TV playback.
 Jellyfin integration has been removed.
 
-- **Library:** all saved links and torrents grouped as Movies, Television series,
+- **Library:** its own page in the top navigation, with all saved links and torrents grouped as Movies, Television series,
   YouTube videos, Porn, or Other videos. Episodes with Stremio metadata are grouped
   by show and ordered by season and episode. Categories can be corrected per file.
 - **Stremio:** the existing catalog, search, add-on management, and episode picker.

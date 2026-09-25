@@ -161,9 +161,6 @@ document.addEventListener('DOMContentLoaded', function () {
   var downloadsView = createDownloadsView(resolver, el.downloadsEmpty, el.downloadsList, { emptyNotice: true, onCast: castToTv });
   downloadsView.onRefreshNeeded(function () { pollJobs(); });
 
-  // The saved tab: everything on the server's disk, see saved-view.js.
-  var savedView = createSavedView(resolver, document.getElementById('saved-view'), { onCast: castToTv });
-
   // A download that started while another tab is open puts Matrix's
   // update dot on the downloads tab. The first poll only records what's
   // already there.
@@ -216,8 +213,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     resolver.getCache().then(function (cache) {
       renderDownloaded(cache.entries || []);
-      savedView.render(cache);
-    }).catch(function (err) { savedView.error(err); });
+    }).catch(function () {});
   }
 
   pollJobs();

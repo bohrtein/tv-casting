@@ -1,6 +1,6 @@
 'use strict';
 
-// What this browser last cast, shared by index.html and stremio.html and
+// What this browser last cast, shared by the companion, Stremio and library pages and
 // kept across reloads (localStorage), so pausing on one page and pressing
 // play on the other, or after the phone reloaded the page, still resumes.
 //

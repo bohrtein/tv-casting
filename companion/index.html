@@ -33,6 +33,7 @@
     </div>
     <nav class="mx-topbar-nav">
       <a class="mx-btn mx-sm" href="stremio.html">stremio</a>
+      <a class="mx-btn mx-sm" href="library.html">library</a>
     </nav>
     <span id="relay-chip" class="mx-status-chip" data-mx-state="busy">
       <span class="mx-led" aria-hidden="true"></span><span id="relay-chip-label">connecting</span>
@@ -41,26 +42,13 @@
 
   <section id="screen-app">
     <nav class="mx-tabs" role="tablist">
-      <button class="mx-tab" data-mx-tab="library" aria-selected="true">library</button>
-      <button class="mx-tab" data-mx-tab="link">link</button>
+      <button class="mx-tab" data-mx-tab="link" aria-selected="true">link</button>
       <button class="mx-tab" data-mx-tab="remote">remote</button>
       <button class="mx-tab" data-mx-tab="downloads">downloads</button>
       <button class="mx-tab" data-mx-tab="activity">activity</button>
     </nav>
 
-    <div class="mx-layout-split cn-split-3">
-      <div class="mx-col cn-library-column">
-        <section class="mx-panel" data-mx-panel="library" style="margin-top:16px">
-          <h2 class="mx-panel-title">library</h2>
-          <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 16px">
-            Everything kept on the server: films saved from torrents, and
-            videos downloaded from links. They stay until you delete them
-            here. Browse movies, television series, YouTube videos, and porn separately.
-          </p>
-          <div id="saved-view"></div>
-        </section>
-      </div>
-
+    <div class="mx-layout-split">
       <div class="mx-col">
         <section class="mx-panel" data-mx-panel="link">
           <h2 class="mx-panel-title">cast a link</h2>
@@ -120,7 +108,7 @@
           <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 16px">
             What the server is downloading right now, from any device. Cast
             plays one on the TV, even while it's still saving. Stop keeps what
-            a torrent saved in the saved tab, to continue later; cancel (link
+            a torrent saved in the library, to continue later; cancel (link
             downloads) deletes it.
           </p>
           <div id="downloads-list"></div>
@@ -149,7 +137,6 @@
 <script src="js/resolver-client.js" defer></script>
 <script src="js/downloads-view.js" defer></script>
 <script src="js/now-casting.js" defer></script>
-<script src="js/saved-view.js" defer></script>
 <script src="js/relay-client.js" defer></script>
 <script src="js/app.js" defer></script>
 <script>

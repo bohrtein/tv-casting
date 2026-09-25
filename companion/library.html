@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="Browse saved videos and cast to the TV.">
+<title>Library · TV Casting</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="matrix/matrix.css">
+<link rel="stylesheet" href="/ds/1/matrix.css">
+<script src="/ds/1/matrix.js"></script>
+<script src="matrix/matrix.js"></script>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body class="mx">
+<div class="mx-shell">
+  <div class="mx-topbar">
+    <div class="mx-brand">
+      <span class="mx-mark">tv-casting</span>
+      <h1 class="mx-tagline">library</h1>
+    </div>
+    <nav class="mx-topbar-nav">
+      <a class="mx-btn mx-sm" href="./">companion</a>
+      <a class="mx-btn mx-sm" href="stremio.html">stremio</a>
+    </nav>
+    <span id="relay-chip" class="mx-status-chip" data-mx-state="busy">
+      <span class="mx-led" aria-hidden="true"></span><span id="relay-chip-label">connecting</span>
+    </span>
+  </div>
+
+  <main>
+    <section class="mx-panel">
+      <h2 class="mx-panel-title">library</h2>
+      <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 16px">
+        Everything kept on the server: films saved from torrents and videos downloaded from links.
+        Browse movies, television series, YouTube videos, and other categories separately.
+      </p>
+      <div id="saved-view"></div>
+    </section>
+  </main>
+</div>
+<div class="mx-toasts"></div>
+<script src="js/config.js" defer></script>
+<script src="js/resolver-client.js" defer></script>
+<script src="js/now-casting.js" defer></script>
+<script src="js/saved-view.js" defer></script>
+<script src="js/relay-client.js" defer></script>
+<script src="js/library-app.js" defer></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js');
+    });
+  }
+</script>
+</body>
+</html>
