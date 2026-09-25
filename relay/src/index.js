@@ -73,7 +73,9 @@ function handleFirstMessage(socket, msg) {
       if (clients.tvSocket) clients.tvSocket.close(1000, 'Replaced by another TV');
       clients.setTv(socket); socket.targetId = 'tv';
     } else {
-      socket.targetId = 'browser-' + randomUUID();
+      socket.targetId = 'browser-' + (msg.receiverId || randomUUID());
+      const previous = receivers.get(socket.targetId);
+      if (previous) previous.close(1000, 'Receiver reconnected');
       socket.receiverName = msg.name.trim(); receivers.set(socket.targetId, socket);
     }
     send(socket, { type: TYPES.REGISTERED, role: msg.role, targetId: socket.targetId });

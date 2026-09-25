@@ -5,7 +5,19 @@
   var title = document.getElementById('receiver-title');
   var tap = document.getElementById('receiver-play');
   var stopButton = document.getElementById('receiver-stop');
-  var socket, hls, loadedUrl = '', generation = 0, enabled = false, retry;
+  var connectedName = document.getElementById('receiver-connected-name');
+  var socket, hls, loadedUrl = '', generation = 0, enabled = false, retry, activeName = '', announced = false;
+  var receiverId, channel;
+  try {
+    receiverId = sessionStorage.getItem('tvc.receiverId');
+    var savedName = sessionStorage.getItem('tvc.receiverName');
+    if (savedName) document.getElementById('receiver-name').value = savedName;
+    if (!receiverId) {
+      receiverId = crypto.randomUUID();
+      sessionStorage.setItem('tvc.receiverId', receiverId);
+    }
+  } catch (_) { receiverId = undefined; }
+  if (typeof BroadcastChannel !== 'undefined') channel = new BroadcastChannel('tvc.receiver');
   var state = 'idle';
   var playback = createPlaybackHistory({
     onWaiting: function () { report('buffering', 'Looking up next episode…'); stopButton.hidden = false; },
@@ -76,24 +88,42 @@
   function connect() {
     clearTimeout(retry);
     if (!enabled || socket && socket.readyState < 2) return;
-    socket = new WebSocket(APP_CONFIG.RELAY_URL);
+    status.textContent = 'Connecting to relay…';
+    try { socket = new WebSocket(APP_CONFIG.RELAY_URL); }
+    catch (err) { status.textContent = 'Could not connect to relay: ' + err.message; retry = setTimeout(connect, 2000); return; }
     socket.onopen = function () {
-      socket.send(JSON.stringify({ type: 'register', role: 'receiver', name: document.getElementById('receiver-name').value.trim() || 'Browser receiver' }));
+      status.textContent = 'Registering receiver…';
+      activeName = document.getElementById('receiver-name').value.trim() || 'Browser receiver';
+      socket.send(JSON.stringify({ type: 'register', role: 'receiver', name: activeName, receiverId: receiverId }));
     };
     socket.onmessage = function (event) {
       var msg; try { msg = JSON.parse(event.data); } catch (_) { return; }
-      if (msg.type === 'registered') { report(state, 'Connected — select this receiver in the companion.'); }
+      if (msg.type === 'registered') {
+        connectedName.textContent = 'This device: ' + activeName;
+        connectedName.hidden = false;
+        report(state, 'Connected as ' + activeName + '. Ready to receive video.');
+        if (channel && !announced) {
+          channel.postMessage({ type: 'select-receiver', targetId: msg.targetId });
+          announced = true;
+        }
+      }
       else if (msg.type === 'command') command(msg);
       else if (msg.type === 'error') status.textContent = msg.message;
     };
     socket.onclose = function () {
       playback.stop(); // A disconnected session cannot automatically launch another episode.
-      status.textContent = 'Relay disconnected. Reconnecting…';
-      retry = setTimeout(connect, 2000);
+      if (enabled) {
+        connectedName.hidden = true;
+        status.textContent = 'Relay disconnected. Reconnecting…';
+        retry = setTimeout(connect, 2000);
+      }
     };
   }
   document.getElementById('receiver-join').addEventListener('submit', function (event) {
-    event.preventDefault(); enabled = true; connect();
+    event.preventDefault(); enabled = true;
+    try { sessionStorage.setItem('tvc.receiverName', document.getElementById('receiver-name').value.trim()); } catch (_) {}
+    if (socket && socket.readyState === WebSocket.OPEN && activeName !== document.getElementById('receiver-name').value.trim()) socket.close();
+    else connect();
   });
   tap.addEventListener('click', resume);
   stopButton.addEventListener('click', stop);

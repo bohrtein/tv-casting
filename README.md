@@ -77,8 +77,9 @@ See the "Current status" section at the bottom of [PLAN.md](PLAN.md).
   Catalog mode persists across navigation. Unrated media stays usable; absent ratings are
   not a guarantee of suitability. Mode is a browsing filter, not an access-control boundary.
 - Downloaded videos live in Library; Links contains acquisition controls only.
-- Open companion/receiver.html on a phone or computer, enable it, then select its name
-  in the companion target selector. Keep the receiver open. Browser autoplay restrictions
+- Open companion/receiver.html on a phone or computer and enable it. When opened from
+  the companion on the same browser, it selects itself; from another device, choose its
+  name in the companion's Play on selector. Keep the receiver open. Browser autoplay restrictions
   may require tapping Start on that device. Native HTML5 playback and bundled HLS.js
   reuse server streams without making another saved copy. Codec support depends on the browser.
 - TV seeks combine relative button presses, serialize AVPlay calls, retain failed targets,

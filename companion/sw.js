@@ -19,7 +19,6 @@ var SHELL_FILES = [
   'css/remote.css',
   'css/stremio.css',
   'js/content-policy.js',
-  'js/config.js',
   'js/resolver-client.js',
   'js/downloads-view.js',
   'js/now-casting.js',
@@ -77,6 +76,9 @@ self.addEventListener('fetch', function (event) {
   if (url.origin !== self.location.origin) return;
 
   var path = url.pathname.replace(/^\//, '');
+  // Deployment can override relay/resolver URLs at request time. Never serve
+  // an older config from the shell cache to the companion or receiver page.
+  if (path === 'js/config.js') return;
   if (SHELL_FILES.indexOf(path) === -1 && path !== '') return;
 
   event.respondWith(

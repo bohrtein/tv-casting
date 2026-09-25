@@ -11,6 +11,13 @@ test('relative seek rejects invalid offsets', () => {
   assert.equal(validateCommand({ action: 'seek', payload: { deltaSec: -10 } }), true);
 });
 
+test('receiver registration accepts a stable UUID and rejects malformed identities', () => {
+  const { validateRegister } = require('../src/messages');
+  const receiver = { role: 'receiver', name: 'Desktop', receiverId: '123e4567-e89b-42d3-a456-426614174000' };
+  assert.equal(validateRegister(receiver), true);
+  assert.equal(validateRegister({ ...receiver, receiverId: 'tv' }), false);
+});
+
 test('browser targets coexist with TV, route commands/status, and disconnect independently', async () => {
   const child = spawn(process.execPath, ['src/index.js'], { cwd: require('path').join(__dirname, '..'), env: { ...process.env, PORT: '0' } });
   // Port zero is useful for tests; ask the relay to print the actual bound port.
@@ -51,6 +58,10 @@ test('browser targets coexist with TV, route commands/status, and disconnect ind
     send(c, { type: 'command', action: 'stop' });
     await wait(c, m => m.code === 'TV_NOT_FOUND');
     assert.equal(tv.messages.some(m => m.action === 'stop'), false);
+    const reconnected = await connect({ type: 'register', role: 'receiver', name: 'Desktop', receiverId: registered.targetId.slice('browser-'.length) });
+    assert.equal((await wait(reconnected, m => m.type === 'registered')).targetId, registered.targetId);
+    send(c, { type: 'command', action: 'pause' });
+    await wait(reconnected, m => m.action === 'pause');
     send(c, { type: 'select-target', targetId: 'tv' });
     send(c, { type: 'command', action: 'resume' });
     await wait(tv, m => m.action === 'resume');

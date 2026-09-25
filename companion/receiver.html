@@ -10,13 +10,14 @@
 <body class="mx">
 <main>
   <h1>Browser receiver</h1>
-  <p>Keep this page open on the same network as the casting server. Select its name in the companion’s playback targets.</p>
+  <p>Enter a name and enable this receiver. A companion open in this browser will select it automatically. On another device, choose the name under <strong>Play on</strong> in the companion. Keep this page open to play video here.</p>
   <form id="receiver-join">
     <label for="receiver-name">Device name</label>
-    <input class="mx-input" id="receiver-name" maxlength="80" required value="Browser receiver">
+    <input class="mx-input" id="receiver-name" maxlength="80" required value="Browser receiver" placeholder="e.g. Living room laptop">
     <button class="mx-btn mx-primary" type="submit">Enable receiver</button>
   </form>
   <p id="receiver-status" role="status" aria-live="polite">Receiver is disabled.</p>
+  <p id="receiver-connected-name" hidden></p>
   <h2 id="receiver-title"></h2>
   <video id="receiver-video" controls playsinline preload="metadata"></video>
   <button id="receiver-play" class="mx-btn mx-primary" hidden>Tap to start playback</button>

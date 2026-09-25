@@ -126,13 +126,16 @@ asked), and the relay broadcasts it to every connected companion:
 
 ## Browser receivers and target routing
 
-Browser receivers register with {type: "register", role: "receiver", name: "Device name"}.
+Browser receivers register with {type: "register", role: "receiver", name: "Device name", receiverId: "UUID"}.
+The optional receiverId lets a browser keep its target identity across reconnects; older
+receivers without it receive a fresh identity each time. A new connection with the same
+receiverId replaces the previous socket.
 The response includes an assigned targetId. TV retains the stable id "tv".
 Companions receive {type: "targets", targets: [{id, name, online}]} on join and when receivers change.
 A join may include targetId; otherwise it selects TV. Change destination with
 {type: "select-target", targetId: "..."}. Commands and status are scoped to that destination.
 An offline destination is never silently replaced with TV. Reconnected browser receivers
-receive a new identity and must be selected again. Status snapshots are sent on selection.
+with a receiverId retain their identity and selection. Status snapshots are sent on selection.
 
 Seek accepts either {positionSec: 30} or {deltaSec: -10}. Relative input is accumulated
 by the receiver. TV status can include pendingSeek: {targetSec, busy, error}; null targetSec

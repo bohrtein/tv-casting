@@ -572,6 +572,7 @@
 /* Keep the primary view primary on wide screens too. */
 .mx-tabbed [data-mx-panel]:not(.mx-shown) { display: none; }
 .mx-topbar-nav { flex-wrap: wrap; }
+.tvc-target-label { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .mx-topbar-nav select { width: auto; max-width: 240px; }
 
 .mx-tabbed .mx-tabs { display: flex; }

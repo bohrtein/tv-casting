@@ -7,7 +7,7 @@
 .cn-st-search { flex: 1 1 auto; min-width: 0; }
 .cn-st-search .mx-input { width: 100%; }
 .cn-st-top-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--mx-space-2); flex: 0 1 auto; min-width: 0; }
-.cn-st-top-actions > .mx-input { width: auto; max-width: 180px; min-height: var(--mx-h-sm); }
+.cn-st-top-actions .tvc-target-label .mx-input { width: auto; max-width: 180px; min-height: var(--mx-h-sm); }
 .cn-st-search { flex-basis: 280px; }
 @media (max-width: 599px) {
   .cn-st-top { flex-wrap: wrap; }

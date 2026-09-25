@@ -47,7 +47,8 @@ function parseEnvelope(raw) {
 }
 
 function validateRegister(msg) {
-  return msg.role === 'tv' || (msg.role === 'receiver' && typeof msg.name === 'string' && msg.name.trim().length > 0 && msg.name.length <= 80);
+  return msg.role === 'tv' || (msg.role === 'receiver' && typeof msg.name === 'string' && msg.name.trim().length > 0 && msg.name.length <= 80 &&
+    (msg.receiverId === undefined || typeof msg.receiverId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(msg.receiverId)));
 }
 
 function validateJoin(msg) {

@@ -11,7 +11,7 @@ function createRelayClient(config, handlers) {
   select.className = 'mx-input'; select.setAttribute('aria-label', 'Playback target');
   var holder = document.querySelector('[data-relay-targets]') || document.querySelector('.mx-topbar-nav') || document.querySelector('.mx-topbar');
   if (holder) {
-    holder.appendChild(select);
+    var label = document.createElement('label'); label.className = 'tvc-target-label'; label.textContent = 'Play on '; label.appendChild(select); holder.appendChild(label);
     var link = document.createElement('a'); link.className = 'mx-btn mx-sm'; link.href = 'receiver.html'; link.target = '_blank'; link.rel = 'noopener'; link.textContent = 'Open receiver'; holder.appendChild(link);
   }
   function renderTargets() {
@@ -21,12 +21,22 @@ function createRelayClient(config, handlers) {
     list.forEach(function (t) { var o = document.createElement('option'); o.value = t.id; o.textContent = t.name + (t.online ? '' : ' (offline)'); select.appendChild(o); });
     select.value = targetId;
   }
-  select.addEventListener('change', function () {
-    targetId = select.value;
+  function selectTarget(id) {
+    targetId = id;
+    renderTargets();
     handlers.onStatus({ state: 'idle', title: '', positionSec: 0, durationSec: 0 });
     try { localStorage.setItem('tvc.target', targetId); } catch (_) {}
     send({ type: 'select-target', targetId: targetId });
+  }
+  select.addEventListener('change', function () {
+    selectTarget(select.value);
   });
+  if (typeof BroadcastChannel !== 'undefined') {
+    var receiverChannel = new BroadcastChannel('tvc.receiver');
+    receiverChannel.onmessage = function (event) {
+      if (event.data && event.data.type === 'select-receiver' && /^browser-[\w-]+$/.test(event.data.targetId || '')) selectTarget(event.data.targetId);
+    };
+  }
   renderTargets();
   var reconnectAttempts = 0;
   var reconnectTimer = null;
