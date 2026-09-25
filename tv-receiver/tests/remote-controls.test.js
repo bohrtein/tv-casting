@@ -47,7 +47,7 @@ function setup() {
     setTimeout(fn, delay) { timers.set(++timerId, { fn, delay }); return timerId; },
     clearTimeout(id) { timers.delete(id); }
   });
-  for (const file of ['player.js', 'app.js']) {
+  for (const file of ['player.js', 'playback-history.js', 'app.js']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../js', file), 'utf8'), context);
   }
   return {
@@ -57,6 +57,7 @@ function setup() {
     prepared() { prepare(); },
     get listener() { return listener; },
     key(code, repeat = false) { keydown({ keyCode: code, repeat, preventDefault() {} }); },
+    flushSeek() { for (const [id, timer] of [...timers]) { if (timer.delay === 250) { timers.delete(id); timer.fn(); } } },
     expire() { for (const [id, timer] of [...timers]) { if (timer.delay === 4000) { timers.delete(id); timer.fn(); } } },
     hidden() { return nodes['player-controls'].classList.contains('hidden'); }
   };
@@ -85,21 +86,21 @@ test('OK reveals without pausing, then toggles; overlay and title auto-hide', ()
 
 test('arrows seek ten seconds, clamp at stream boundaries, and preserve pause', () => {
   const app = setup(); app.start(); app.prepared(); app.expire();
-  app.key(37);
+  app.key(37); app.flushSeek();
   assert.equal(app.hidden(), false);
   assert.equal(app.calls.at(-1), 20000);
-  app.key(39);
+  app.key(39); app.flushSeek();
   assert.equal(app.calls.at(-1), 30000);
   app.key(13);
-  app.key(39);
+  app.key(39); app.flushSeek();
   app.listener.onbufferingstart();
   app.listener.onbufferingcomplete();
   app.listener.oncurrentplaytime(40000);
   assert.equal(app.statuses.at(-1).state, 'paused');
   assert.equal(app.nodes['play-pause'].textContent, 'Play');
-  for (let i = 0; i < 10; i++) app.key(39);
+  for (let i = 0; i < 10; i++) { app.key(39); app.flushSeek(); }
   assert.equal(app.calls.at(-1), 59000);
-  for (let i = 0; i < 10; i++) app.key(37);
+  for (let i = 0; i < 10; i++) { app.key(37); app.flushSeek(); }
   assert.equal(app.calls.at(-1), 0);
   app.avplay.seekTo = () => { throw Error('Not seekable'); };
   assert.doesNotThrow(() => app.key(39));
@@ -107,12 +108,12 @@ test('arrows seek ten seconds, clamp at stream boundaries, and preserve pause', 
 
 test('loading ignores transport; buttons, media keys, Back and stop work', () => {
   const app = setup(); app.start();
-  app.key(13); app.key(39); app.key(415);
+  app.key(13); app.key(415);
   assert.deepEqual(app.calls, []);
   app.prepared();
-  app.nodes['rewind'].handlers.click();
+  app.nodes['rewind'].handlers.click(); app.flushSeek();
   assert.equal(app.calls.at(-1), 20000);
-  app.nodes['forward'].handlers.click();
+  app.nodes['forward'].handlers.click(); app.flushSeek();
   assert.equal(app.calls.at(-1), 30000);
   app.nodes['play-pause'].handlers.click();
   assert.equal(app.calls.at(-1), 'pause');
@@ -120,11 +121,21 @@ test('loading ignores transport; buttons, media keys, Back and stop work', () =>
   assert.deepEqual(app.calls.slice(-3), ['play', 'pause', 'play']);
   app.key(10009);
   assert.equal(app.hidden(), true);
-  app.key(417); app.key(412);
+  app.key(417); app.flushSeek(); app.key(412); app.flushSeek();
   assert.equal(app.calls.at(-1), 30000);
   app.key(413);
   assert.equal(app.hidden(), true);
   const count = app.calls.length;
   app.key(13); app.key(39);
   assert.equal(app.calls.length, count);
+});
+
+test('skips during buffering wait for playback and rapid skips coalesce', () => {
+  const app = setup(); app.start();
+  app.key(39); app.key(39);
+  assert.deepEqual(app.calls, []);
+  app.prepared(); app.flushSeek();
+  assert.equal(app.calls.at(-1), 50000);
+  app.key(37); app.key(37); app.flushSeek();
+  assert.equal(app.calls.at(-1), 30000);
 });

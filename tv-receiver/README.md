@@ -107,3 +107,16 @@ keyboard rather than a scripted test.
 **Still not verified:** hardware-key handling on the real running
 emulator (mocked-AVPlay test above stands in for it) or a real TV, and
 behavior on an actual Samsung TV's display rather than the emulator.
+
+## Persistent progress and next episode
+
+`js/playback-history.js` talks directly to the resolver that serves the current
+local media URL. It obtains the resume position before playback, saves every five
+seconds and on pause/stop, and asks for the next episode only after AVPlay reports
+natural completion. Pending replies cannot restart playback after Stop or replace
+a newer cast. If the resolver is unavailable, initial playback falls back to zero.
+A sudden TV power loss can lose up to the latest five seconds of progress.
+
+Run `node --test resolver/test/*.test.js tv-receiver/tests/*.test.js` from the repo
+root. Rebuild and install this receiver along with the resolver/companion update;
+existing installed receiver packages do not acquire these changes automatically.

@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { JobRegistry } = require('./jobs');
 const { MediaCache } = require('./cache');
-const { libraryFields, classify, saveThumbnail } = require('./library');
+const { libraryFields: validateLibraryFields, classify, saveThumbnail } = require('./library');
 const ytdlp = require('./ytdlp');
 const torrent = require('./torrent');
 const { createThumbs } = require('./thumbs');
@@ -30,6 +30,14 @@ const TORRENT_SERVER_URL = (process.env.TORRENT_SERVER_URL || '').replace(/\/+$/
 
 fs.mkdirSync(TORRENT_DIR, { recursive: true });
 
+const { LibraryState } = require('./library-state');
+const libraryState = new LibraryState(MEDIA_DIR);
+function libraryFields(body) {
+  const fields = validateLibraryFields(body);
+  libraryState.remember(fields.metadata);
+  if (fields.metadata) delete fields.metadata.videos; // One shared catalog per title, not a copy per episode.
+  return fields;
+}
 const jobs = new JobRegistry();
 const mediaCache = new MediaCache(MEDIA_DIR, CACHE_MAX_ENTRIES);
 // Keyed by "<infoHash>-<fileIdx>"; fileName is that key's folder.
@@ -184,6 +192,72 @@ function fileBytes(file) {
   } catch (e) {
     return 0;
   }
+}
+
+function librarySnapshot(host) {
+    const list = mediaCache.list().map((entry) => ({
+      category: entry.category || classify(entry.sourceUrl, {}),
+      metadata: entry.metadata || null,
+      fileName: entry.fileName,
+      kind: 'media',
+      key: entry.fileName,
+      sourceUrl: entry.sourceUrl,
+      title: entry.title,
+      streamUrl: `http://${host}/media/${entry.fileName}`,
+      thumbUrl: entry.thumbnail ? (/^[0-9a-f]{16}\.(jpg|png|webp)$/.test(entry.thumbnail)
+        ? `http://${host}/media/${entry.thumbnail}` : entry.thumbnail) : `http://${host}/thumb/media/${entry.fileName}.jpg`,
+      bytes: fileBytes(path.join(MEDIA_DIR, entry.fileName)),
+      createdAt: entry.createdAt,
+      lastUsedAt: entry.lastUsedAt
+    }));
+    const torrents = torrentCache.list().map((entry) => {
+      const dir = path.join(TORRENT_DIR, entry.fileName);
+      const origDir = path.join(dir, torrent.ORIGINAL_DIR);
+      const hasOriginal = fs.existsSync(path.join(origDir, 'index.m3u8'));
+      return {
+        category: entry.category || 'other',
+        metadata: entry.metadata || null,
+        kind: 'torrents',
+        key: entry.fileName,
+        title: entry.title,
+        streamUrl: `http://${host}/media/torrents/${entry.fileName}/index.m3u8`,
+        // The full-size film, when it was converted down for the TV.
+        originalUrl: hasOriginal ? `http://${host}/media/torrents/${entry.fileName}/${torrent.ORIGINAL_DIR}/index.m3u8` : null,
+        width: entry.width || null,
+        height: entry.height || null,
+        // Stopped part way: savedSec of durationSec is on disk, and
+        // POST .../resume continues it. downloading: a run is going now.
+        partial: !!entry.partial,
+        downloading: activeTorrents.has(entry.fileName),
+        savedSec: entry.partial ? (activeTorrents.has(entry.fileName)
+          ? activeTorrents.get(entry.fileName).savedSec || entry.savedSec || 0
+          : entry.savedSec || 0) : null,
+        durationSec: entry.durationSec || null,
+        canResume: !!entry.partial && !!entry.resumeUrl && !activeTorrents.has(entry.fileName),
+        // Too big for the TV and no TV copy yet: the saved tab offers
+        // "optimize for TV". optimize is that job's state, if any.
+        canOptimize: !entry.partial && !optimizing.has(entry.fileName) && !activeTorrents.has(entry.fileName) &&
+          torrent.needsTvCopy(dir, entry.width ? { width: entry.width, height: entry.height } : null),
+        // Too big for the TV with no TV copy (optimizing or not): the
+        // saved tab doesn't offer cast until the copy exists.
+        needsTvCopy: !entry.partial && !activeTorrents.has(entry.fileName) &&
+          torrent.needsTvCopy(dir, entry.width ? { width: entry.width, height: entry.height } : null),
+        optimize: optimizing.get(entry.fileName) || null,
+        thumbUrl: entry.metadata && /^https?:\/\//.test(entry.metadata.poster || '') ? entry.metadata.poster : `http://${host}/thumb/torrents/${entry.fileName}.jpg`,
+        bytes: torrent.folderBytes(dir) + (hasOriginal ? torrent.folderBytes(origDir) : 0),
+        createdAt: entry.createdAt,
+        lastUsedAt: entry.lastUsedAt
+      };
+    });
+
+    const origin = `http://${host}`;
+    for (const entry of list.concat(torrents)) {
+      libraryState.remember(entry.metadata);
+      entry.metadata = libraryState.localMetadata(entry.metadata, origin);
+      entry.progress = libraryState.progress(entry);
+      if (entry.metadata && entry.metadata.poster) entry.thumbUrl = entry.metadata.poster;
+    }
+    return { entries: list, torrents, titles: Object.values(libraryState.data.titles).map(m => libraryState.localMetadata(m, origin)) };
 }
 
 function sendJson(res, status, body) {
@@ -596,7 +670,7 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === 'POST' && url.pathname === '/resolve') {
-    readJsonBody(req, 32 * 1024).then((body) => {
+    readJsonBody(req, 8 * 1024 * 1024).then((body) => {
       const target = typeof body.url === 'string' ? body.url.trim() : '';
       if (!isHttpUrl(target)) {
         sendJson(res, 400, { error: 'Body must be { "url": "https://..." }.' });
@@ -638,7 +712,7 @@ const server = http.createServer((req, res) => {
   // Torrents: body { url, title }, url being a Stremio server torrent URL
   // (<server>/<infoHash>/<fileIdx>). Same job shape as /resolve.
   if (req.method === 'POST' && url.pathname === '/torrent') {
-    readJsonBody(req, 32 * 1024).then((body) => {
+    readJsonBody(req, 8 * 1024 * 1024).then((body) => {
       const target = typeof body.url === 'string' ? body.url.trim() : '';
       const parsed = torrent.parseTorrentUrl(target);
       if (!parsed) {
@@ -721,62 +795,37 @@ const server = http.createServer((req, res) => {
   // torrents ("torrents"), most recently used first, each with a
   // thumbnail URL and its size on disk.
   if (req.method === 'GET' && ['/cache', '/library'].includes(url.pathname)) {
-    const host = req.headers.host;
-    const list = mediaCache.list().map((entry) => ({
-      category: entry.category || classify(entry.sourceUrl, {}),
-      metadata: entry.metadata || null,
-      fileName: entry.fileName,
-      kind: 'media',
-      key: entry.fileName,
-      sourceUrl: entry.sourceUrl,
-      title: entry.title,
-      streamUrl: `http://${host}/media/${entry.fileName}`,
-      thumbUrl: entry.thumbnail ? (/^[0-9a-f]{16}\.(jpg|png|webp)$/.test(entry.thumbnail)
-        ? `http://${host}/media/${entry.thumbnail}` : entry.thumbnail) : `http://${host}/thumb/media/${entry.fileName}.jpg`,
-      bytes: fileBytes(path.join(MEDIA_DIR, entry.fileName)),
-      createdAt: entry.createdAt,
-      lastUsedAt: entry.lastUsedAt
-    }));
-    const torrents = torrentCache.list().map((entry) => {
-      const dir = path.join(TORRENT_DIR, entry.fileName);
-      const origDir = path.join(dir, torrent.ORIGINAL_DIR);
-      const hasOriginal = fs.existsSync(path.join(origDir, 'index.m3u8'));
-      return {
-        category: entry.category || 'other',
-        metadata: entry.metadata || null,
-        kind: 'torrents',
-        key: entry.fileName,
-        title: entry.title,
-        streamUrl: `http://${host}/media/torrents/${entry.fileName}/index.m3u8`,
-        // The full-size film, when it was converted down for the TV.
-        originalUrl: hasOriginal ? `http://${host}/media/torrents/${entry.fileName}/${torrent.ORIGINAL_DIR}/index.m3u8` : null,
-        width: entry.width || null,
-        height: entry.height || null,
-        // Stopped part way: savedSec of durationSec is on disk, and
-        // POST .../resume continues it. downloading: a run is going now.
-        partial: !!entry.partial,
-        downloading: activeTorrents.has(entry.fileName),
-        savedSec: entry.partial ? (activeTorrents.has(entry.fileName)
-          ? activeTorrents.get(entry.fileName).savedSec || entry.savedSec || 0
-          : entry.savedSec || 0) : null,
-        durationSec: entry.durationSec || null,
-        canResume: !!entry.partial && !!entry.resumeUrl && !activeTorrents.has(entry.fileName),
-        // Too big for the TV and no TV copy yet: the saved tab offers
-        // "optimize for TV". optimize is that job's state, if any.
-        canOptimize: !entry.partial && !optimizing.has(entry.fileName) && !activeTorrents.has(entry.fileName) &&
-          torrent.needsTvCopy(dir, entry.width ? { width: entry.width, height: entry.height } : null),
-        // Too big for the TV with no TV copy (optimizing or not): the
-        // saved tab doesn't offer cast until the copy exists.
-        needsTvCopy: !entry.partial && !activeTorrents.has(entry.fileName) &&
-          torrent.needsTvCopy(dir, entry.width ? { width: entry.width, height: entry.height } : null),
-        optimize: optimizing.get(entry.fileName) || null,
-        thumbUrl: entry.metadata && /^https?:\/\//.test(entry.metadata.poster || '') ? entry.metadata.poster : `http://${host}/thumb/torrents/${entry.fileName}.jpg`,
-        bytes: torrent.folderBytes(dir) + (hasOriginal ? torrent.folderBytes(origDir) : 0),
-        createdAt: entry.createdAt,
-        lastUsedAt: entry.lastUsedAt
-      };
+    sendJson(res, 200, librarySnapshot(req.headers.host));
+    return;
+  }
+
+  const artMatch = /^\/library-art\/([0-9a-f]{64}\.(jpg|png|webp))$/.exec(url.pathname);
+  if (req.method === 'GET' && artMatch) {
+    fs.readFile(path.join(libraryState.artDir, artMatch[1]), (err, data) => {
+      if (err) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'Content-Type': 'image/' + (artMatch[2] === 'jpg' ? 'jpeg' : artMatch[2]), 'Cache-Control': 'public, max-age=31536000, immutable' }); res.end(data);
     });
-    sendJson(res, 200, { entries: list, torrents });
+    return;
+  }
+  if (req.method === 'POST' && url.pathname === '/playback') {
+    readJsonBody(req, 16384).then(body => {
+      const origin = `http://${req.headers.host}`;
+      const entries = mediaCache.list().map(e => ({ ...e, kind: 'media', key: e.fileName, streamUrl: origin + '/media/' + e.fileName }))
+        .concat(torrentCache.list().map(e => ({ ...e, kind: 'torrents', key: e.fileName,
+          needsTvCopy: torrent.needsTvCopy(path.join(TORRENT_DIR, e.fileName), e.width ? { width: e.width, height: e.height } : null),
+          streamUrl: origin + '/media/torrents/' + e.fileName + '/index.m3u8' })));
+      entries.forEach(e => libraryState.remember(e.metadata));
+      let requested;
+      try { requested = new URL(body.url).pathname; } catch (_) { throw new Error('Invalid media URL.'); }
+      const entry = entries.find(e => new URL(e.streamUrl).pathname === requested);
+      if (!entry) { sendJson(res, 404, { error: 'Media is not in the local library.' }); return; }
+      if (body.event === 'progress' || body.event === 'completed') libraryState.update(entry, { ...body, completed: body.event === 'completed' });
+      else if (body.event !== 'start') throw new Error('Unknown playback event.');
+      const progress = libraryState.progress(entry);
+      const next = body.event === 'completed' ? libraryState.next(entry, entries) : null;
+      sendJson(res, 200, { progress, startPositionSec: progress.watched ? 0 : progress.positionSec,
+        next: next ? { url: next.streamUrl, title: next.title } : null });
+    }).catch(err => sendJson(res, 400, { error: err.message }));
     return;
   }
 
@@ -784,7 +833,7 @@ const server = http.createServer((req, res) => {
   if (req.method === 'POST' && libraryMatch) {
     const [, kind, name] = libraryMatch;
     if (!validCacheName(kind, name)) { sendJson(res, 400, { error: 'Invalid file name.' }); return; }
-    readJsonBody(req, 32 * 1024).then((body) => {
+    readJsonBody(req, 8 * 1024 * 1024).then((body) => {
       const cache = kind === 'media' ? mediaCache : torrentCache;
       const entry = cache.update(name, libraryFields(body));
       sendJson(res, entry ? 200 : 404, entry || { error: 'Saved file not found.' });
@@ -1018,7 +1067,7 @@ setInterval(() => {
     if (err) return;
     const cutoff = Date.now() - MEDIA_TTL_MS;
     files.forEach((file) => {
-      if (file === 'cache-index.json' || file === 'torrents' || file === 'thumbs' || mediaCache.has(file) || mediaCache.entries.some((e) => e.thumbnail === file)) return;
+      if (file === 'library-state.json' || file === 'library-art' || file === 'cache-index.json' || file === 'torrents' || file === 'thumbs' || mediaCache.has(file) || mediaCache.entries.some((e) => e.thumbnail === file)) return;
       const filePath = path.join(MEDIA_DIR, file);
       fs.stat(filePath, (statErr, stat) => {
         if (!statErr && stat.mtimeMs < cutoff) fs.unlink(filePath, () => {});

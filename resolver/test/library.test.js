@@ -84,7 +84,7 @@ test('resolver persists downloads, deduplicates jobs, validates updates and serv
   async function post(url, body) { return fetch(root + url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
   try {
     await start();
-    const metadata = { id: 'tt123', type: 'series', name: 'Fixture Show', videoId: 'tt123:1:2', season: 1, episode: 2 };
+    const metadata = { id: 'tt123', type: 'series', name: 'Fixture Show', videoId: 'tt123:1:2', season: 1, episode: 2, videos: [{ id: 'tt123:1:1', season: 1, episode: 1 }, { id: 'tt123:1:2', season: 1, episode: 2 }, { id: 'tt123:2:1', season: 2, episode: 1 }] };
     const first = await (await post('/resolve', { url: 'https://example.com/test', metadata })).json();
     const duplicate = await (await post('/resolve', { url: 'https://example.com/test' })).json();
     assert.equal(first.id, duplicate.id);
@@ -97,6 +97,12 @@ test('resolver persists downloads, deduplicates jobs, validates updates and serv
     assert.equal(job.status, 'ready');
     let { entries } = await (await fetch(root + '/library')).json();
     assert.equal(entries.length, 1); assert.equal(entries[0].metadata.episode, 2); assert.equal(entries[0].category, 'series');
+    const catalog = await (await fetch(root + '/library')).json();
+    assert.equal(catalog.titles[0].videos.length, 3);
+    const position = await (await post('/playback', { url: entries[0].streamUrl, event: 'progress', positionSec: 87, durationSec: 900 })).json();
+    assert.equal(position.progress.positionSec, 87);
+    assert.equal((await post('/playback', { url: entries[0].streamUrl, event: 'progress', positionSec: -1, durationSec: 900 })).status, 400);
+    assert.equal((await post('/playback', { url: root + '/media/missing.mp4', event: 'start' })).status, 404);
     const range = await fetch(entries[0].streamUrl, { headers: { Range: 'bytes=2-5' } });
     assert.equal(range.status, 206); assert.equal(await range.text(), '2345');
     assert.equal((await post('/library/media/' + entries[0].fileName, { category: 'porn' })).status, 200);
@@ -104,6 +110,14 @@ test('resolver persists downloads, deduplicates jobs, validates updates and serv
     await stop(); await start();
     ({ entries } = await (await fetch(root + '/library')).json());
     assert.equal(entries[0].category, 'porn');
+    assert.equal(entries[0].progress.positionSec, 87);
+    const resumed = await (await post('/playback', { url: entries[0].streamUrl, event: 'start' })).json();
+    assert.equal(resumed.startPositionSec, 87);
+    const completed = await (await post('/playback', { url: entries[0].streamUrl, event: 'completed', positionSec: 900, durationSec: 900 })).json();
+    assert.equal(completed.progress.watched, true);
+    assert.equal(completed.next, null);
+    const replay = await (await post('/playback', { url: entries[0].streamUrl, event: 'start' })).json();
+    assert.equal(replay.startPositionSec, 0);
     const cached = await (await post('/resolve', { url: 'https://example.com/test' })).json();
     assert.equal(cached.status, 'ready');
     const torrentUrl = 'http://example.com/' + 'a'.repeat(40) + '/0';

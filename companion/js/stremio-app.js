@@ -418,7 +418,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function libraryMetadata() {
     var meta = detail.meta;
     if (!meta || !lastStreams || ['movie', 'series'].indexOf(lastStreams.type) === -1) return {};
-    var m = { id: meta.id, type: lastStreams.type, name: meta.name, poster: meta.poster, description: meta.description };
+    var m = Object.assign({}, meta, { type: lastStreams.type });
     if (m.type === 'series') {
       var video = (meta.videos || []).find(function (v) { return v.id === lastStreams.id; });
       if (!video) return {};

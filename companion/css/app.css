@@ -534,3 +534,15 @@
   border-color: var(--mx-danger-line);
   background: var(--mx-danger-low);
 }
+
+/* Local detail pages share Stremio's hero and season/episode structure. */
+.cn-library-hero { margin-bottom: 18px; }
+.cn-library-hero .cn-hero-poster { object-fit: cover; align-self: flex-start; }
+.cn-library-cast { color: var(--mx-ink-dim); font-size: 13px; }
+.cn-library-hero + select { margin-bottom: 16px; }
+.cn-saved-actions[hidden], .cn-saved-thumb[hidden] { display: none; }
+.cn-library-hero .cn-desc { white-space: pre-line; }
+.cn-posters[hidden], .cn-poster[hidden], .cn-saved-group[hidden] { display: none; }
+@media (min-width: 1024px) {
+  .cn-library-column { grid-column: 1 / -1; }
+}

@@ -17,6 +17,7 @@
     errorBanner: document.getElementById('error-banner')
   };
 
+  var history = createPlaybackHistory();
   var currentTitle = '';
   var currentPlaybackState = 'idle';
   var errorBannerTimer = null;
@@ -39,7 +40,8 @@
   var player = createPlayer({
     onStateChange: onPlaybackStateChange,
     onPlayTime: onPlayTime,
-    onError: onPlaybackError
+    onError: onPlaybackError,
+    onCompleted: function () { history.completed(function (payload) { onCommand({ action: 'play', payload: payload }); }); }
   });
 
   function showIdleScreen() {
@@ -140,13 +142,7 @@
         queuedSeekSec = 0;
         clearTimeout(seekFlushTimer);
         elements.seekIndicator.classList.add('hidden');
-        currentTitle = (msg.payload && msg.payload.title) || '';
-        elements.nowPlayingTitle.textContent = currentTitle;
-        currentPlaybackState = 'buffering';
-        elements.nowPlayingState.textContent = 'Loading';
-        updateControls();
-        showPlayerScreen();
-        player.play(msg.payload.url, msg.payload.startPositionSec || 0);
+        history.start(msg.payload, beginPlayback, player.stop);
         break;
       case 'pause':
         player.pause();
@@ -155,9 +151,7 @@
         player.resume();
         break;
       case 'stop':
-        queuedSeekSec = 0;
-        clearTimeout(seekFlushTimer);
-        elements.seekIndicator.classList.add('hidden');
+        history.stop();
         player.stop();
         relay.sendStatus({ state: 'stopped' });
         showIdleScreen();
@@ -171,13 +165,23 @@
     }
   }
 
+  function beginPlayback(payload) {
+        currentTitle = payload.title || '';
+        elements.nowPlayingTitle.textContent = currentTitle;
+        currentPlaybackState = 'buffering';
+        elements.nowPlayingState.textContent = 'Loading';
+        updateControls();
+        showPlayerScreen();
+        player.play(payload.url, payload.startPositionSec || 0);
+  }
+
   function onPlaybackStateChange(state) {
     log.info('playback state: ' + currentPlaybackState + ' -> ' + state);
     currentPlaybackState = state;
     elements.nowPlayingState.textContent = state;
     updateControls();
     if ((state === 'playing' || state === 'paused') && queuedSeekSec) scheduleSeekFlush();
-    if (state === 'paused') showControls();
+    if (state === 'paused') { history.flush(); showControls(); }
     var durationSec = player.getDurationSec();
     var status = { state: state, title: currentTitle };
     if (durationSec > 0) status.durationSec = durationSec;
@@ -188,6 +192,7 @@
   }
 
   function onPlayTime(positionSec) {
+    history.time(positionSec, player.getDurationSec());
     var status = { state: currentPlaybackState, title: currentTitle, positionSec: positionSec };
     var durationSec = player.getDurationSec();
     if (durationSec > 0) status.durationSec = durationSec;
@@ -195,6 +200,7 @@
   }
 
   function onPlaybackError(error) {
+    history.stop();
     log.error('playback error ' + error.code + ': ' + error.message);
     relay.sendStatus({ state: 'error', error: error });
     elements.errorBanner.textContent = error.message;
@@ -264,6 +270,7 @@
         if (!elements.controls.classList.contains('hidden')) {
           hideControls();
         } else if (typeof tizen !== 'undefined' && tizen.application) {
+          history.stop();
           tizen.application.getCurrentApplication().exit();
         }
         return;
@@ -298,6 +305,7 @@
           break;
         case KEYCODE_MEDIA_STOP:
           e.preventDefault();
+          history.stop();
           player.stop();
           relay.sendStatus({ state: 'stopped' });
           showIdleScreen();

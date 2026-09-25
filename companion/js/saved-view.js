@@ -19,6 +19,8 @@ function createSavedView(resolver, container, opts) {
   var onCast = opts.onCast;
   var CONFIRM_MS = 4000;
   var groups = {};
+  var selectedTitle = null;
+  var tiles = {};
   var filterText = '';
   var lastCache = null;
   var categories = { movies: 'Movies', series: 'Television series', youtube: 'YouTube videos', porn: 'Porn', other: 'Other videos' };
@@ -28,7 +30,7 @@ function createSavedView(resolver, container, opts) {
   [['all', 'Everything']].concat(Object.keys(categories).map(function (k) { return [k, categories[k]]; })).forEach(function (pair) {
     var option = document.createElement('option'); option.value = pair[0]; option.textContent = pair[1]; categoryFilter.appendChild(option);
   });
-  categoryFilter.addEventListener('change', function () { if (lastCache) render(lastCache); });
+  categoryFilter.addEventListener('change', function () { selectedTitle = null; if (lastCache) render(lastCache); });
   container.appendChild(categoryFilter);
 
   var filter = document.createElement('input');
@@ -43,6 +45,27 @@ function createSavedView(resolver, container, opts) {
   container.appendChild(filter);
   var status = document.createElement('p'); status.setAttribute('role', 'status');
   status.textContent = 'Loading libraryâ€¦'; container.appendChild(status);
+
+  var back = document.createElement('button'); back.type = 'button'; back.className = 'mx-back'; back.textContent = '‹ Back to library'; back.hidden = true;
+  back.addEventListener('click', function () { var key = selectedTitle; selectedTitle = null; render(lastCache); if (tiles[key]) tiles[key].focus(); });
+  container.appendChild(back);
+  var grid = document.createElement('div'); grid.className = 'mx-view-grid cn-posters'; container.appendChild(grid);
+
+  function updateTile(key, bucket) {
+    var tile = tiles[key];
+    if (!tile) {
+      tile = tiles[key] = document.createElement('button'); tile.type = 'button'; tile.className = 'mx-tile cn-poster';
+      tile.innerHTML = '<span class="mx-slot-lead"><span class="mx-media"><img loading="lazy" alt=""></span></span><span class="mx-slot-main"><span class="mx-slot-title"></span><span class="mx-slot-meta"></span></span>';
+      tile.addEventListener('click', function () { selectedTitle = key; render(lastCache); back.focus(); });
+      grid.appendChild(tile);
+    }
+    var m = bucket.metadata, saved = bucket.entries.filter(function (e) { return !e.missing; });
+    tile.querySelector('.mx-slot-title').textContent = m.name;
+    tile.querySelector('.mx-slot-meta').textContent = saved.filter(function (e) { return !e.partial; }).length + ' downloaded · ' + saved.filter(function (e) { return e.progress && e.progress.watched; }).length + ' watched';
+    var img = tile.querySelector('img'); img.hidden = !m.poster;
+    if (m.poster && img.getAttribute('src') !== m.poster) img.src = m.poster;
+    tile.hidden = !!filterText && !(m.name || '').toLowerCase().includes(filterText) && !bucket.entries.some(function (e) { return (e.title || '').toLowerCase().includes(filterText); });
+  }
 
   function formatBytes(n) {
     if (!n) return '0 MB';
@@ -235,13 +258,26 @@ function createSavedView(resolver, container, opts) {
 
   function update(it, entry) {
     it.entry = entry;
+    it.item.querySelector('.cn-saved-actions').hidden = !!entry.missing;
+    it.category.hidden = !!entry.missing;
+    it.match.hidden = !!entry.missing;
+    if (entry.missing) {
+      it.title.textContent = 'S' + entry.metadata.season + ' E' + entry.metadata.episode + ' · ' + entry.metadata.episodeTitle;
+      it.meta.textContent = 'Not downloaded' + (entry.progress && entry.progress.watched ? ' · Watched' : entry.progress && entry.progress.positionSec ? ' · Left at ' + formatClock(entry.progress.positionSec) : ' · Unwatched') + (entry.released ? ' · ' + entry.released.slice(0, 10) : '') + (entry.overview ? ' · ' + entry.overview : '');
+      it.thumb.hidden = !entry.thumbUrl;
+      if (entry.thumbUrl && it.img.getAttribute('src') !== entry.thumbUrl) it.img.src = entry.thumbUrl;
+      return;
+    }
+    it.thumb.hidden = false;
     var m = entry.metadata;
     if (m) entry.title = m.name + (m.type === 'series' ? ' Â· S' + m.season + ' E' + m.episode + ' Â· ' + (m.episodeTitle || '') : '');
     it.category.value = entry.category || 'other';
     it.match.href = 'stremio.html?matchKind=' + encodeURIComponent(entry.kind) + '&matchKey=' + encodeURIComponent(entry.key);
     it.title.textContent = entry.title || entry.sourceUrl || 'video';
     it.title.title = entry.title || entry.sourceUrl || '';
-    var meta = [formatBytes(entry.bytes)];
+    var progress = entry.progress || {};
+    var meta = [entry.partial ? 'Partly downloaded' : 'Downloaded', formatBytes(entry.bytes), progress.watched ? 'Watched' : progress.positionSec ? 'Continue from ' + formatClock(progress.positionSec) : 'Unwatched'];
+    if (progress.durationSec) meta.push(formatClock(progress.positionSec) + ' / ' + formatClock(progress.durationSec));
     if (entry.height) {
       meta.unshift(entry.height + 'p' + (entry.originalUrl ? ' (TV: 1080p)' : entry.needsTvCopy ? ', TV gets 1080p' : ''));
     }
@@ -261,12 +297,13 @@ function createSavedView(resolver, container, opts) {
     it.meta.textContent = meta.join(' Â· ');
     it.original.hidden = !entry.originalUrl;
     it.resume.hidden = !entry.canResume;
+    it.resume.textContent = 'continue download';
     // The server refuses to delete a film that's downloading right now.
     it.del.hidden = !!entry.downloading || !!(opt && (opt.state === 'running' || opt.state === 'queued'));
     it.cast.classList.toggle('mx-primary', !entry.canResume);
     // Never cast a film bigger than the TV plays: for one of those, cast
     // makes the 1080p copy and plays that (see the click handler).
-    if (!it.cast.disabled) it.cast.textContent = entry.needsTvCopy ? 'cast (1080p)' : 'cast';
+    if (!it.cast.disabled) it.cast.textContent = entry.needsTvCopy ? 'cast (1080p)' : progress.watched ? 'watch again' : progress.positionSec ? 'continue watching' : 'cast';
     it.optimize.hidden = !(entry.canOptimize || (opt && opt.state === 'error'));
     it.optimize.textContent = opt && opt.state === 'error' ? 'try optimizing again' : 'optimize for TV (1080p)';
     if (entry.thumbUrl && it.img.getAttribute('src') !== entry.thumbUrl) it.img.src = entry.thumbUrl;
@@ -275,6 +312,7 @@ function createSavedView(resolver, container, opts) {
   function renderGroup(group, entries) {
     var total = entries.reduce(function (n, e) { return n + (e.bytes || 0); }, 0);
     group.total.textContent = entries.length ? entries.length + ' Â· ' + formatBytes(total) : '';
+    if (group.season) entries = entries.filter(function (e) { return String(e.metadata.season) === group.season.value; });
     var shown = filterText
       ? entries.filter(function (e) { return (e.title || e.sourceUrl || '').toLowerCase().indexOf(filterText) !== -1; })
       : entries;
@@ -296,6 +334,29 @@ function createSavedView(resolver, container, opts) {
     group.empty.hidden = !!shown.length;
   }
 
+  function titleKey(m) { return JSON.stringify([m.type, m.addon || '', m.id]); }
+  function fillTitle(group, meta) {
+    if (!group.hero) {
+      group.hero = document.createElement('section'); group.hero.className = 'mx-hero cn-library-hero';
+      group.hero.innerHTML = '<div class="mx-hero-bg"></div><div class="mx-hero-body"><img class="mx-hero-media cn-hero-poster" alt=""><div class="mx-hero-text"><h2 class="mx-title"></h2><p class="cn-library-info"></p><p class="cn-desc"></p><p class="cn-library-cast"></p><a class="mx-btn mx-sm">Browse streams</a></div></div>';
+      group.section.insertBefore(group.hero, group.list);
+    }
+    group.hero.querySelector('h2').textContent = meta.name;
+    group.hero.querySelector('.cn-library-info').textContent = [meta.releaseInfo, meta.runtime, (meta.genres || []).join(', '), meta.imdbRating ? 'IMDb ' + meta.imdbRating : ''].filter(Boolean).join(' · ');
+    group.hero.querySelector('.cn-desc').textContent = meta.description || '';
+    group.hero.querySelector('.cn-library-cast').textContent = (meta.cast || []).slice(0, 6).join(', ');
+    group.hero.querySelector('a').href = 'stremio.html#' + meta.type + '/' + encodeURIComponent(meta.id);
+    var poster = group.hero.querySelector('img'); poster.hidden = !meta.poster;
+    if (meta.poster && poster.getAttribute('src') !== meta.poster) poster.src = meta.poster;
+    group.hero.querySelector('.mx-hero-bg').style.backgroundImage = meta.background ? 'url(' + JSON.stringify(meta.background) + ')' : 'none';
+    if (meta.type === 'series' && !group.season) {
+      group.season = document.createElement('select'); group.season.className = 'mx-input mx-select';
+      group.season.setAttribute('aria-label', meta.name + ' season');
+      group.season.addEventListener('change', function () { render(lastCache); });
+      group.section.insertBefore(group.season, group.list);
+    }
+  }
+
   // Takes the resolver's /cache body ({ entries, torrents }).
   function render(cache) {
     lastCache = cache;
@@ -308,15 +369,47 @@ function createSavedView(resolver, container, opts) {
       if (!categories[category]) category = 'other';
       if (categoryFilter.value !== 'all' && categoryFilter.value !== category) return;
       var m = entry.metadata;
-      var key = category === 'series' && m ? 'series:' + (m.addon || '') + ':' + m.id : category;
+      var key = (category === 'series' || category === 'movies') && m ? 'title:' + titleKey(m) : category;
       if (!buckets[key]) buckets[key] = { label: 'Television series Â· ' + m.name, entries: [] };
       buckets[key].entries.push(entry);
     });
+    (cache.titles || []).forEach(function (m) {
+      var bucket = buckets['title:' + titleKey(m)];
+      // Retain a series even when its last episode is deleted.
+      if (!bucket && m.type === 'series' && (categoryFilter.value === 'all' || categoryFilter.value === 'series')) {
+        var elsewhere = (cache.entries || []).concat(cache.torrents || []).some(function (e) { return e.metadata && titleKey(e.metadata) === titleKey(m) && e.category !== 'series'; });
+        if (!elsewhere) bucket = buckets['title:' + titleKey(m)] = { label: 'Television series · ' + m.name, entries: [], metadata: m };
+      }
+      if (!bucket) return;
+      bucket.metadata = m;
+      if (m.type !== 'series') return;
+      (m.videos || []).forEach(function (v) {
+        var saved = bucket.entries.find(function (e) { return e.metadata.videoId === v.id || (e.metadata.season === v.season && e.metadata.episode === v.episode); });
+        if (saved) { if (v.thumbnail) saved.thumbUrl = v.thumbnail; return; }
+        bucket.entries.push({ missing: true, kind: 'missing', key: v.id, title: m.name + ' ' + (v.name || ''),
+          metadata: Object.assign({}, m, { videoId: v.id, season: v.season, episode: v.episode, episodeTitle: v.name }),
+          overview: v.overview, released: v.released, thumbUrl: v.thumbnail, progress: v.progress });
+      });
+    });
+    if (selectedTitle && !buckets[selectedTitle]) selectedTitle = null;
+    back.hidden = !selectedTitle; grid.hidden = !!selectedTitle;
+    Object.keys(tiles).forEach(function (key) { tiles[key].hidden = true; });
     Object.keys(buckets).forEach(function (key) {
       var bucket = buckets[key];
       if (!groups[key]) groups[key] = makeGroup(key, bucket.label);
-      if (key.indexOf('series:') === 0) bucket.entries.sort(function (a, b) { return a.metadata.season - b.metadata.season || a.metadata.episode - b.metadata.episode; });
-      groups[key].section.hidden = !bucket.entries.length;
+      if (bucket.metadata) { fillTitle(groups[key], bucket.metadata); updateTile(key, bucket); }
+      if (bucket.metadata && bucket.metadata.type === 'series') {
+        bucket.entries.sort(function (a, b) { return (a.metadata.season === 0) - (b.metadata.season === 0) || a.metadata.season - b.metadata.season || a.metadata.episode - b.metadata.episode; });
+        var select = groups[key].season, selected = select.value;
+        var seasons = [];
+        bucket.entries.forEach(function (e) { if (seasons.indexOf(e.metadata.season) === -1) seasons.push(e.metadata.season); });
+        if (select.dataset.seasons !== seasons.join(',')) {
+          select.innerHTML = ''; select.dataset.seasons = seasons.join(',');
+          seasons.forEach(function (n) { var option = document.createElement('option'); option.value = n; option.textContent = n === 0 ? 'Specials' : 'Season ' + n; select.appendChild(option); });
+          if (seasons.indexOf(Number(selected)) !== -1) select.value = selected;
+        }
+      }
+      groups[key].section.hidden = !bucket.entries.length || (bucket.metadata ? selectedTitle !== key : !!selectedTitle);
       renderGroup(groups[key], bucket.entries);
     });
     Object.keys(groups).forEach(function (key) { if (!buckets[key]) { groups[key].section.hidden = true; renderGroup(groups[key], []); } });

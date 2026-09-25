@@ -24,3 +24,25 @@ Run `node companion/serve.js`. Configure server addresses in `js/config.js`.
 The service worker caches only the shell and automatically changes version as files
 change. Stremio add-on settings are shared using the companion server's settings API.
 Media goes from resolver to TV directly; the relay only carries playback commands.
+
+## Local series library and watch history
+
+Movies and shows now open from a poster grid into a detail view using the same
+hero, season selector, and episode layout as the Stremio page. A download saves
+the title's catalog, episode descriptions and dates, and available artwork on
+the resolver. Episode rows distinguish downloaded, partial, and missing files,
+and show watched status and the last playback position. Artwork caching runs in
+the background; unavailable provider images retain their remote URL until cached.
+Older Cinemeta series are enriched when the library is opened; custom-addon
+items can be refreshed with “Match Stremio metadata”.
+
+The updated TV receiver saves progress every five seconds and on pause/stop,
+resumes saved videos automatically, and advances on natural completion to the
+immediate next complete, TV-playable episode, including the next season. It stops
+at missing or partial episodes, specials, and the end of the series. A next
+4K episode that still needs a TV copy must first be optimized from the library.
+Closing the companion page does not interrupt this behavior. Watch history is
+shared across companions and persists through resolver restarts.
+
+Deploy the updated resolver and companion, and rebuild/install the updated TV
+receiver to enable progress and continuation. No relay update is needed.

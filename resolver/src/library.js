@@ -16,9 +16,17 @@ function libraryFields(body) {
     if (!['movie', 'series'].includes(m.type) || typeof m.id !== 'string' || !m.id ||
         typeof m.name !== 'string' || !m.name) throw new Error('Invalid Stremio metadata.');
     fields.metadata = {};
-    for (const key of ['id', 'type', 'name', 'poster', 'description', 'videoId', 'episodeTitle', 'addon']) {
+    for (const key of ['id', 'type', 'name', 'poster', 'background', 'description', 'videoId', 'episodeTitle', 'addon', 'releaseInfo', 'runtime', 'imdbRating', 'status', 'awards']) {
       if (typeof m[key] === 'string') fields.metadata[key] = m[key].slice(0, key === 'description' ? 5000 : 2000);
     }
+    for (const key of ['genres', 'cast', 'director', 'writer', 'country', 'language']) {
+      if (Array.isArray(m[key])) fields.metadata[key] = m[key].filter(v => typeof v === 'string').slice(0, 100).map(v => v.slice(0, 300));
+    }
+    if (Array.isArray(m.videos)) fields.metadata.videos = m.videos.slice(0, 10000).filter(v => v && typeof v.id === 'string' && Number.isInteger(v.season) && Number.isInteger(v.episode == null ? v.number : v.episode)).map(v => ({
+      id: v.id.slice(0, 2000), season: v.season, episode: v.episode == null ? v.number : v.episode,
+      name: String(v.name || v.title || '').slice(0, 500), overview: String(v.overview || v.description || '').slice(0, 5000),
+      released: String(v.released || '').slice(0, 40), thumbnail: String(v.thumbnail || '').slice(0, 2000)
+    }));
     for (const key of ['season', 'episode']) {
       if (Number.isInteger(m[key]) && m[key] >= 0) fields.metadata[key] = m[key];
     }

@@ -259,3 +259,20 @@ mirrors `relay/systemd/tv-casting-relay.service`) — a separate systemd
 unit and port, not folded into the relay process, so the relay's
 "never touches media" rule stays literally true at the process level,
 not just by convention.
+
+## Playback history API
+
+`POST /playback` accepts `{ url, event }` for `event: "start"`, and additionally
+`positionSec` and `durationSec` for `"progress"` and `"completed"`. The URL must
+identify an indexed local media file. The response contains `progress`,
+`startPositionSec` (zero for a watched item), and, on natural completion, an
+optional `next: { url, title }` for the immediate next complete, TV-ready episode.
+The receiver is the sole writer during playback; companion tabs do not race to
+advance episodes. Manual stops and partial-file completion never trigger autoplay.
+
+`GET /library` and `/cache` include each entry's `progress` and a shared `titles`
+catalog containing all known episodes, including files not downloaded. Catalogs,
+watch positions, and artwork mappings live in `MEDIA_DIR/library-state.json`;
+locally cached images live in `MEDIA_DIR/library-art/`. These survive media deletion
+and are excluded from orphan-file cleanup. Catalog and history updates use atomic
+file replacement. The relay remains control transport only.

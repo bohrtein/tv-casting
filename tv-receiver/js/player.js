@@ -62,6 +62,7 @@ function createPlayer(handlers) {
         log.info('stream completed');
         stop();
         handlers.onStateChange('stopped');
+        if (handlers.onCompleted) handlers.onCompleted();
       },
       oncurrentplaytime: function (currentTime) {
         var sec = Math.floor(currentTime / 1000);
