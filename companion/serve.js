@@ -123,7 +123,8 @@ function handleStremioSettings(req, res) {
     try {
       const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
       addons = body.addons;
-      plus18 = body.plus18;
+      // Older companion pages still POST only addons; keep the other section.
+      plus18 = body.plus18 === undefined ? readStremioSettings().plus18 : body.plus18;
     } catch (e) {
       sendJson(res, 400, { error: 'body must be JSON' });
       return;

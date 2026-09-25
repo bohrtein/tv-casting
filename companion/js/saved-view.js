@@ -23,15 +23,35 @@ function createSavedView(resolver, container, opts) {
   var tiles = {};
   var filterText = '';
   var lastCache = null;
-  var categories = { movies: 'Movies', series: 'Television series', youtube: 'YouTube videos', porn: 'Porn', other: 'Other videos' };
+  var categories = { movies: 'Movies', series: 'Television series', plus18: 'Plus18', youtube: 'YouTube videos', porn: 'Porn', other: 'Other videos' };
   var categoryFilter = document.createElement('select');
   categoryFilter.className = 'mx-input cn-saved-filter';
   categoryFilter.setAttribute('aria-label', 'Library category');
-  [['all', 'Everything']].concat(Object.keys(categories).map(function (k) { return [k, categories[k]]; })).forEach(function (pair) {
+  [['all', 'Regular library']].concat(Object.keys(categories).map(function (k) { return [k, categories[k]]; })).forEach(function (pair) {
     var option = document.createElement('option'); option.value = pair[0]; option.textContent = pair[1]; categoryFilter.appendChild(option);
   });
   categoryFilter.addEventListener('change', function () { selectedTitle = null; if (lastCache) render(lastCache); });
   container.appendChild(categoryFilter);
+  var sectionTabs = document.createElement('nav');
+  sectionTabs.className = 'cn-mode-tabs';
+  sectionTabs.setAttribute('aria-label', 'Library sections');
+  var allTab = document.createElement('button'); allTab.type = 'button'; allTab.className = 'mx-btn mx-primary'; allTab.textContent = 'Library';
+  var plus18Tab = document.createElement('button'); plus18Tab.type = 'button'; plus18Tab.className = 'mx-btn'; plus18Tab.textContent = 'Plus18';
+  function setSection(value) {
+    categoryFilter.value = value;
+    allTab.classList.toggle('mx-primary', value !== 'plus18');
+    plus18Tab.classList.toggle('mx-primary', value === 'plus18');
+    selectedTitle = null;
+    if (lastCache) render(lastCache);
+  }
+  allTab.addEventListener('click', function () { setSection('all'); });
+  plus18Tab.addEventListener('click', function () { setSection('plus18'); });
+  categoryFilter.addEventListener('change', function () {
+    allTab.classList.toggle('mx-primary', categoryFilter.value !== 'plus18');
+    plus18Tab.classList.toggle('mx-primary', categoryFilter.value === 'plus18');
+  });
+  sectionTabs.appendChild(allTab); sectionTabs.appendChild(plus18Tab);
+  container.insertBefore(sectionTabs, categoryFilter);
 
   var filter = document.createElement('input');
   filter.className = 'mx-input cn-saved-filter';
@@ -363,7 +383,7 @@ function createSavedView(resolver, container, opts) {
     group.hero.querySelector('.cn-library-info').textContent = [meta.releaseInfo, meta.runtime, (meta.genres || []).join(', '), meta.imdbRating ? 'IMDb ' + meta.imdbRating : ''].filter(Boolean).join(' \u00b7 ');
     group.hero.querySelector('.cn-desc').textContent = meta.description || '';
     group.hero.querySelector('.cn-library-cast').textContent = (meta.cast || []).slice(0, 6).join(', ');
-    group.hero.querySelector('a').href = 'stremio.html#' + meta.type + '/' + encodeURIComponent(meta.id);
+    group.hero.querySelector('a').href = 'stremio.html' + (meta.addon === 'plus18' ? '?section=plus18' : '') + '#' + meta.type + '/' + encodeURIComponent(meta.id);
     var poster = group.hero.querySelector('img'); poster.hidden = !meta.poster;
     if (meta.poster && poster.getAttribute('src') !== meta.poster) poster.src = meta.poster;
     group.hero.querySelector('.mx-hero-bg').style.backgroundImage = meta.background ? 'url(' + JSON.stringify(meta.background) + ')' : 'none';
@@ -378,20 +398,25 @@ function createSavedView(resolver, container, opts) {
   // Takes the resolver's /cache body ({ entries, torrents }).
   function render(cache) {
     lastCache = cache;
-    var total = (cache.entries || []).length + (cache.torrents || []).length;
+    var allEntries = (cache.entries || []).concat(cache.torrents || []);
+    var total = allEntries.filter(function (entry) {
+      return categoryFilter.value === 'plus18' ? entry.category === 'plus18' : entry.category !== 'plus18';
+    }).length;
     status.textContent = total ? total + ' saved files' : 'No saved files yet. Save a link or choose a Stremio stream to get started.';
     var buckets = {};
     Object.keys(categories).forEach(function (key) { buckets[key] = { label: categories[key], entries: [] }; });
     (cache.entries || []).concat(cache.torrents || []).forEach(function (entry) {
       var category = entry.category || 'other';
       if (!categories[category]) category = 'other';
+      if (categoryFilter.value === 'all' && category === 'plus18') return;
       if (categoryFilter.value !== 'all' && categoryFilter.value !== category) return;
       var m = entry.metadata;
-      var key = (category === 'series' || category === 'movies') && m ? 'title:' + titleKey(m) : category;
-      if (!buckets[key]) buckets[key] = { label: 'Television series · ' + m.name, entries: [] };
+      var key = (category === 'series' || category === 'movies' || category === 'plus18') && m ? 'title:' + titleKey(m) : category;
+      if (!buckets[key]) buckets[key] = { label: (category === 'plus18' ? 'Plus18 · ' : 'Television series · ') + m.name, entries: [] };
       buckets[key].entries.push(entry);
     });
     (cache.titles || []).forEach(function (m) {
+      if (m.addon === 'plus18' && categoryFilter.value !== 'plus18') return;
       var bucket = buckets['title:' + titleKey(m)];
       // Retain a series even when its last episode is deleted.
       if (!bucket && m.type === 'series' && (categoryFilter.value === 'all' || categoryFilter.value === 'series')) {

@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var stremio = createStremioClient(APP_CONFIG);
   var resolver = createResolverClient(APP_CONFIG);
   var CATALOG_KEY = 'tvc.stremio.catalog';
+  var section = new URLSearchParams(location.search).get('section') === 'plus18' ? 'plus18' : 'normal';
 
   var addons = [];
   var catalogs = []; // [{ addon, catalog }] -- the <select>'s options, by index
@@ -54,6 +55,46 @@ document.addEventListener('DOMContentLoaded', function () {
     addonsServer: document.getElementById('addons-server'),
     addonsServerSave: document.getElementById('addons-server-save')
   };
+
+  var normalTab = document.getElementById('mode-normal');
+  var plus18Tab = document.getElementById('mode-plus18');
+  function renderSection() {
+    normalTab.classList.toggle('mx-primary', section === 'normal');
+    plus18Tab.classList.toggle('mx-primary', section === 'plus18');
+    normalTab.setAttribute('aria-current', section === 'normal' ? 'page' : 'false');
+    plus18Tab.setAttribute('aria-current', section === 'plus18' ? 'page' : 'false');
+    document.getElementById('addons-title').textContent = section === 'plus18' ? 'Plus18 addons' : 'addons';
+  }
+  function switchSection(next) {
+    if (section === next) return;
+    section = next;
+    history.replaceState(null, '', location.pathname + (section === 'plus18' ? '?section=plus18' : ''));
+    ++browse.token;
+    ++detail.token;
+    ++streamsToken;
+    lastStreams = null;
+    addons = [];
+    catalogs = [];
+    el.browseResults.innerHTML = '';
+    el.browseMore.classList.add('cn-hidden');
+    el.browseCatalog.innerHTML = '';
+    el.browseCatalog.disabled = true;
+    setReadout(el.browseReadout, 'loading addons…', false);
+    el.browseSearch.value = '';
+    showView('browse');
+    renderSection();
+    reloadAddons();
+  }
+  normalTab.addEventListener('click', function () { switchSection('normal'); });
+  plus18Tab.addEventListener('click', function () {
+    if (section !== 'plus18') MX.sheet.open('plus18-confirm');
+  });
+  document.getElementById('plus18-cancel').addEventListener('click', function () { MX.sheet.close('plus18-confirm'); });
+  document.getElementById('plus18-yes').addEventListener('click', function () {
+    MX.sheet.close('plus18-confirm');
+    switchSection('plus18');
+  });
+  renderSection();
 
   function escapeHtml(s) {
     var div = document.createElement('div');
@@ -165,7 +206,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function renderCatalogOptions() {
     var saved;
-    try { saved = localStorage.getItem(CATALOG_KEY); } catch (e) { saved = null; }
+    try { saved = localStorage.getItem(CATALOG_KEY + '.' + section); } catch (e) { saved = null; }
     el.browseCatalog.innerHTML = '';
     var selected = 0;
     // Name the addon only when catalogs come from more than one.
@@ -191,7 +232,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!c) {
       el.browseResults.innerHTML = '';
       el.browseMore.classList.add('cn-hidden');
-      setReadout(el.browseReadout, 'No catalogs yet — add an addon (Cinemeta has them).', true);
+      setReadout(el.browseReadout, section === 'plus18'
+        ? 'No Plus18 catalogs yet — add an addon in this section.'
+        : 'No catalogs yet — add an addon (Cinemeta has them).', true);
       return;
     }
     var token = ++browse.token;
@@ -245,7 +288,7 @@ document.addEventListener('DOMContentLoaded', function () {
   el.browseCatalog.addEventListener('change', function () {
     var c = currentCatalog();
     if (c) {
-      try { localStorage.setItem(CATALOG_KEY, c.addon.url + '|' + c.catalog.type + '|' + c.catalog.id); } catch (e) {}
+      try { localStorage.setItem(CATALOG_KEY + '.' + section, c.addon.url + '|' + c.catalog.type + '|' + c.catalog.id); } catch (e) {}
     }
     el.browseSearch.value = '';
     loadCatalogPage(true);
@@ -419,12 +462,14 @@ document.addEventListener('DOMContentLoaded', function () {
     var meta = detail.meta;
     if (!meta || !lastStreams || ['movie', 'series'].indexOf(lastStreams.type) === -1) return {};
     var m = Object.assign({}, meta, { type: lastStreams.type });
+    if (section === 'plus18') m.addon = 'plus18';
     if (m.type === 'series') {
       var video = (meta.videos || []).find(function (v) { return v.id === lastStreams.id; });
       if (!video) return {};
       Object.assign(m, { videoId: video.id, season: video.season, episode: video.episode != null ? video.episode : video.number, episodeTitle: video.name || video.title });
     }
     var adult = (meta.genres || []).some(function (g) { return /^(adult|porn|pornography|xxx)$/i.test(g); });
+    if (section === 'plus18') return { metadata: m, category: 'plus18' };
     return adult ? { metadata: m, category: 'porn' } : { metadata: m };
   }
 
@@ -521,6 +566,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function castStream(castable, title) {
     var fields = libraryMetadata();
+    if (section === 'plus18') fields.category = 'plus18';
     fields.title = title;
     var saveOnly = document.getElementById('stream-save-only').checked;
     // Torrents skip the Stremio server check: the resolver reads them from
@@ -646,7 +692,7 @@ document.addEventListener('DOMContentLoaded', function () {
       remove.className = 'mx-btn mx-sm';
       remove.textContent = 'remove';
       remove.addEventListener('click', function () {
-        stremio.removeAddon(addon.url).then(function (shared) {
+        stremio.removeAddon(addon.url, section).then(function (shared) {
           if (!shared) MX.toast(false, NOT_SHARED);
           reloadAddons();
         });
@@ -662,7 +708,7 @@ document.addEventListener('DOMContentLoaded', function () {
     el.addonsAdd.disabled = true;
     setReadout(el.addonsReadout, 'loading manifest…', false);
     Promise.resolve().then(function () {
-      return stremio.addAddon(input);
+      return stremio.addAddon(input, section);
     }).then(function (addon) {
       el.addonsAdd.disabled = false;
       el.addonsUrl.value = '';
@@ -695,7 +741,9 @@ document.addEventListener('DOMContentLoaded', function () {
   var whenAddonsReady;
 
   function reloadAddons() {
-    whenAddonsReady = stremio.loadAddons().then(function (list) {
+    var loadingSection = section;
+    whenAddonsReady = stremio.loadAddons(loadingSection).then(function (list) {
+      if (section !== loadingSection) return;
       addons = list;
       catalogs = stremio.browsableCatalogs(addons);
       renderAddonsList();

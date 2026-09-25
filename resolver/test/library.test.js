@@ -34,6 +34,7 @@ test('library retains more than five downloads, metadata, and old indexed files 
 });
 
 test('classification and metadata validation avoid treating any age restriction as porn', () => {
+  assert.equal(libraryFields({ category: 'plus18' }).category, 'plus18');
   assert.equal(classify('https://youtu.be/abc', {}), 'youtube');
   assert.equal(classify('https://www.pornhub.com/view_video.php?id=test', {}), 'porn');
   assert.equal(classify('https://example.com/film', { age_limit: 18 }), 'other');

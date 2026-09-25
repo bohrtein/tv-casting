@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const CATEGORIES = ['porn', 'movies', 'series', 'youtube', 'other'];
+const CATEGORIES = ['porn', 'plus18', 'movies', 'series', 'youtube', 'other'];
 
 function libraryFields(body) {
   const fields = {};
