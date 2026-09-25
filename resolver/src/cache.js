@@ -137,7 +137,6 @@ class MediaCache {
   update(fileName, patch) {
     const entry = this.entries.find((e) => e.fileName === fileName);
     if (!entry) return null;
-    if (patch.metadata && entry.metadata) patch = { ...patch, metadata: { ...entry.metadata, ...patch.metadata } };
     Object.assign(entry, patch);
     this._save();
     return entry;

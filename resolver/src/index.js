@@ -725,8 +725,6 @@ const server = http.createServer((req, res) => {
     const list = mediaCache.list().map((entry) => ({
       category: entry.category || classify(entry.sourceUrl, {}),
       metadata: entry.metadata || null,
-      progressSec: entry.progressSec || (entry.metadata && entry.metadata.progressSec) || 0,
-      durationSec: entry.durationSec || (entry.metadata && entry.metadata.durationSec) || null,
       fileName: entry.fileName,
       kind: 'media',
       key: entry.fileName,
@@ -746,8 +744,6 @@ const server = http.createServer((req, res) => {
       return {
         category: entry.category || 'other',
         metadata: entry.metadata || null,
-        progressSec: entry.progressSec || (entry.metadata && entry.metadata.progressSec) || 0,
-        durationSec: entry.durationSec || (entry.metadata && entry.metadata.durationSec) || null,
         kind: 'torrents',
         key: entry.fileName,
         title: entry.title,

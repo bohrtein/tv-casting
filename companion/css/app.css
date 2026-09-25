@@ -453,20 +453,6 @@
   margin-top: 22px;
 }
 
-/* Library is a focused page; the other tools remain available in their tabs. */
-body[data-mx-view="library"] .cn-split-3 { display: block; }
-body[data-mx-view="library"] .cn-split-3 > .mx-col:not(:first-child) { display: none; }
-body[data-mx-view="library"] [data-mx-panel="library"] { max-width: 1100px; margin-left: auto; margin-right: auto; }
-.cn-saved-season {
-  margin: 14px 0 0;
-  padding: 10px 0 0;
-  border-top: 1px solid var(--mx-border);
-  color: var(--mx-ink-dim);
-  font-size: 12px;
-  letter-spacing: .05em;
-  text-transform: uppercase;
-}
-
 .cn-saved-head {
   display: flex;
   justify-content: space-between;

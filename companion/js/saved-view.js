@@ -79,8 +79,7 @@ function createSavedView(resolver, container, opts) {
       total: section.querySelector('.cn-saved-total'),
       list: section.querySelector('.cn-saved-list'),
       empty: section.querySelector('.mx-empty'),
-      items: {},
-      seasonHeads: {}
+      items: {}
     };
   }
 
@@ -124,7 +123,7 @@ function createSavedView(resolver, container, opts) {
     it.cast.addEventListener('click', function () {
       var entry = it.entry;
       if (!entry.needsTvCopy) {
-        onCast(entry.streamUrl, entry.title || 'video', entry);
+        onCast(entry.streamUrl, entry.title || 'video');
         return;
       }
       // Too big for the TV: make the 1080p copy and cast it as it's made.
@@ -132,7 +131,7 @@ function createSavedView(resolver, container, opts) {
       it.cast.textContent = 'starting…';
       MX.toast(true, 'Making the 1080p copy; the TV starts in a few seconds.');
       resolver.castOptimized(entry.key).then(function (result) {
-        onCast(result.streamUrl, entry.title || 'video', entry);
+        onCast(result.streamUrl, entry.title || 'video');
       }).catch(function (err) {
         MX.toast(false, err.message);
       }).then(function () {
@@ -142,12 +141,6 @@ function createSavedView(resolver, container, opts) {
     });
     it.resume.addEventListener('click', function () {
       var entry = it.entry;
-      var progressSec = entry.progressSec || (entry.metadata && entry.metadata.progressSec) || 0;
-      var durationSec = entry.durationSec || (entry.metadata && entry.metadata.durationSec) || 0;
-      if (progressSec > 30 && durationSec > progressSec + 30) {
-        onCast(entry.streamUrl, entry.title || 'video', entry);
-        return;
-      }
       it.resume.disabled = true;
       resolver.resumeSaved(entry.key).then(function () {
         MX.toast(true, 'Continuing: ' + (entry.title || 'film') + ' (see downloads)');
@@ -276,15 +269,7 @@ function createSavedView(resolver, container, opts) {
     if (!it.cast.disabled) it.cast.textContent = entry.needsTvCopy ? 'cast (1080p)' : 'cast';
     it.optimize.hidden = !(entry.canOptimize || (opt && opt.state === 'error'));
     it.optimize.textContent = opt && opt.state === 'error' ? 'try optimizing again' : 'optimize for TV (1080p)';
-    var artwork = m && m.episodePoster || entry.thumbUrl;
-    if (artwork && it.img.getAttribute('src') !== artwork) it.img.src = artwork;
-    it.resume.hidden = !entry.canResume;
-    var progressSec = entry.progressSec || (m && m.progressSec) || 0;
-    var durationSec = entry.durationSec || (m && m.durationSec) || 0;
-    if (progressSec > 30 && durationSec > progressSec + 30) {
-      it.resume.hidden = false;
-      it.resume.textContent = 'resume at ' + formatClock(progressSec);
-    } else it.resume.textContent = 'continue';
+    if (entry.thumbUrl && it.img.getAttribute('src') !== entry.thumbUrl) it.img.src = entry.thumbUrl;
   }
 
   function renderGroup(group, entries) {
@@ -294,25 +279,13 @@ function createSavedView(resolver, container, opts) {
       ? entries.filter(function (e) { return (e.title || e.sourceUrl || '').toLowerCase().indexOf(filterText) !== -1; })
       : entries;
     var keep = {};
-    var desired = [];
-    var previousSeason = null;
-    shown.forEach(function (entry) {
-      var season = entry.metadata && entry.metadata.type === 'series' ? entry.metadata.season : null;
-      if (season !== null && season !== previousSeason) {
-        var head = group.seasonHeads[season] || (group.seasonHeads[season] = document.createElement('h4'));
-        head.className = 'cn-saved-season';
-        head.textContent = season === 0 ? 'specials' : 'season ' + season;
-        desired.push(head);
-      }
-      previousSeason = season;
+    shown.forEach(function (entry, i) {
       var key = entry.kind + ':' + entry.key;
       keep[key] = true;
       var it = group.items[key] || (group.items[key] = makeItem(group));
       update(it, entry);
-      desired.push(it.item);
+      if (group.list.children[i] !== it.item) group.list.insertBefore(it.item, group.list.children[i] || null);
     });
-    desired.forEach(function (node, i) { if (group.list.children[i] !== node) group.list.insertBefore(node, group.list.children[i] || null); });
-    Array.prototype.slice.call(group.list.children).forEach(function (node) { if (desired.indexOf(node) === -1) node.remove(); });
     Object.keys(group.items).forEach(function (key) {
       if (!keep[key]) {
         group.items[key].item.remove();
