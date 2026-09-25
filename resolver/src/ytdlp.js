@@ -70,8 +70,8 @@ function cleanupPartials(outPathNoExt) {
 }
 
 // Downloads (and, if the site only serves separate video/audio, muxes
-// via ffmpeg) to exactly `<outPathNoExt>.mp4`. Capped at maxHeight so a
-// casual cast doesn't pull down an 8K master, and at maxFilesize as a
+// via ffmpeg) to exactly `<outPathNoExt>.mp4`. Capped at maxHeight when
+// the extractor reports a height, and at maxFilesize as a
 // hard stop against a runaway download filling the server's disk.
 // signal (an AbortSignal) cancels it: yt-dlp is killed and its partial
 // files deleted, same as a failed download.
@@ -84,7 +84,11 @@ function download(url, outPathNoExt, { maxHeight = 1080, maxFilesize = '2G', ref
   // doesn't offer H.264 at all.
   const h264 = `bestvideo[height<=${maxHeight}][vcodec^=avc1]+bestaudio[acodec^=mp4a]/best[height<=${maxHeight}][vcodec^=avc1]`;
   const anyCodec = `bestvideo[height<=${maxHeight}]+bestaudio/best[height<=${maxHeight}]`;
-  const format = `${h264}/${anyCodec}`;
+  // Generic direct-file extractors often omit height (and codec) metadata.
+  // Keep known, in-range formats first, then allow unknown heights with
+  // yt-dlp's `?` filter modifier. Known over-limit formats still fail.
+  const unknownHeight = `bestvideo[height<=?${maxHeight}]+bestaudio/best[height<=?${maxHeight}]`;
+  const format = `${h264}/${anyCodec}/${unknownHeight}`;
   const args = [
     '-f', format,
     '--merge-output-format', 'mp4',
