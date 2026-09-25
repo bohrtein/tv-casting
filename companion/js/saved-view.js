@@ -89,7 +89,7 @@ function createSavedView(resolver, container, opts) {
 
   function makeGroup(kind, label) {
     var section = document.createElement('div');
-    section.className = 'cn-saved-group';
+    section.className = 'cn-saved-group' + (kind === 'youtube' ? ' cn-saved-youtube' : '');
     section.innerHTML =
       '<h3 class="cn-saved-head"><span></span><span class="cn-saved-total"></span></h3>' +
       '<div class="cn-saved-list"></div>' +
@@ -110,7 +110,9 @@ function createSavedView(resolver, container, opts) {
     var item = document.createElement('div');
     item.className = 'cn-saved-item';
     item.innerHTML =
-      '<div class="cn-saved-thumb"><img alt="" loading="lazy" decoding="async"></div>' +
+      (group.kind === 'youtube'
+        ? '<button class="cn-saved-thumb" type="button"><img alt="" loading="lazy" decoding="async"></button>'
+        : '<div class="cn-saved-thumb"><img alt="" loading="lazy" decoding="async"></div>') +
       '<div class="cn-saved-body">' +
         '<span class="cn-saved-title"></span>' +
         '<span class="cn-saved-meta"></span>' +
@@ -123,7 +125,7 @@ function createSavedView(resolver, container, opts) {
           '<button class="mx-btn mx-sm" type="button">delete</button>' +
         '</div>' +
       '</div>';
-    var buttons = item.querySelectorAll('button');
+    var buttons = item.querySelectorAll('.cn-saved-actions button');
     var it = {
       item: item,
       img: item.querySelector('img'),
@@ -145,6 +147,7 @@ function createSavedView(resolver, container, opts) {
     it.img.addEventListener('load', function () {
       it.thumb.classList.remove('cn-saved-nothumb');
     });
+    if (group.kind === 'youtube') it.thumb.addEventListener('click', function () { it.cast.click(); });
     it.cast.addEventListener('click', function () {
       var entry = it.entry;
       if (!entry.needsTvCopy) {
@@ -238,9 +241,18 @@ function createSavedView(resolver, container, opts) {
         entry.category = category.value; render(lastCache);
       }).catch(function (err) { category.value = entry.category || 'other'; MX.toast(false, err.message); });
     });
-    item.querySelector('.cn-saved-body').appendChild(category);
+    var extra = item.querySelector('.cn-saved-body');
+    if (group.kind === 'youtube') {
+      var manage = document.createElement('details');
+      manage.className = 'cn-saved-manage';
+      manage.innerHTML = '<summary>More options</summary><div class="cn-saved-manage-body"></div>';
+      extra.appendChild(manage);
+      extra = manage.querySelector('.cn-saved-manage-body');
+      extra.appendChild(it.del);
+    }
+    extra.appendChild(category);
     var match = document.createElement('a'); match.className = 'mx-btn mx-sm'; match.textContent = 'Match Stremio metadata';
-    it.match = match; item.querySelector('.cn-saved-body').appendChild(match);
+    it.match = match; extra.appendChild(match);
     return it;
   }
 
@@ -279,6 +291,7 @@ function createSavedView(resolver, container, opts) {
     it.match.href = 'stremio.html?matchKind=' + encodeURIComponent(entry.kind) + '&matchKey=' + encodeURIComponent(entry.key);
     it.title.textContent = entry.title || entry.sourceUrl || 'video';
     it.title.title = entry.title || entry.sourceUrl || '';
+    if (it.thumb.tagName === 'BUTTON') it.thumb.setAttribute('aria-label', 'Cast ' + it.title.textContent);
     var progress = entry.progress || {};
     var meta = [entry.partial ? 'Partly downloaded' : 'Downloaded', formatBytes(entry.bytes), progress.watched ? 'Watched' : progress.positionSec ? 'Continue from ' + formatClock(progress.positionSec) : 'Unwatched'];
     if (progress.durationSec) meta.push(formatClock(progress.positionSec) + ' / ' + formatClock(progress.durationSec));

@@ -526,6 +526,33 @@
   background: var(--mx-danger-low);
 }
 
+/* Saved YouTube videos use the familiar thumbnail-first gallery. */
+.cn-saved-youtube .cn-saved-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 28px 18px;
+}
+
+.cn-saved-youtube .cn-saved-item { flex-direction: column; gap: 10px; min-width: 0; }
+.cn-saved-youtube .cn-saved-thumb {
+  display: block;
+  width: 100%;
+  flex: none;
+  aspect-ratio: 16 / 9;
+  padding: 0;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.cn-saved-youtube .cn-saved-thumb:focus-visible { outline: 2px solid var(--mx-accent); outline-offset: 3px; }
+.cn-saved-youtube .cn-saved-title { font-size: 15px; font-weight: 700; line-height: 1.4; }
+.cn-saved-youtube .cn-saved-meta { line-height: 1.5; }
+.cn-saved-youtube .cn-saved-actions { margin-top: 6px; }
+.cn-saved-youtube .cn-saved-manage { margin-top: 4px; color: var(--mx-ink-dim); font-size: 12px; }
+.cn-saved-youtube .cn-saved-manage summary { cursor: pointer; width: max-content; }
+.cn-saved-youtube .cn-saved-manage-body { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 10px; }
+.cn-saved-youtube .cn-saved-manage-body .mx-input { flex: 1 1 150px; min-width: 0; }
+.cn-saved-youtube .cn-saved-manage-body [hidden] { display: none; }
+
 /* Local detail pages share Stremio's hero and season/episode structure. */
 .cn-library-hero { margin-bottom: 18px; }
 .cn-library-hero .cn-hero-poster { width: min(32vw, 160px); height: auto; object-fit: contain; align-self: flex-start; flex: 0 0 auto; }

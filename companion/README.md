@@ -5,7 +5,8 @@ Jellyfin integration has been removed.
 
 - **Library:** its own page in the top navigation, with all saved links and torrents grouped as Movies, Television series,
   YouTube videos, Porn, or Other videos. Episodes with Stremio metadata are grouped
-  by show and ordered by season and episode. Categories can be corrected per file.
+  by show and ordered by season and episode. YouTube videos use a thumbnail grid;
+  their category and delete controls are under More options. Categories can be corrected per file.
 - **Stremio:** the existing catalog, search, add-on management, and episode picker.
   Selecting a stream saves the metadata with the download. Enable “Save to Library
   without casting” to download only. “Match Stremio metadata” on an existing library
