@@ -537,7 +537,13 @@
 
 /* Local detail pages share Stremio's hero and season/episode structure. */
 .cn-library-hero { margin-bottom: 18px; }
-.cn-library-hero .cn-hero-poster { object-fit: cover; align-self: flex-start; }
+.cn-library-hero .cn-hero-poster { width: min(32vw, 160px); height: auto; object-fit: contain; align-self: flex-start; flex: 0 0 auto; }
+.cn-library-hero .mx-hero-body { padding: 20px; gap: 24px; }
+.cn-library-hero .mx-hero-text { flex: 1; }
+.cn-library-hero .mx-hero-text > .mx-btn { margin-top: 14px; }
+.cn-saved-overview { font-size: 12px; line-height: 1.6; color: var(--mx-ink-dim); }
+.cn-saved-overview[hidden] { display: none; }
+.cn-saved-thumb { align-self: flex-start; }
 .cn-library-cast { color: var(--mx-ink-dim); font-size: 13px; }
 .cn-library-hero + select { margin-bottom: 16px; }
 .cn-saved-actions[hidden], .cn-saved-thumb[hidden] { display: none; }

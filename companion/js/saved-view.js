@@ -46,7 +46,7 @@ function createSavedView(resolver, container, opts) {
   var status = document.createElement('p'); status.setAttribute('role', 'status');
   status.textContent = 'Loading libraryâ€¦'; container.appendChild(status);
 
-  var back = document.createElement('button'); back.type = 'button'; back.className = 'mx-back'; back.textContent = '‹ Back to library'; back.hidden = true;
+  var back = document.createElement('button'); back.type = 'button'; back.className = 'mx-back'; back.textContent = '\u2039 Back to library'; back.hidden = true;
   back.addEventListener('click', function () { var key = selectedTitle; selectedTitle = null; render(lastCache); if (tiles[key]) tiles[key].focus(); });
   container.appendChild(back);
   var grid = document.createElement('div'); grid.className = 'mx-view-grid cn-posters'; container.appendChild(grid);
@@ -61,7 +61,7 @@ function createSavedView(resolver, container, opts) {
     }
     var m = bucket.metadata, saved = bucket.entries.filter(function (e) { return !e.missing; });
     tile.querySelector('.mx-slot-title').textContent = m.name;
-    tile.querySelector('.mx-slot-meta').textContent = saved.filter(function (e) { return !e.partial; }).length + ' downloaded · ' + saved.filter(function (e) { return e.progress && e.progress.watched; }).length + ' watched';
+    tile.querySelector('.mx-slot-meta').textContent = saved.filter(function (e) { return !e.partial; }).length + ' downloaded \u00b7 ' + saved.filter(function (e) { return e.progress && e.progress.watched; }).length + ' watched';
     var img = tile.querySelector('img'); img.hidden = !m.poster;
     if (m.poster && img.getAttribute('src') !== m.poster) img.src = m.poster;
     tile.hidden = !!filterText && !(m.name || '').toLowerCase().includes(filterText) && !bucket.entries.some(function (e) { return (e.title || '').toLowerCase().includes(filterText); });
@@ -114,6 +114,7 @@ function createSavedView(resolver, container, opts) {
       '<div class="cn-saved-body">' +
         '<span class="cn-saved-title"></span>' +
         '<span class="cn-saved-meta"></span>' +
+        '<span class="cn-saved-overview" hidden></span>' +
         '<div class="cn-saved-actions">' +
           '<button class="mx-btn mx-sm mx-primary" type="button" hidden>continue</button>' +
           '<button class="mx-btn mx-sm mx-primary" type="button">cast</button>' +
@@ -129,6 +130,7 @@ function createSavedView(resolver, container, opts) {
       thumb: item.querySelector('.cn-saved-thumb'),
       title: item.querySelector('.cn-saved-title'),
       meta: item.querySelector('.cn-saved-meta'),
+      overview: item.querySelector('.cn-saved-overview'),
       resume: buttons[0],
       cast: buttons[1],
       original: buttons[2],
@@ -258,12 +260,14 @@ function createSavedView(resolver, container, opts) {
 
   function update(it, entry) {
     it.entry = entry;
+    it.overview.textContent = entry.overview || '';
+    it.overview.hidden = !entry.overview;
     it.item.querySelector('.cn-saved-actions').hidden = !!entry.missing;
     it.category.hidden = !!entry.missing;
     it.match.hidden = !!entry.missing;
     if (entry.missing) {
-      it.title.textContent = 'S' + entry.metadata.season + ' E' + entry.metadata.episode + ' · ' + entry.metadata.episodeTitle;
-      it.meta.textContent = 'Not downloaded' + (entry.progress && entry.progress.watched ? ' · Watched' : entry.progress && entry.progress.positionSec ? ' · Left at ' + formatClock(entry.progress.positionSec) : ' · Unwatched') + (entry.released ? ' · ' + entry.released.slice(0, 10) : '') + (entry.overview ? ' · ' + entry.overview : '');
+      it.title.textContent = 'S' + entry.metadata.season + ' E' + entry.metadata.episode + ' \u00b7 ' + entry.metadata.episodeTitle;
+      it.meta.textContent = 'Not downloaded' + (entry.progress && entry.progress.watched ? ' \u00b7 Watched' : entry.progress && entry.progress.positionSec ? ' \u00b7 Left at ' + formatClock(entry.progress.positionSec) : ' \u00b7 Unwatched') + (entry.released ? ' \u00b7 ' + entry.released.slice(0, 10) : '');
       it.thumb.hidden = !entry.thumbUrl;
       if (entry.thumbUrl && it.img.getAttribute('src') !== entry.thumbUrl) it.img.src = entry.thumbUrl;
       return;
@@ -311,7 +315,8 @@ function createSavedView(resolver, container, opts) {
 
   function renderGroup(group, entries) {
     var total = entries.reduce(function (n, e) { return n + (e.bytes || 0); }, 0);
-    group.total.textContent = entries.length ? entries.length + ' Â· ' + formatBytes(total) : '';
+    var savedCount = entries.filter(function (entry) { return !entry.missing; }).length;
+    group.total.textContent = entries.length ? savedCount + ' saved Â· ' + formatBytes(total) : '';
     if (group.season) entries = entries.filter(function (e) { return String(e.metadata.season) === group.season.value; });
     var shown = filterText
       ? entries.filter(function (e) { return (e.title || e.sourceUrl || '').toLowerCase().indexOf(filterText) !== -1; })
@@ -342,7 +347,7 @@ function createSavedView(resolver, container, opts) {
       group.section.insertBefore(group.hero, group.list);
     }
     group.hero.querySelector('h2').textContent = meta.name;
-    group.hero.querySelector('.cn-library-info').textContent = [meta.releaseInfo, meta.runtime, (meta.genres || []).join(', '), meta.imdbRating ? 'IMDb ' + meta.imdbRating : ''].filter(Boolean).join(' · ');
+    group.hero.querySelector('.cn-library-info').textContent = [meta.releaseInfo, meta.runtime, (meta.genres || []).join(', '), meta.imdbRating ? 'IMDb ' + meta.imdbRating : ''].filter(Boolean).join(' \u00b7 ');
     group.hero.querySelector('.cn-desc').textContent = meta.description || '';
     group.hero.querySelector('.cn-library-cast').textContent = (meta.cast || []).slice(0, 6).join(', ');
     group.hero.querySelector('a').href = 'stremio.html#' + meta.type + '/' + encodeURIComponent(meta.id);
@@ -378,7 +383,7 @@ function createSavedView(resolver, container, opts) {
       // Retain a series even when its last episode is deleted.
       if (!bucket && m.type === 'series' && (categoryFilter.value === 'all' || categoryFilter.value === 'series')) {
         var elsewhere = (cache.entries || []).concat(cache.torrents || []).some(function (e) { return e.metadata && titleKey(e.metadata) === titleKey(m) && e.category !== 'series'; });
-        if (!elsewhere) bucket = buckets['title:' + titleKey(m)] = { label: 'Television series · ' + m.name, entries: [], metadata: m };
+        if (!elsewhere) bucket = buckets['title:' + titleKey(m)] = { label: 'Television series \u00b7 ' + m.name, entries: [], metadata: m };
       }
       if (!bucket) return;
       bucket.metadata = m;
