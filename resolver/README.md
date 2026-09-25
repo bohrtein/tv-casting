@@ -78,6 +78,17 @@ page builds) and saves that film on this server while the TV watches it:
   `original/` from the same download (`TORRENT_KEEP_ORIGINAL`). Other audio (DTS, FLAC, TrueHD...) is
   converted to AAC stereo, and other video to h264, which is slow on a
   weak CPU. Subtitles are dropped.
+- Unfinished films are kept too: a download that's stopped, fails, or is
+  cut short by a resolver restart stays in the cache as partial
+  (`partial`, `savedSec` of `durationSec` in `GET /cache`). Continuing it
+  (`POST /cache/torrents/<key>/resume`, or casting the same stream again)
+  seeks the torrent to where the saved part ends and writes the rest to
+  `index.resume.m3u8`, numbered on from the saved segments; players get
+  the two joined with an `EXT-X-DISCONTINUITY`, and they're merged into
+  `index.m3u8` when the run ends. A few seconds around the join may play
+  twice (the seek lands on the keyframe before). A partial film at rest is
+  served as a finished playlist of what's saved, so a cast starts at the
+  beginning.
 - Finished films are kept, so casting the same one again plays from disk
   with no torrent at all. `TORRENT_CACHE_SIZE` (default 100) finished films
   are kept, least recently watched deleted first. A download that never
@@ -166,9 +177,13 @@ the download to get there.
   `streamUrl` is `http://<this-host>/media/torrents/<key>/index.m3u8`,
   and `complete` says whether the download is still running.
 - `POST /resolve/:id/cancel` — stops a download that's still running
-  (yt-dlp, or a torrent's ffmpeg) and deletes what it saved so far; the
-  job's `status` becomes `cancelled`. `409` if it already finished. A
-  torrent the TV is playing stops playing too.
+  (yt-dlp, or a torrent's ffmpeg); the job's `status` becomes `cancelled`.
+  A link download's file is deleted. A torrent keeps what it saved, as a
+  partial film in `GET /cache` (see "Torrents"), unless that's nothing.
+  `409` if it already finished. A torrent the TV is playing stops playing
+  too.
+- `POST /cache/torrents/<key>/resume` — continues a partial film from
+  where its saved part ends; answers with the new job (`{ id, status }`).
 - `GET /cache` → `{ "entries": [{ "kind", "key", "sourceUrl", "title", "streamUrl", "thumbUrl", "bytes", "createdAt", "lastUsedAt" }, ...] }`,
   most-recently-used first. The still-on-disk rewatch cache (up to
   `RESOLVER_CACHE_SIZE` entries) — lets a client offer "cast something

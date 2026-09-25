@@ -210,14 +210,6 @@ function createSizeCounter(dir) {
   };
 }
 
-function countSegments(playlistPath) {
-  try {
-    return (fs.readFileSync(playlistPath, 'utf8').match(/^#EXTINF/gm) || []).length;
-  } catch (e) {
-    return 0;
-  }
-}
-
 // Downloads the torrent's file through the Stremio server and writes it
 // into outDir as an HLS playlist + segments. That folder is the cache:
 // it stays on disk after playback, and replaying it needs no torrent.
@@ -237,7 +229,7 @@ function countSegments(playlistPath) {
 // onProgress gets { pct, savedSec, bytes }: how far into the film is on
 // disk, and how many bytes that is. pct is null when the file doesn't
 // say how long it is.
-async function download(url, outDir, { onProbed, onReady, onProgress, signal }) {
+async function download(url, outDir, { onProbed, onReady, onProgress, onResume = () => {}, signal }) {
   const info = await probe(url, signal);
   if (!info.video) throw new Error('That torrent file has no video in it.');
   const { width, height, codec_name: codec } = info.video;
@@ -266,35 +258,54 @@ async function download(url, outDir, { onProbed, onReady, onProgress, signal }) 
   }
 
   fs.mkdirSync(outDir, { recursive: true });
-  const playlist = path.join(outDir, 'index.m3u8');
+  const origDir = path.join(outDir, ORIGINAL_DIR);
+  if (keepOriginal) fs.mkdirSync(origDir, { recursive: true });
+  const dirs = keepOriginal ? [outDir, origDir] : [outDir];
+
+  // Continue a partial download from where its saved part ends: the
+  // earliest end among the outputs, so none gets a gap (the one that was
+  // further along repeats a few seconds, and the seek lands on the
+  // keyframe before). Otherwise start clean.
+  dirs.forEach(finalizeResume);
+  const saved = dirs.map(savedInfo);
+  const resumeSec = saved.every((x) => x.count > 0) ? Math.min(...saved.map((x) => x.sec)) : 0;
+  const resuming = resumeSec >= 1 && (!info.duration || resumeSec < info.duration - 1);
+  if (!resuming) {
+    dirs.forEach((dir) => {
+      fs.readdirSync(dir).forEach((name) => {
+        if (/^seg\d+\.ts$/.test(name) || /\.m3u8$/.test(name)) fs.rmSync(path.join(dir, name), { force: true });
+      });
+    });
+  }
+  onResume(resuming ? resumeSec : 0);
+
   const maps = ['-map', '0:v:0', ...(info.audio ? ['-map', '0:a:0'] : []), '-sn'];
-  const hlsOut = (dir) => [
+  const hlsOut = (dir, i) => [
     '-f', 'hls', '-hls_time', String(SEGMENT_SEC), '-hls_list_size', '0',
     '-hls_playlist_type', 'event', '-hls_flags', 'independent_segments+temp_file',
+    ...(resuming ? ['-start_number', String(saved[i].count)] : []),
     '-hls_segment_filename', path.join(dir, 'seg%05d.ts'),
-    path.join(dir, 'index.m3u8')
+    path.join(dir, resuming ? RESUME_PLAYLIST : 'index.m3u8')
   ];
   // The TV's copy comes first: -progress reports on it, and its folder
   // is what the TV plays. The original, if kept, is a second output of
   // the same run, so the torrent is only read once.
   const args = [
     '-hide_banner', '-nostats', '-loglevel', 'error', '-progress', 'pipe:1',
-    ...httpInputArgs(), ...decodeArgs, '-i', url,
-    ...maps, ...videoArgs, ...audioArgs, ...hlsOut(outDir)
+    ...httpInputArgs(), ...decodeArgs, ...(resuming ? ['-ss', resumeSec.toFixed(3)] : []), '-i', url,
+    ...maps, ...videoArgs, ...audioArgs, ...hlsOut(outDir, 0)
   ];
-  if (keepOriginal) {
-    const origDir = path.join(outDir, ORIGINAL_DIR);
-    fs.mkdirSync(origDir, { recursive: true });
-    args.push(...maps, '-c:v', 'copy', ...audioArgs, ...hlsOut(origDir));
-  }
+  if (keepOriginal) args.push(...maps, '-c:v', 'copy', ...audioArgs, ...hlsOut(origDir, 1));
 
   return new Promise((resolve, reject) => {
     const child = spawn(FFMPEG_BIN, args, { signal });
     let stderr = '';
     let ready = false;
     let buffer = '';
-    let savedSec = 0;
+    let savedSec = resuming ? resumeSec : 0;
     const savedBytes = createSizeCounter(outDir);
+    // Whatever happens, the film ends up as one playlist again.
+    const finish = () => dirs.forEach((dir) => { try { finalizeResume(dir); } catch (e) { /* kept as is */ } });
     child.stderr.on('data', (c) => { stderr = (stderr + c).slice(-4000); });
     child.stdout.on('data', (c) => {
       buffer += c;
@@ -302,24 +313,29 @@ async function download(url, outDir, { onProbed, onReady, onProgress, signal }) 
       buffer = lines.pop();
       lines.forEach((line) => {
         // ffmpeg ends each progress block with progress=continue|end.
+        // Its clock starts at 0 on a continued run: add the saved part.
         const m = /^out_time_us=(\d+)/.exec(line);
-        if (m) savedSec = parseInt(m[1], 10) / 1e6;
+        if (m) savedSec = (resuming ? resumeSec : 0) + parseInt(m[1], 10) / 1e6;
         if (!/^progress=/.test(line)) return;
         onProgress({
           pct: info.duration ? Math.min(99.9, (savedSec / info.duration) * 100) : null,
           savedSec,
           bytes: savedBytes()
         });
-        if (!ready && countSegments(playlist) >= READY_SEGMENTS) {
+        if (!ready && savedInfo(outDir).count >= READY_SEGMENTS) {
           ready = true;
           onReady();
         }
       });
     });
     child.on('error', (err) => {
-      if (err.name !== 'AbortError') reject(new Error(`Could not start ffmpeg (${FFMPEG_BIN}): ${err.message}`));
+      if (err.name !== 'AbortError') {
+        finish();
+        reject(new Error(`Could not start ffmpeg (${FFMPEG_BIN}): ${err.message}`));
+      }
     });
     child.on('close', (code) => {
+      finish();
       if (signal && signal.aborted) {
         reject(new Error('Cancelled.'));
         return;
@@ -378,6 +394,94 @@ function describePeers(stats) {
     parts.push(stats.forwardedPort ? `forwarded port ${stats.forwardedPort}` : 'no forwarded port');
   }
   return parts.join(', ');
+}
+
+// --- continuing a partial download ---
+// A film that stopped part way (stopped by hand, failed, resolver
+// restarted) keeps what it saved. Continuing it asks the torrent for the
+// rest, from where the saved part ends, and writes those segments to
+// RESUME_PLAYLIST, numbered on from the saved ones. combinedPlaylist()
+// is the two joined with an EXT-X-DISCONTINUITY (timestamps restart
+// there), which is what players get; finalizeResume() folds it back
+// into index.m3u8 when the run ends. ffmpeg's own append_list isn't used:
+// it renumbers the segments and the playlist's media sequence.
+const RESUME_PLAYLIST = 'index.resume.m3u8';
+
+function parsePlaylist(text) {
+  const header = [];
+  const segments = []; // { tags: [...], inf, uri }
+  let pending = [];
+  let inf = null;
+  let ended = false;
+  let seenSegment = false;
+  (text || '').split('\n').map((l) => l.trim()).filter(Boolean).forEach((line) => {
+    if (line === '#EXT-X-ENDLIST') {
+      ended = true;
+    } else if (line.startsWith('#EXTINF:')) {
+      inf = line;
+    } else if (line === '#EXT-X-DISCONTINUITY') {
+      if (seenSegment) pending.push(line);
+    } else if (!line.startsWith('#')) {
+      if (inf) segments.push({ tags: pending, inf, uri: line });
+      seenSegment = true;
+      pending = [];
+      inf = null;
+    } else if (!seenSegment) {
+      header.push(line);
+    }
+  });
+  return { header, segments, ended };
+}
+
+function readText(file) {
+  try {
+    return fs.readFileSync(file, 'utf8');
+  } catch (e) {
+    return null;
+  }
+}
+
+function writePlaylist(file, { header, segments, ended }) {
+  const lines = [...header];
+  segments.forEach((seg) => lines.push(...seg.tags, seg.inf, seg.uri));
+  if (ended) lines.push('#EXT-X-ENDLIST');
+  const tmp = `${file}.tmp`;
+  fs.writeFileSync(tmp, lines.join('\n') + '\n');
+  fs.renameSync(tmp, file);
+}
+
+// The saved part and the continued part as one playlist (text), or
+// null when there's nothing saved.
+function combinedPlaylist(dir) {
+  const base = readText(path.join(dir, 'index.m3u8'));
+  const resume = readText(path.join(dir, RESUME_PLAYLIST));
+  if (!base && !resume) return null;
+  if (!resume) return base;
+  const a = parsePlaylist(base);
+  const b = parsePlaylist(resume);
+  b.segments.forEach((seg, i) => {
+    if (i === 0 && a.segments.length) seg.tags = ['#EXT-X-DISCONTINUITY'];
+  });
+  const lines = [...(a.header.length ? a.header : b.header)];
+  [...a.segments, ...b.segments].forEach((seg) => lines.push(...seg.tags, seg.inf, seg.uri));
+  if (b.ended) lines.push('#EXT-X-ENDLIST');
+  return lines.join('\n') + '\n';
+}
+
+// Folds a continued part into index.m3u8, so a film at rest is one
+// playlist again.
+function finalizeResume(dir) {
+  const text = combinedPlaylist(dir);
+  if (!text || !fs.existsSync(path.join(dir, RESUME_PLAYLIST))) return;
+  writePlaylist(path.join(dir, 'index.m3u8'), parsePlaylist(text));
+  fs.rmSync(path.join(dir, RESUME_PLAYLIST), { force: true });
+}
+
+// How much is saved: seconds, and the number of segments.
+function savedInfo(dir) {
+  const { segments } = parsePlaylist(combinedPlaylist(dir));
+  const sec = segments.reduce((n, seg) => n + (parseFloat(seg.inf.slice(8)) || 0), 0);
+  return { sec, count: segments.length };
 }
 
 // Width and height of a saved film's video (from its first segment), or
@@ -476,5 +580,6 @@ async function makeTvCopy(dir, { onProgress, signal }) {
 
 module.exports = {
   parseTorrentUrl, isKey, download, folderBytes, peerStats, describePeers,
-  frameSize, needsTvCopy, makeTvCopy, SEGMENT_SEC, ORIGINAL_DIR
+  frameSize, needsTvCopy, makeTvCopy, combinedPlaylist, finalizeResume, savedInfo,
+  SEGMENT_SEC, ORIGINAL_DIR
 };

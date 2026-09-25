@@ -100,6 +100,18 @@ function createResolverClient(config) {
     return getCache().then(function (body) { return body.entries || []; });
   }
 
+  // Continues a partial film's download from where its saved part ends.
+  // Resolves with the job ({ id, status }), which shows in listJobs().
+  function resumeSaved(key) {
+    var url = config.RESOLVER_URL + '/cache/torrents/' + encodeURIComponent(key) + '/resume';
+    return fetch(url, { method: 'POST' }).then(function (res) {
+      if (res.ok) return res.json();
+      return res.json().catch(function () { return {}; }).then(function (body) {
+        throw new Error(body.error || 'Could not continue (HTTP ' + res.status + ')');
+      });
+    });
+  }
+
   // Makes the 1080p TV copy of a saved 4K film, from the files on disk.
   // Progress then shows in getCache()'s torrents[].optimize.
   function optimizeSaved(key) {
@@ -142,6 +154,7 @@ function createResolverClient(config) {
     getCache: getCache,
     listCache: listCache,
     deleteSaved: deleteSaved,
-    optimizeSaved: optimizeSaved
+    optimizeSaved: optimizeSaved,
+    resumeSaved: resumeSaved
   };
 }

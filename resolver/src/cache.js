@@ -103,6 +103,11 @@ class MediaCache {
     return entry;
   }
 
+  // The entry for a file, without counting as a use (find() does).
+  get(fileName) {
+    return this.entries.find((e) => e.fileName === fileName) || null;
+  }
+
   has(fileName) {
     return this.entries.some((e) => e.fileName === fileName);
   }

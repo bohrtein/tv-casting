@@ -23,17 +23,25 @@ function fullLengthPlaylist(text, durationSec, segmentSec) {
   const header = [];
   const segments = [];
   let pendingInf = null;
+  // Tags between segments (EXT-X-DISCONTINUITY where a continued download
+  // joins the saved part) stay right before the segment they belong to.
+  let pendingTags = [];
   let savedSec = 0;
   lines.forEach((line) => {
     if (line.startsWith('#EXTINF:')) {
       pendingInf = line;
       savedSec += parseFloat(line.slice(8)) || 0;
     } else if (!line.startsWith('#')) {
-      if (pendingInf) segments.push([pendingInf, line]);
+      if (pendingInf) segments.push([...pendingTags, pendingInf, line]);
       pendingInf = null;
+      pendingTags = [];
     } else if (line === '#EXT-X-ENDLIST') {
       // Finished after all: nothing to add.
-    } else if (!line.startsWith('#EXT-X-PLAYLIST-TYPE') && !line.startsWith('#EXT-X-START')) {
+    } else if (line.startsWith('#EXT-X-PLAYLIST-TYPE') || line.startsWith('#EXT-X-START')) {
+      // Replaced below.
+    } else if (segments.length || line === '#EXT-X-DISCONTINUITY') {
+      pendingTags.push(line);
+    } else {
       header.push(line);
     }
   });
@@ -51,7 +59,7 @@ function fullLengthPlaylist(text, durationSec, segmentSec) {
       out.push('#EXT-X-START:TIME-OFFSET=0');
     }
   });
-  segments.forEach(([inf, uri]) => out.push(inf, uri));
+  segments.forEach((seg) => out.push(...seg));
 
   let next = segments.length;
   let remaining = durationSec - savedSec;

@@ -77,18 +77,48 @@ async function measureSavedFilms() {
 const thumbs = createThumbs({
   mediaDir: MEDIA_DIR,
   torrentDir: TORRENT_DIR,
-  isTorrentComplete: (key) => torrentCache.has(key)
+  isTorrentComplete: (key) => isComplete(key)
 });
 
-// A folder that isn't in the cache index is a download that never
-// finished (resolver stopped mid-film). Nothing is running at startup,
-// so those are safe to clear.
+// Films in the cache index, finished or partial, stay. A folder that
+// isn't in it is from before partial downloads were kept, with no way to
+// continue it: cleared. A partial one's continued part (from a run the
+// resolver's stop cut short) is folded back into its playlist.
 fs.readdirSync(TORRENT_DIR).forEach((name) => {
-  if (torrent.isKey(name) && !torrentCache.has(name)) {
+  if (!torrent.isKey(name)) return;
+  if (!torrentCache.has(name)) {
     fs.rmSync(path.join(TORRENT_DIR, name), { recursive: true, force: true });
     log('removed unfinished torrent download', name);
+    return;
   }
+  const dir = path.join(TORRENT_DIR, name);
+  [dir, path.join(dir, torrent.ORIGINAL_DIR)].forEach((d) => {
+    try { torrent.finalizeResume(d); } catch (e) { /* left as is */ }
+  });
+  const entry = torrentCache.get(name);
+  if (entry && entry.partial) torrentCache.update(name, { savedSec: torrent.savedInfo(dir).sec });
 });
+
+// Saved all the way (not partial, not downloading).
+function isComplete(key) {
+  const entry = torrentCache.get(key);
+  return !!entry && !entry.partial && !activeTorrents.has(key);
+}
+
+// Adds a film to the torrent cache (or refreshes its fields), deleting
+// whatever the cache's size limit pushes out.
+function rememberTorrent(key, title, fields) {
+  if (!torrentCache.has(key)) {
+    const evicted = torrentCache.add({ sourceUrl: key, fileName: key, title });
+    evicted.forEach((e) => {
+      if (activeTorrents.has(e.fileName)) return;
+      fs.rm(path.join(TORRENT_DIR, e.fileName), { recursive: true, force: true }, () => {});
+      thumbs.remove('torrents', e.fileName);
+      log('torrent cache evicted (size limit)', e.fileName, e.title);
+    });
+  }
+  torrentCache.update(key, { title: title || (torrentCache.get(key) || {}).title, ...fields });
+}
 
 // Only names the caches themselves hand out: a job id's MP4, or a
 // torrent key. Keeps /thumb and delete away from any other path.
@@ -171,7 +201,7 @@ function jobPublicShape(job, req) {
       converting: job.converting || null
     });
   }
-  if (job.status === 'error') shape.error = job.error;
+  if (job.status === 'error' || job.status === 'cancelled') shape.error = job.error;
   if (job.status === 'ready') {
     const host = req.headers.host; // same host companion used to reach us -- reachable by the TV on the same LAN
     shape.streamUrl = job.torrentKey
@@ -219,8 +249,8 @@ async function tryGenericFallback(url, nativeErr) {
 // real download can take anywhere from a few seconds to a few minutes.
 // Cancelling (POST /resolve/:id/cancel) aborts job.controller, which
 // kills whatever yt-dlp/ffmpeg the job is running.
-function finishCancelled(job) {
-  jobs.update(job.id, { status: 'cancelled', error: 'Cancelled.', complete: true, bytesPerSec: 0, finishedAt: Date.now() });
+function finishCancelled(job, message = 'Cancelled.') {
+  jobs.update(job.id, { status: 'cancelled', error: message, complete: true, bytesPerSec: 0, finishedAt: Date.now() });
   log('cancelled', job.id, job.title || job.sourceUrl);
 }
 
@@ -296,6 +326,11 @@ async function runTorrentJob(job, url, key) {
   const { signal } = job.controller;
   activeTorrents.set(key, job);
   jobs.update(job.id, { status: 'downloading', phase: 'connecting', torrentKey: key, complete: false, bytes: 0 });
+  // Listed in the saved tab from the start, as partial: whatever this run
+  // saves stays there if it stops, to continue or delete later.
+  // resumeUrl is the Stremio-shaped URL, as the companion sent it.
+  fs.mkdirSync(outDir, { recursive: true });
+  rememberTorrent(key, job.title, { partial: true, resumeUrl: job.sourceUrl });
   // Speed over roughly the last 5 seconds, so one burst of pieces doesn't
   // make the number jump around.
   const samples = [];
@@ -317,7 +352,11 @@ async function runTorrentJob(job, url, key) {
       onProbed: ({ durationSec, converting }) => {
         phase = 'saving';
         jobs.update(job.id, { phase: 'saving', durationSec, converting });
+        torrentCache.update(key, { durationSec });
         if (converting) log('torrent converting', key, converting);
+      },
+      onResume: (fromSec) => {
+        if (fromSec) log('torrent continuing', key, `from ${Math.round(fromSec)}s`);
       },
       onReady: () => {
         jobs.update(job.id, { status: 'ready' });
@@ -345,17 +384,21 @@ async function runTorrentJob(job, url, key) {
       finishedAt: Date.now()
     });
     log('torrent fully saved', key, job.title);
+    torrentCache.update(key, { partial: false, savedSec: null });
+    thumbs.remove('torrents', key);
     setImmediate(measureSavedFilms);
-    const evicted = torrentCache.add({ sourceUrl: key, fileName: key, title: job.title });
-    evicted.forEach((e) => {
-      fs.rm(path.join(TORRENT_DIR, e.fileName), { recursive: true, force: true }, () => {});
-      thumbs.remove('torrents', e.fileName);
-      log('torrent cache evicted (LRU cap)', e.fileName, e.title);
-    });
   } catch (err) {
-    fs.rm(outDir, { recursive: true, force: true }, () => {});
+    // Keep what it saved (partial, in the saved tab), unless that's nothing.
+    const saved = torrent.savedInfo(outDir);
+    if (saved.count === 0) {
+      torrentCache.remove(key);
+      fs.rm(outDir, { recursive: true, force: true }, () => {});
+    } else {
+      torrentCache.update(key, { partial: true, savedSec: saved.sec });
+      log('torrent kept partial', key, `${Math.round(saved.sec)}s saved`);
+    }
     if (signal.aborted) {
-      finishCancelled(job);
+      finishCancelled(job, saved.count ? 'Stopped: the saved part is in the saved tab.' : 'Cancelled.');
       return;
     }
     jobs.update(job.id, { status: 'error', error: err.message, complete: true, finishedAt: Date.now() });
@@ -370,17 +413,27 @@ async function runTorrentJob(job, url, key) {
 // (hls.js): the TV's player treats a growing one as live TV and starts
 // wherever the download has got to. A finished one is served as ffmpeg
 // wrote it, with an EXT-X-START so any player begins at the start.
+// A partial film at rest is served as a finished (VOD) playlist of what's
+// saved, so it too starts at the beginning. A continued download is its
+// saved part and the new part joined (torrent.combinedPlaylist).
 function servePlaylist(res, filePath, key) {
-  fs.readFile(filePath, 'utf8', (err, text) => {
-    if (err) {
+  fs.readFile(filePath, 'utf8', (err) => {
+    const text = torrent.combinedPlaylist(path.dirname(filePath));
+    if (err && !text) {
       res.writeHead(404);
       res.end();
       return;
     }
     const job = activeTorrents.get(key);
-    const body = job && job.durationSec && !/#EXT-X-ENDLIST/.test(text)
-      ? fullLengthPlaylist(text, job.durationSec, torrent.SEGMENT_SEC)
-      : text.replace(/^#EXTM3U\n/, '#EXTM3U\n#EXT-X-START:TIME-OFFSET=0\n');
+    const entry = torrentCache.get(key);
+    let body;
+    if (job && job.durationSec && !/#EXT-X-ENDLIST/.test(text)) {
+      body = fullLengthPlaylist(text, job.durationSec, torrent.SEGMENT_SEC);
+    } else if (!job && entry && entry.partial) {
+      body = fullLengthPlaylist(text, 0, torrent.SEGMENT_SEC);
+    } else {
+      body = text.replace(/^#EXTM3U\n/, '#EXTM3U\n#EXT-X-START:TIME-OFFSET=0\n');
+    }
     res.writeHead(200, {
       'Content-Type': 'application/vnd.apple.mpegurl',
       'Content-Length': Buffer.byteLength(body),
@@ -395,7 +448,7 @@ function servePlaylist(res, filePath, key) {
 // few more than ffmpeg ends up writing): answer it empty, so the TV reads
 // it as the end of the film rather than an error. Otherwise a real 404.
 function serveMissingSegment(res, key) {
-  if (torrentCache.has(key)) {
+  if (isComplete(key)) {
     res.writeHead(200, { 'Content-Type': 'video/mp2t', 'Content-Length': 0 });
     res.end();
     return;
@@ -546,8 +599,9 @@ const server = http.createServer((req, res) => {
       job.sourceUrl = target;
       job.title = title;
 
+      // A finished film plays from disk; a partial one continues.
       const cached = torrentCache.find(parsed.key);
-      if (cached) {
+      if (cached && !cached.partial) {
         jobs.update(job.id, {
           status: 'ready',
           progress: 100,
@@ -620,9 +674,18 @@ const server = http.createServer((req, res) => {
         originalUrl: hasOriginal ? `http://${host}/media/torrents/${entry.fileName}/${torrent.ORIGINAL_DIR}/index.m3u8` : null,
         width: entry.width || null,
         height: entry.height || null,
+        // Stopped part way: savedSec of durationSec is on disk, and
+        // POST .../resume continues it. downloading: a run is going now.
+        partial: !!entry.partial,
+        downloading: activeTorrents.has(entry.fileName),
+        savedSec: entry.partial ? (activeTorrents.has(entry.fileName)
+          ? activeTorrents.get(entry.fileName).savedSec || entry.savedSec || 0
+          : entry.savedSec || 0) : null,
+        durationSec: entry.durationSec || null,
+        canResume: !!entry.partial && !!entry.resumeUrl && !activeTorrents.has(entry.fileName),
         // Too big for the TV and no TV copy yet: the saved tab offers
         // "optimize for TV". optimize is that job's state, if any.
-        canOptimize: !optimizing.has(entry.fileName) && !activeTorrents.has(entry.fileName) &&
+        canOptimize: !entry.partial && !optimizing.has(entry.fileName) && !activeTorrents.has(entry.fileName) &&
           torrent.needsTvCopy(dir, entry.width ? { width: entry.width, height: entry.height } : null),
         optimize: optimizing.get(entry.fileName) || null,
         thumbUrl: `http://${host}/thumb/torrents/${entry.fileName}.jpg`,
@@ -662,6 +725,29 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Continues a partial film's download from where its saved part ends.
+  // Answers with the job, which then shows in /jobs like any download.
+  const resumeMatch = /^\/cache\/torrents\/([^/]+)\/resume$/.exec(url.pathname);
+  if (req.method === 'POST' && resumeMatch) {
+    const key = resumeMatch[1];
+    const entry = torrent.isKey(key) ? torrentCache.get(key) : null;
+    if (!entry || !entry.partial || !entry.resumeUrl) {
+      sendJson(res, 404, { error: entry ? 'Nothing to continue: it finished.' : 'Not in the cache.' });
+      return;
+    }
+    const running = activeTorrents.get(key);
+    if (running) {
+      sendJson(res, 202, { id: running.id, status: running.status });
+      return;
+    }
+    const job = jobs.create();
+    job.sourceUrl = entry.resumeUrl;
+    job.title = entry.title;
+    sendJson(res, 202, { id: job.id, status: job.status });
+    runTorrentJob(job, torrentSource(entry.resumeUrl), key);
+    return;
+  }
+
   // Makes the 1080p TV copy of a saved 4K film from the files on disk.
   // Queued behind any other running one; progress shows in GET /cache.
   const optimizeMatch = /^\/cache\/torrents\/([^/]+)\/optimize$/.exec(url.pathname);
@@ -679,6 +765,10 @@ const server = http.createServer((req, res) => {
     }
     if (activeTorrents.has(key)) {
       sendJson(res, 409, { error: 'Still downloading: it gets converted as it saves.' });
+      return;
+    }
+    if (entry.partial) {
+      sendJson(res, 409, { error: 'Only part of it is saved: continue it first.' });
       return;
     }
     const size = entry.width ? { width: entry.width, height: entry.height } : null;
@@ -824,5 +914,5 @@ setInterval(() => {
 measureSavedFilms();
 
 server.listen(PORT, () => {
-  log(`resolver listening on :${PORT} (POST /resolve, POST /torrent, GET /resolve/:id, GET /jobs, GET /cache, GET /thumb/:kind/:name.jpg, POST /cache/:kind/:name/delete, POST /cache/torrents/:key/optimize, GET /media/:file, GET /healthz)`);
+  log(`resolver listening on :${PORT} (POST /resolve, POST /torrent, GET /resolve/:id, GET /jobs, GET /cache, GET /thumb/:kind/:name.jpg, POST /cache/:kind/:name/delete, POST /cache/torrents/:key/optimize, POST /cache/torrents/:key/resume, GET /media/:file, GET /healthz)`);
 });

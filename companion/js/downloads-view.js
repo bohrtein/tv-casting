@@ -1,7 +1,7 @@
 'use strict';
 
 // Everything the resolver is downloading, as Matrix progress bars with
-// cast and cancel buttons: YouTube/links (downloaded before playing) and
+// cast and stop/cancel buttons: YouTube/links (downloaded before playing) and
 // torrents (saved on the server while the TV plays them, resolver/README.md
 // "Torrents"). Shared by index.html's downloads tab and stremio.html.
 // Cast shows once a download is playable, which for a torrent is while
@@ -70,7 +70,7 @@ function createDownloadsView(resolver, panel, list, opts) {
   }
 
   function detail(job) {
-    if (job.status === 'cancelled') return 'cancelled';
+    if (job.status === 'cancelled') return job.error && job.error !== 'Cancelled.' ? job.error.replace(/\.$/, '') : 'cancelled';
     if (job.status === 'error') return 'failed: ' + (job.error || 'unknown error');
     if (job.kind === 'torrent') return torrentDetail(job);
     if (job.status === 'starting') return 'looking up that video…';
@@ -116,16 +116,19 @@ function createDownloadsView(resolver, panel, list, opts) {
     row.cast.addEventListener('click', function () {
       if (onCast && row.job && row.job.streamUrl) onCast(row.job.streamUrl, row.job.title || 'download');
     });
+    // A torrent stops and keeps what it saved (continue it from the saved
+    // tab); a link download is cancelled and deleted.
     row.cancel.addEventListener('click', function () {
       var job = row.job;
+      var torrent = job.kind === 'torrent';
       row.cancel.disabled = true;
-      row.cancel.textContent = 'cancelling…';
+      row.cancel.textContent = torrent ? 'stopping…' : 'cancelling…';
       resolver.cancel(job.id).then(function () {
-        MX.toast(true, 'Cancelled: ' + (job.title || 'download'));
+        MX.toast(true, (torrent ? 'Stopped, kept in saved: ' : 'Cancelled: ') + (job.title || 'download'));
         refreshSoon();
       }).catch(function (err) {
         row.cancel.disabled = false;
-        row.cancel.textContent = 'cancel';
+        row.cancel.textContent = torrent ? 'stop' : 'cancel';
         MX.toast(false, err.message);
       });
     });
@@ -147,7 +150,10 @@ function createDownloadsView(resolver, panel, list, opts) {
     row.detail.textContent = detail(job);
     row.cancel.hidden = !running;
     row.cast.hidden = !onCast || job.status !== 'ready' || !job.streamUrl;
-    if (running && row.cancel.textContent !== 'cancelling…') row.cancel.disabled = false;
+    if (running && !/…$/.test(row.cancel.textContent)) {
+      row.cancel.disabled = false;
+      row.cancel.textContent = job.kind === 'torrent' ? 'stop' : 'cancel';
+    }
   }
 
   // Takes /jobs (newest first). Returns true while anything is running,

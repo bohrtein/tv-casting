@@ -7,7 +7,10 @@
 // converted down for the TV (4K) also has "copy 4K link": the untouched
 // original, to open in VLC or another player. A 4K film saved before
 // conversions existed has "optimize for TV (1080p)" instead, which makes
-// that copy from the file on disk, no download. Delete asks for a second
+// that copy from the file on disk, no download. A film that stopped part
+// way (stopped by hand, failed, server restarted) is listed as partial,
+// with how much is saved: "continue" picks the download up from there,
+// cast plays the saved part, delete throws it away. Delete asks for a second
 // tap before it deletes, since there's no undo.
 //
 // Items are kept and updated in place, keyed per video, so polling
@@ -34,6 +37,14 @@ function createSavedView(resolver, container, opts) {
     if (!n) return '0 MB';
     if (n >= 1e9) return (n / 1e9).toFixed(2) + ' GB';
     return Math.max(1, Math.round(n / 1e6)) + ' MB';
+  }
+
+  function formatClock(totalSec) {
+    var s = Math.floor(totalSec || 0);
+    var h = Math.floor(s / 3600);
+    var m = Math.floor((s % 3600) / 60);
+    var sec = s % 60;
+    return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
   }
 
   function formatDate(ts) {
@@ -70,6 +81,7 @@ function createSavedView(resolver, container, opts) {
         '<span class="cn-saved-title"></span>' +
         '<span class="cn-saved-meta"></span>' +
         '<div class="cn-saved-actions">' +
+          '<button class="mx-btn mx-sm mx-primary" type="button" hidden>continue</button>' +
           '<button class="mx-btn mx-sm mx-primary" type="button">cast</button>' +
           '<button class="mx-btn mx-sm" type="button" hidden>copy 4K link</button>' +
           '<button class="mx-btn mx-sm" type="button" hidden>optimize for TV (1080p)</button>' +
@@ -83,10 +95,11 @@ function createSavedView(resolver, container, opts) {
       thumb: item.querySelector('.cn-saved-thumb'),
       title: item.querySelector('.cn-saved-title'),
       meta: item.querySelector('.cn-saved-meta'),
-      cast: buttons[0],
-      original: buttons[1],
-      optimize: buttons[2],
-      del: buttons[3],
+      resume: buttons[0],
+      cast: buttons[1],
+      original: buttons[2],
+      optimize: buttons[3],
+      del: buttons[4],
       entry: null,
       confirmTimer: null
     };
@@ -98,6 +111,20 @@ function createSavedView(resolver, container, opts) {
     });
     it.cast.addEventListener('click', function () {
       onCast(it.entry.streamUrl, it.entry.title || 'video');
+    });
+    it.resume.addEventListener('click', function () {
+      var entry = it.entry;
+      it.resume.disabled = true;
+      resolver.resumeSaved(entry.key).then(function () {
+        MX.toast(true, 'Continuing: ' + (entry.title || 'film') + ' (see downloads)');
+        entry.canResume = false;
+        entry.downloading = true;
+        update(it, entry);
+      }).catch(function (err) {
+        MX.toast(false, err.message);
+      }).then(function () {
+        it.resume.disabled = false;
+      });
     });
     it.original.addEventListener('click', function () {
       copyLink(it.entry.originalUrl);
@@ -170,6 +197,13 @@ function createSavedView(resolver, container, opts) {
     it.title.title = entry.title || entry.sourceUrl || '';
     var meta = [formatBytes(entry.bytes)];
     if (entry.height) meta.unshift(entry.height + 'p' + (entry.originalUrl ? ' (TV: 1080p)' : ''));
+    if (entry.partial) {
+      var part = entry.durationSec
+        ? formatClock(entry.savedSec) + ' of ' + formatClock(entry.durationSec) +
+          ' (' + Math.floor(Math.min(100, (entry.savedSec / entry.durationSec) * 100)) + '%)'
+        : formatClock(entry.savedSec) + ' saved';
+      meta.push((entry.downloading ? 'downloading: ' : 'partial: ') + part);
+    }
     var opt = entry.optimize;
     if (opt && opt.state === 'running') meta.push('optimizing for TV ' + Math.floor(opt.pct || 0) + '%');
     else if (opt && opt.state === 'queued') meta.push('optimizing for TV: queued');
@@ -178,6 +212,10 @@ function createSavedView(resolver, container, opts) {
     if (date) meta.push('saved ' + date);
     it.meta.textContent = meta.join(' · ');
     it.original.hidden = !entry.originalUrl;
+    it.resume.hidden = !entry.canResume;
+    // The server refuses to delete a film that's downloading right now.
+    it.del.hidden = !!entry.downloading;
+    it.cast.classList.toggle('mx-primary', !entry.canResume);
     it.optimize.hidden = !(entry.canOptimize || (opt && opt.state === 'error'));
     it.optimize.textContent = opt && opt.state === 'error' ? 'try optimizing again' : 'optimize for TV (1080p)';
     if (entry.thumbUrl && it.img.getAttribute('src') !== entry.thumbUrl) it.img.src = entry.thumbUrl;
