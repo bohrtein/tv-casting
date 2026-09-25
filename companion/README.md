@@ -3,16 +3,26 @@
 Phone/desktop PWA for a persistent video library, Stremio browsing, and TV playback.
 Jellyfin integration has been removed.
 
-- **Library:** its own page in the top navigation, with all saved links and torrents grouped as Movies, Television series,
-  YouTube videos, Porn, or Other videos. Episodes with Stremio metadata are grouped
-  by show and ordered by season and episode. YouTube videos use a thumbnail grid;
-  their category and delete controls are under More options. Categories can be corrected per file.
-- **Stremio:** official Stremio Core runs in a Web Worker and supplies addon
-  management, catalogs, search, metadata, episodes, streams, and subtitles.
-  The page adapts a selected stream to the existing resolver and TV command.
-  Selecting a stream saves the metadata with the download. Enable “Save to Library
-  without casting” to download only. “Match Stremio metadata” on an existing library
-  item opens this page to apply movie or episode details without downloading again.
+- **Stremio (`stremio.html`):** laid out like Stremio Web, in the Matrix style. A nav rail
+  (bottom bar on a phone) has Board, Discover, Library, Calendar, Addons, and Settings; the
+  search bar on top searches your library and every searchable addon catalog. Board shows
+  Continue Watching, then a row per addon catalog. Discover has type, catalog, and filter
+  menus over a poster grid that loads as you scroll, with a preview beside it on wide screens.
+  Details show the title with episodes, then streams, in a side panel. Official Stremio Core
+  runs in a Web Worker and supplies addons, catalogs, search, metadata, episodes, streams,
+  and subtitles. Choosing a stream casts it and saves it; **save** on a stream downloads it
+  without casting. “Match Stremio metadata” on a saved file opens this page to apply movie
+  or episode details without downloading again.
+- **Library:** the Library section is your own library, the files saved on the resolver, not a
+  Stremio library addon. It has Stremio's type and sort menus (last watched, recently added,
+  A-Z, watched). Movies and series are one poster each, with every saved episode under it;
+  YouTube and other videos are listed per file. A saved movie or episode appears as the
+  first source, **Your library**, above the addon streams, with play or continue, continue
+  download, 4K link, optimize for TV, category, and delete. Calendar shows episode release
+  days for the series in your library. `library.html` now redirects here.
+- **Plus18:** the 18+ button (with a confirmation) switches the whole page to the Plus18
+  section: its own Core profile and addons, and a library of only 18+ files. Normal mode
+  hides 18+ titles everywhere.
 - **Link:** download and cast, or save without casting. Direct video URLs are saved
   by default; uncheck the save option for immediate direct playback.
 - **Downloads:** progress, cancellation, and casting while torrents download.

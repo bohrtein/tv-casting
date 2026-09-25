@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
 <meta name="color-scheme" content="dark">
-<meta name="description" content="Browse Stremio addons and cast to the TV.">
+<meta name="description" content="Browse Stremio addons and your own library, and cast to the TV.">
 <title>Stremio · TV Casting</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -16,145 +16,222 @@
 <script src="/ds/1/matrix.js"></script>
 <script src="matrix/matrix.js"></script>
 <link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/stremio.css">
 </head>
-<body class="mx">
+<body class="mx mx-has-nav cn-st">
+
+<!-- Stremio Web's main navigation: bottom bar on a phone, rail or sidebar on wider screens. -->
+<nav class="mx-nav" aria-label="Stremio">
+  <a class="mx-nav-brand" href="#/">stremio</a>
+  <a class="mx-nav-item" href="#/" data-route="board">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    <span class="mx-nav-label">Board</span>
+  </a>
+  <a class="mx-nav-item" href="#/discover" data-route="discover">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg>
+    <span class="mx-nav-label">Discover</span>
+  </a>
+  <a class="mx-nav-item" href="#/library" data-route="library">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 4v16M9 4v16M14 5l5 15"/></svg>
+    <span class="mx-nav-label">Library</span>
+  </a>
+  <a class="mx-nav-item" href="#/calendar" data-route="calendar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+    <span class="mx-nav-label">Calendar</span>
+  </a>
+  <a class="mx-nav-item" href="#/addons" data-route="addons">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M10 3h4v3a2 2 0 1 0 4 0V3h3v7h-3a2 2 0 1 0 0 4h3v7h-7v-3a2 2 0 1 0-4 0v3H3v-7h3a2 2 0 1 0 0-4H3V3z"/></svg>
+    <span class="mx-nav-label">Addons</span>
+  </a>
+  <a class="mx-nav-item" href="#/settings" data-route="settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>
+    <span class="mx-nav-label">Settings</span>
+  </a>
+</nav>
 
 <div class="mx-shell">
 
-  <div class="mx-topbar">
-    <div class="mx-brand">
-      <span class="mx-mark">tv-casting</span>
-      <h1 class="mx-tagline">stremio</h1>
+  <!-- Stremio Web's horizontal bar: search across addons, then the section and TV state. -->
+  <div class="mx-topbar cn-st-top">
+    <form id="search-form" class="cn-st-search" role="search">
+      <label class="mx-sr-only" for="search-input">Search</label>
+      <input class="mx-input" type="search" id="search-input" placeholder="Search movies, series, your library…" enterkeyhint="search" autocomplete="off">
+    </form>
+    <div class="cn-st-top-actions" data-relay-targets>
+      <button id="plus18-toggle" class="mx-btn mx-sm" type="button" aria-pressed="false">18+</button>
+      <a class="mx-btn mx-sm" href="./">remote</a>
+      <span id="relay-chip" class="mx-status-chip" data-mx-state="busy">
+        <span class="mx-led" aria-hidden="true"></span><span id="relay-chip-label">connecting</span>
+      </span>
     </div>
-    <nav class="mx-topbar-nav">
-      <a class="mx-btn mx-sm" href="./">companion</a>
-      <a class="mx-btn mx-sm" href="library.html">library</a>
-      <button class="mx-btn mx-sm" type="button" data-mx-open="addons-sheet">addons</button>
-    </nav>
-    <span id="relay-chip" class="mx-status-chip" data-mx-state="busy">
-      <span class="mx-led" aria-hidden="true"></span><span id="relay-chip-label">connecting</span>
-    </span>
   </div>
 
-  <nav class="cn-mode-tabs" aria-label="Stremio sections">
-    <button id="mode-normal" class="mx-btn mx-primary" type="button" aria-current="page">Stremio</button>
-    <button id="mode-plus18" class="mx-btn" type="button">Plus18</button>
-  </nav>
+  <div id="match-banner" class="mx-panel cn-st-banner cn-hidden">
+    <p>Matching a saved file: open its movie or episode and choose <strong>Apply metadata to saved file</strong>.</p>
+  </div>
 
-  <!-- Browse: catalog picker + search over a poster grid. -->
-  <section id="view-browse">
-    <section class="mx-panel">
-      <div class="cn-toolbar">
-        <div class="mx-field cn-grow">
-          <div class="mx-field-head"><label class="mx-label" for="browse-search">search</label></div>
-          <input class="mx-input" type="search" id="browse-search" placeholder="a movie or show…" enterkeyhint="search">
+  <main>
+    <!-- Board: continue watching from your library, then one row per addon catalog. -->
+    <section id="view-board" class="cn-st-view" data-view="board">
+      <div id="board-rows"></div>
+      <div id="board-readout" class="mx-readout" style="display:none"></div>
+    </section>
+
+    <!-- Discover: type, catalog and filters over a poster grid, with a preview on wide screens. -->
+    <section id="view-discover" class="cn-st-view cn-hidden" data-view="discover">
+      <div class="cn-st-selects">
+        <select class="mx-input mx-select" id="discover-type" aria-label="Type"></select>
+        <select class="mx-input mx-select" id="discover-catalog" aria-label="Catalog"></select>
+        <span id="discover-extra" class="cn-st-selects"></span>
+      </div>
+      <div id="discover-readout" class="mx-readout" style="display:none"></div>
+      <div class="cn-st-discover">
+        <div>
+          <div id="discover-grid" class="mx-view-grid cn-posters"></div>
+          <div class="cn-more"><button id="discover-more" class="mx-btn cn-hidden" type="button">load more</button></div>
         </div>
-        <div class="mx-field cn-grow">
-          <div class="mx-field-head"><label class="mx-label" for="browse-catalog">catalog</label></div>
-          <select class="mx-input mx-select" id="browse-catalog"></select>
+        <aside id="discover-preview" class="mx-panel cn-st-preview cn-hidden" aria-live="polite"></aside>
+      </div>
+    </section>
+
+    <!-- Library: your files on the resolver, the way Stremio lists its library. -->
+    <section id="view-library" class="cn-st-view cn-hidden" data-view="library">
+      <div class="cn-st-selects">
+        <select class="mx-input mx-select" id="library-type" aria-label="Type"></select>
+        <select class="mx-input mx-select" id="library-sort" aria-label="Sort"></select>
+        <input class="mx-input" type="search" id="library-filter" placeholder="filter" aria-label="Filter library by title">
+      </div>
+      <div id="library-readout" class="mx-readout" style="display:none"></div>
+      <div id="library-grid" class="mx-view-grid cn-posters"></div>
+    </section>
+
+    <!-- Calendar: episode release days for the series in your library. -->
+    <section id="view-calendar" class="cn-st-view cn-hidden" data-view="calendar">
+      <div class="cn-st-cal-head">
+        <button id="calendar-prev" class="mx-btn mx-sm" type="button" aria-label="Previous month">&lsaquo;</button>
+        <h2 id="calendar-title" class="mx-panel-title"></h2>
+        <button id="calendar-next" class="mx-btn mx-sm" type="button" aria-label="Next month">&rsaquo;</button>
+      </div>
+      <div id="calendar-grid" class="cn-st-cal"></div>
+      <div id="calendar-readout" class="mx-readout" style="display:none"></div>
+    </section>
+
+    <!-- Search: your library first, then a row per searchable addon catalog. -->
+    <section id="view-search" class="cn-st-view cn-hidden" data-view="search">
+      <div id="search-rows"></div>
+      <div id="search-readout" class="mx-readout" style="display:none"></div>
+    </section>
+
+    <!-- Details: the title on the left, episodes then streams in the side panel. -->
+    <section id="view-detail" class="cn-st-view cn-hidden" data-view="detail">
+      <div id="detail-bg" class="cn-st-detail-bg" aria-hidden="true"></div>
+      <button id="detail-back" class="mx-back" type="button">&lsaquo; back</button>
+      <div class="cn-st-detail">
+        <div class="cn-st-detail-main">
+          <img id="detail-logo" class="cn-st-logo cn-hidden" alt="">
+          <h2 id="detail-title" class="mx-title"></h2>
+          <p id="detail-info" class="cn-st-info"></p>
+          <dl id="detail-facts" class="cn-facts"></dl>
+          <p id="detail-desc" class="cn-st-desc"></p>
+          <div class="cn-np-buttons cn-st-actions">
+            <span id="detail-inlib" class="mx-badge cn-hidden">in library</span>
+            <button id="detail-poster-btn" class="mx-btn mx-sm" type="button">poster</button>
+            <button id="detail-backdrop-btn" class="mx-btn mx-sm cn-hidden" type="button">backdrop</button>
+            <a id="detail-trailer" class="mx-btn mx-sm cn-hidden" target="_blank" rel="noopener">trailer</a>
+            <a id="detail-imdb" class="mx-btn mx-sm cn-hidden" target="_blank" rel="noopener">IMDb</a>
           </div>
         </div>
-        <div id="browse-filters" class="cn-toolbar"></div>
-      <div id="browse-readout" class="mx-readout" style="display:none"></div>
-      <div id="browse-results"></div>
-      <div class="cn-more">
-        <button id="browse-more" class="mx-btn cn-hidden" type="button">load more</button>
+
+        <aside class="mx-panel cn-st-side">
+          <div id="side-episodes" class="cn-hidden">
+            <div class="cn-st-season">
+              <button id="season-prev" class="mx-btn mx-sm" type="button" aria-label="Previous season">&lsaquo;</button>
+              <select class="mx-input mx-select" id="episodes-season" aria-label="Season"></select>
+              <button id="season-next" class="mx-btn mx-sm" type="button" aria-label="Next season">&rsaquo;</button>
+            </div>
+            <div id="episodes-list" class="cn-st-episodes"></div>
+          </div>
+
+          <div id="side-streams">
+            <button id="streams-back" class="mx-back cn-hidden" type="button">&lsaquo; episodes</button>
+            <h3 id="streams-title" class="mx-panel-title">streams</h3>
+            <div id="local-files" class="cn-rows cn-st-local"></div>
+            <select class="mx-input mx-select cn-hidden" id="streams-addon" aria-label="Addon"></select>
+            <div id="streams-readout" class="mx-readout" style="display:none"></div>
+            <div id="streams-list" class="cn-rows"></div>
+          </div>
+        </aside>
       </div>
     </section>
-  </section>
 
-  <!-- Detail: one title, its episodes (series), and the streams to cast. -->
-  <section id="view-detail" class="cn-hidden">
-    <button id="detail-back" class="mx-back" type="button">&lsaquo; back</button>
+    <!-- Addons: installed for this section, add by manifest link. -->
+    <section id="view-addons" class="cn-st-view cn-hidden" data-view="addons">
+      <div class="cn-st-selects">
+        <input class="mx-input" type="search" id="addons-filter" placeholder="filter addons" aria-label="Filter addons">
+        <button class="mx-btn mx-primary" type="button" data-mx-open="addon-sheet">+ add addon</button>
+      </div>
+      <p id="addons-section-note" class="cn-st-note"></p>
+      <div id="addons-list" class="cn-st-addons"></div>
+    </section>
 
-    <section class="mx-hero">
-      <div id="detail-bg" class="mx-hero-bg"></div>
-      <div class="mx-hero-body">
-        <button id="detail-poster-btn" class="cn-hero-poster-btn" type="button" aria-label="show the full picture">
-          <img id="detail-poster" class="mx-hero-media cn-hero-poster" alt="">
-        </button>
-        <div class="mx-hero-text">
-          <h2 id="detail-title" class="mx-title"></h2>
-          <p id="detail-info"></p>
-          <p id="detail-desc" class="cn-desc"></p>
-          <dl id="detail-facts" class="cn-facts"></dl>
-          <button id="detail-backdrop-btn" class="mx-btn mx-sm cn-hidden" type="button" style="margin-top:10px">backdrop</button>
+    <!-- Settings: streaming server and what Plus18 changes. -->
+    <section id="view-settings" class="cn-st-view cn-hidden" data-view="settings">
+      <section class="mx-panel">
+        <h2 class="mx-panel-title">streaming server</h2>
+        <div class="mx-field">
+          <div class="mx-field-head"><label class="mx-label" for="settings-server">url</label></div>
+          <input class="mx-input" type="url" id="settings-server" placeholder="http://192.168.2.31:11470">
         </div>
-      </div>
+        <p class="cn-st-note">Stremio's own streaming server, for torrent streams and addons that need proxied headers. The TV fetches from it directly. Leave empty if you only use direct-link addons.</p>
+        <div class="cn-np-buttons">
+          <button id="settings-server-save" class="mx-btn mx-primary" type="button">save</button>
+          <button id="settings-server-check" class="mx-btn" type="button">check</button>
+        </div>
+        <div id="settings-readout" class="mx-readout" style="display:none"></div>
+      </section>
+      <section class="mx-panel">
+        <h2 class="mx-panel-title">Plus18</h2>
+        <p class="cn-st-note">Plus18 has its own addons, catalogs and library. Normal mode hides 18+ titles everywhere, including search results and your library. Switch with the 18+ button at the top.</p>
+      </section>
+      <section class="mx-panel">
+        <h2 class="mx-panel-title">playback</h2>
+        <p class="cn-st-note">Choosing a stream casts it to the TV and keeps it in your library. Use <strong>save</strong> on a stream to download it without casting. The TV remembers where you stopped and continues with the next saved episode.</p>
+      </section>
     </section>
+  </main>
 
-    <section id="episodes-panel" class="mx-panel cn-hidden">
-      <h2 class="mx-panel-title">episodes</h2>
-      <div class="mx-field">
-        <div class="mx-field-head"><label class="mx-label" for="episodes-season">season</label></div>
-        <select class="mx-input mx-select" id="episodes-season"></select>
-      </div>
-      <div id="episodes-list" class="cn-rows"></div>
-    </section>
-
-    <section id="streams-panel" class="mx-panel" style="margin-top:16px">
-      <h2 id="streams-title" class="mx-panel-title">streams</h2>
-      <label><input id="stream-save-only" type="checkbox"> Save to Library without casting</label>
-      <p>Choose a source to save it with this movie or episode's metadata.</p>
-      <div id="streams-readout" class="mx-readout" style="display:none"></div>
-      <div id="streams-list" class="cn-rows"></div>
-    </section>
-  </section>
-
-  <!-- Torrents being saved on the server (resolver/README.md,
-       "Torrents"), from any phone. Keeps going after the TV starts. -->
+  <!-- Torrents and links being saved on the server (resolver/README.md, "Torrents"). -->
   <section id="saving-panel" class="mx-panel cn-saving cn-hidden">
     <h2 class="mx-panel-title">downloads on the server</h2>
     <div id="saving-list"></div>
   </section>
 
-  <!-- Now playing: shown only while the TV has something, with enough to
-       pause/stop without leaving this page; the companion's remote tab
-       has the full seek bar. -->
+  <!-- Now playing: shown only while the TV has something. -->
   <section id="now-playing" class="mx-panel mx-glass cn-now-playing cn-hidden">
     <div class="mx-readout" id="np-readout"></div>
     <div class="cn-np-buttons">
       <button id="np-playpause" class="mx-btn mx-sm mx-primary" type="button">pause</button>
       <button id="np-stop" class="mx-btn mx-sm" type="button">stop</button>
       <a class="mx-btn mx-sm" href="./#remote">remote</a>
-      <a class="mx-btn mx-sm" href="./#downloads">downloads</a>
     </div>
   </section>
 
 </div>
 
-<div class="mx-overlay" id="addons-sheet">
-  <div class="mx-sheet mx-lg" role="dialog" aria-labelledby="addons-title">
+<div class="mx-overlay" id="addon-sheet">
+  <div class="mx-sheet" role="dialog" aria-labelledby="addon-sheet-title">
     <div class="mx-sheet-head">
-      <h2 id="addons-title" class="mx-panel-title">addons</h2>
+      <h2 id="addon-sheet-title" class="mx-panel-title">add addon</h2>
       <button class="mx-btn mx-sm" type="button" data-mx-close>close</button>
     </div>
     <div class="mx-sheet-body">
-      <p style="color:var(--mx-ink-dim); font-size:13px; margin:0 0 12px">
-        Addons here belong to the selected Stremio section. Paste a manifest link
-        (<code>https://…/manifest.json</code> or <code>stremio://…</code>).
-        Cinemeta gives the catalogs and episode lists; streams come from
-        whichever stream addons you add here.
-      </p>
-      <div id="addons-list" class="cn-rows"></div>
-      <div class="mx-field" style="margin-top:14px">
-        <div class="mx-field-head"><label class="mx-label" for="addons-url">add an addon</label></div>
+      <div class="mx-field">
+        <div class="mx-field-head"><label class="mx-label" for="addons-url">manifest link</label></div>
         <input class="mx-input" type="url" id="addons-url" placeholder="https://example.com/manifest.json">
       </div>
+      <p class="cn-st-note">Paste <code>https://…/manifest.json</code> or <code>stremio://…</code>. It is added to the current section only.</p>
       <div id="addons-readout" class="mx-readout" style="display:none"></div>
-      <button id="addons-add" class="mx-btn mx-primary" type="button" style="margin-top:10px">add</button>
-
-      <div class="mx-field" style="margin-top:22px">
-        <div class="mx-field-head"><label class="mx-label" for="addons-server">streaming server</label></div>
-        <input class="mx-input" type="url" id="addons-server" placeholder="http://192.168.2.31:11470">
-      </div>
-      <p style="color:var(--mx-ink-dim); font-size:13px; margin:6px 0 0">
-        Stremio's own streaming server (Stremio Server in App Hub's
-        Developer Tools), for torrent streams and addons that need proxied
-        headers. The TV fetches from
-        it directly. Leave empty if you only use direct-link addons.
-      </p>
-      <button id="addons-server-save" class="mx-btn" type="button" style="margin-top:10px">save server</button>
+      <button id="addons-add" class="mx-btn mx-primary" type="button">install</button>
     </div>
   </div>
 </div>
@@ -198,11 +275,13 @@
 <script src="js/downloads-view.js" defer></script>
 <script src="js/now-casting.js" defer></script>
 <script src="js/relay-client.js" defer></script>
+<script src="js/library-model.js" defer></script>
 <script src="js/stremio-cast-adapter.js" defer></script>
 <script src="js/stremio-stream-presentation.js" defer></script>
 <script src="js/stremio-settings.js" defer></script>
 <script src="js/stremio-core-transport.js" defer></script>
 <script src="js/stremio-core-client.js" defer></script>
+<script src="js/stremio-local-files.js" defer></script>
 <script src="js/stremio-app.js" defer></script>
 <script>
   if ('serviceWorker' in navigator) {

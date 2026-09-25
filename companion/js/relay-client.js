@@ -9,7 +9,7 @@ function createRelayClient(config, handlers) {
   try { targetId = localStorage.getItem('tvc.target') || 'tv'; } catch (_) {}
   var select = document.createElement('select');
   select.className = 'mx-input'; select.setAttribute('aria-label', 'Playback target');
-  var holder = document.querySelector('.mx-topbar-nav') || document.querySelector('.mx-topbar');
+  var holder = document.querySelector('[data-relay-targets]') || document.querySelector('.mx-topbar-nav') || document.querySelector('.mx-topbar');
   if (holder) {
     holder.appendChild(select);
     var link = document.createElement('a'); link.className = 'mx-btn mx-sm'; link.href = 'receiver.html'; link.target = '_blank'; link.rel = 'noopener'; link.textContent = 'Open receiver'; holder.appendChild(link);

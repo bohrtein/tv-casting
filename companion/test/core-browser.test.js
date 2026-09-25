@@ -95,6 +95,8 @@ test('Core installs an addon and supplies catalogs, metadata, search, and stream
         const curated = catalogs.find((item) => item.catalog.id === 'curated');
         const required = await client.getCatalog(curated.addon, curated.catalog, 0, { genre: 'Action' });
         const found = await client.search(addons, 'Mock');
+        const board = await client.getBoard();
+        const searchRows = await client.searchRows('Mock');
         const meta = await client.getMeta(addons, 'movie', 'tt0000001');
         const streams = await client.getStreams(addons, 'movie', 'tt0000001');
         const subtitles = await client.getSubtitles(streams.streams[0], 'movie', 'tt0000001');
@@ -109,6 +111,8 @@ test('Core installs an addon and supplies catalogs, metadata, search, and stream
           adultAddons: adultAddons.map((item) => item.manifest && item.manifest.name),
           adultMetas: adultMetas.map((item) => item.name),
           found: found.flatMap((item) => item.metas.map((metaItem) => metaItem.name)),
+          board: board.filter((row) => row.state === 'Ready').map((row) => row.id + ':' + row.metas.map((m) => m.name).join(',')),
+          searchRows: searchRows.flatMap((row) => row.metas.map((m) => m.name)),
           meta: meta && meta.name, streams: streams.streams.map((stream) => stream.name),
           subtitles: subtitles.map((subtitle) => subtitle.lang),
           castable: client.toCastable(streams.streams[0]) };
@@ -124,6 +128,8 @@ test('Core installs an addon and supplies catalogs, metadata, search, and stream
       assert.deepEqual(result.adultAddons, ['Adult Mock Addon']);
       assert.deepEqual(result.adultMetas, ['Adult Mock Film']);
       assert.ok(result.found.includes('Mock Film'));
+      assert.deepEqual(result.board, ['top:Mock Film']);
+      assert.ok(result.searchRows.includes('Mock Film'));
       assert.equal(result.meta, 'Mock Film');
       assert.deepEqual(result.streams, ['Mock HD']);
       assert.deepEqual(result.subtitles, ['eng']);

@@ -4,8 +4,18 @@
     {
       "name": "companion",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["companion/serve.js"],
+      "runtimeArgs": [
+        "companion/serve.js"
+      ],
       "port": 8080
+    },
+    {
+      "name": "stremio-preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "companion/test/preview-stremio.js"
+      ],
+      "port": 18080
     }
   ]
 }

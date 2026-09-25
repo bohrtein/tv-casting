@@ -243,6 +243,45 @@ function createStremioCoreClient(config) {
     });
   }
 
+  // Stremio's Board and Search pages: one row per addon catalog, via Core's
+  // CatalogsWithExtra model. onUpdate(rows) fires as each catalog arrives.
+  function catalogRows(model, extra, onUpdate) {
+    var section = activeSection;
+    var key = JSON.stringify(extra);
+    function rows(state) {
+      return (state.catalogs || []).map(function (item) {
+        var content = item.content || { type: 'Loading' };
+        return { id: item.id, type: item.type, name: item.name,
+          addonName: item.addon && item.addon.manifest && item.addon.manifest.name,
+          addonUrl: item.addon && item.addon.transportUrl,
+          state: content.type, error: content.type === 'Err' ? coreError(content.content) : '',
+          metas: content.type === 'Ready' ? content.content || [] : [] };
+      });
+    }
+    function current(state) { return state.selected && JSON.stringify(state.selected.extra || []) === key; }
+    return transport(section).then(function (core) {
+      var stop = core.onEvent(function (event) {
+        if (!event || event.name !== 'NewState' || !event.args || event.args.indexOf(model) === -1) return;
+        core.getState(model).then(function (state) { if (current(state) && onUpdate) onUpdate(rows(state)); }).catch(function () {});
+      });
+      return core.dispatch({ action: 'Load', args: { model: 'CatalogsWithExtra', args: { extra: extra } } }, model)
+        .then(function () { return stateWhen(core, model, function (state) { return current(state) && state.catalogs; }); })
+        .then(function (state) {
+          if (!state.catalogs.length) return state;
+          return core.dispatch({ action: 'CatalogsWithExtra', args: {
+            action: 'LoadRange', args: { start: 0, end: state.catalogs.length - 1 }
+          } }, model).then(function () {
+            return stateWhen(core, model, function (next) {
+              return current(next) && next.catalogs.every(function (item) { return item.content && item.content.type !== 'Loading'; });
+            }, 30000).catch(function () {
+              // A slow addon keeps its row loading; the others are shown.
+              return core.getState(model);
+            });
+          });
+        }).then(function (state) { stop(); return rows(state); }, function (error) { stop(); throw error; });
+    });
+  }
+
   function search(addons, query) {
     return transport(activeSection).then(function (core) {
       return core.dispatch({ action: 'Load', args: { model: 'CatalogsWithExtra', args: { extra: [['search', query]] } } }, 'search')
@@ -386,6 +425,8 @@ function createStremioCoreClient(config) {
     getCatalog: getCatalog,
     getCatalogFilters: getCatalogFilters,
     search: search,
+    getBoard: function (onUpdate) { return catalogRows('board', [], onUpdate); },
+    searchRows: function (query, onUpdate) { return catalogRows('search', [['search', query]], onUpdate); },
     getMeta: getMeta,
     getStreams: getStreams,
     getSubtitles: getSubtitles,

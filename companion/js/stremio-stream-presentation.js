@@ -109,9 +109,14 @@ function createStremioStreamPresentation() {
       group: group ? group[1] : null,
       languages: languages,
       seeders: seeders(stream),
-      infoHash: stream.infoHash || (fromMagnet(stream.url || '') || {}).infoHash || null,
+      infoHash: stream.infoHash || magnetHash(stream.url) || null,
       fileIdx: typeof stream.fileIdx === 'number' ? stream.fileIdx : null
     };
+  }
+
+  function magnetHash(url) {
+    var hash = /^magnet:.*[?&]xt=urn:btih:([0-9a-f]{40})(?:&|$)/i.exec(url || '');
+    return hash ? hash[1] : null;
   }
 
   // Cinemeta's artwork comes from images.metahub.space, which serves the

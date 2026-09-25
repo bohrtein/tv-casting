@@ -1,0 +1,218 @@
+/* stremio.html: Stremio Web's layout in Matrix.
+   Nav rail (mx-nav), a search bar on top, horizontal catalog rows, a
+   Discover grid with a side preview, and details with a side panel of
+   episodes and streams. Colours all come from Matrix tokens. */
+
+.cn-st-top { flex-wrap: nowrap; gap: var(--mx-space-3); }
+.cn-st-search { flex: 1 1 auto; min-width: 0; }
+.cn-st-search .mx-input { width: 100%; }
+.cn-st-top-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--mx-space-2); flex: 0 1 auto; min-width: 0; }
+.cn-st-top-actions > .mx-input { width: auto; max-width: 180px; min-height: var(--mx-h-sm); }
+.cn-st-search { flex-basis: 280px; }
+@media (max-width: 599px) {
+  .cn-st-top { flex-wrap: wrap; }
+  .cn-st-search { flex-basis: 100%; order: 2; }
+  .cn-st-top-actions { margin-left: auto; }
+  /* The in-browser receiver is for computers; keep the phone's bar short. */
+  .cn-st-top-actions > a[href="receiver.html"] { display: none; }
+}
+.cn-st .cn-posters { --mx-card-min: 140px; }
+.cn-st-plus18 .mx-nav-brand { color: var(--mx-warn); }
+
+.cn-st-banner { margin-bottom: var(--mx-space-4); }
+.cn-st-view { padding-bottom: var(--mx-space-6); }
+.cn-st-note { color: var(--mx-ink-dim); font-size: var(--mx-text-md); margin: var(--mx-space-2) 0; }
+.cn-st-view > .mx-panel { margin-bottom: var(--mx-space-4); }
+
+.cn-st-selects { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mx-space-2); margin-bottom: var(--mx-space-4); }
+.cn-st-selects .mx-input { flex: 0 1 220px; min-width: 0; width: auto; }
+.cn-st-selects > .cn-st-selects { margin: 0; display: contents; }
+
+/* Rows: a heading and "see all", then a strip that scrolls sideways. */
+.cn-st-row { margin-bottom: var(--mx-space-5); }
+.cn-st-row[hidden] { display: none; }
+.cn-st-row-head { display: flex; align-items: center; justify-content: space-between; gap: var(--mx-space-2); }
+.cn-st-row-head .cn-section-title { margin: 0; }
+.cn-st-strip {
+  display: flex;
+  gap: var(--mx-space-3);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  padding: var(--mx-space-2) 2px var(--mx-space-3);
+  scrollbar-width: thin;
+}
+.cn-st-strip > * { flex: 0 0 clamp(118px, 30vw, 176px); scroll-snap-align: start; }
+.cn-st-ghost { display: block; aspect-ratio: 2 / 3; border-radius: var(--mx-r-md); }
+
+/* Poster extras: a badge in the corner and a progress line at the bottom. */
+.cn-poster > .mx-slot-lead { position: relative; }
+.cn-st-badge { position: absolute; top: var(--mx-space-1); left: var(--mx-space-1); z-index: 1; }
+.cn-st-progress {
+  display: block;
+  height: 3px;
+  background: var(--mx-surface-raised);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.cn-st-progress > span { display: block; height: 100%; background: var(--mx-accent); box-shadow: 0 0 6px var(--mx-accent-glow); }
+.cn-poster .cn-st-progress, .cn-st-episode-thumb .cn-st-progress { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; border-radius: 0; }
+
+/* Discover: the grid, with the selected title previewed beside it on wide screens. */
+.cn-st-discover { display: grid; gap: var(--mx-space-4); }
+@media (min-width: 1024px) {
+  .cn-st-discover { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
+  .cn-st-preview { position: sticky; top: var(--mx-space-4); max-height: calc(100vh - 2 * var(--mx-space-4)); overflow-y: auto; }
+}
+.cn-st-preview { margin: 0; }
+.cn-st-preview.cn-hidden { display: none; }
+.cn-st-preview-art { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--mx-r-md); margin-bottom: var(--mx-space-3); }
+.cn-st-info { color: var(--mx-ink-dim); font-size: var(--mx-text-md); margin: var(--mx-space-2) 0; }
+.cn-st-desc { margin: var(--mx-space-3) 0; line-height: 1.6; }
+
+/* Calendar: a month grid on wide screens, the days with episodes on a phone. */
+.cn-st-cal-head { display: flex; align-items: center; justify-content: space-between; gap: var(--mx-space-3); margin-bottom: var(--mx-space-4); }
+.cn-st-cal-head .mx-panel-title { margin: 0; }
+.cn-st-cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--mx-space-1); }
+.cn-st-cal-dow { color: var(--mx-ink-dim); font-size: var(--mx-text-xs); text-transform: uppercase; letter-spacing: .1em; padding: var(--mx-space-1); }
+.cn-st-cal-day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mx-space-1);
+  min-height: 96px;
+  min-width: 0;
+  padding: var(--mx-space-2);
+  background: var(--mx-surface);
+  border: 1px solid var(--mx-border-soft);
+  border-radius: var(--mx-r-sm);
+}
+.cn-st-cal-pad { background: none; border-color: transparent; }
+.cn-st-cal-today { border-color: var(--mx-accent); box-shadow: var(--mx-ring); }
+.cn-st-cal-num { color: var(--mx-ink-dim); font-size: var(--mx-text-xs); }
+.cn-st-cal-ep {
+  display: block;
+  padding: 2px 6px;
+  font-size: var(--mx-text-xs);
+  color: var(--mx-ink-hot);
+  background: var(--mx-accent-low);
+  border: 1px solid var(--mx-border);
+  border-radius: var(--mx-r-sm);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cn-st-cal-ep:hover, .cn-st-cal-ep:focus-visible { border-color: var(--mx-accent); outline: none; }
+@media (max-width: 767px) {
+  .cn-st-cal { display: flex; flex-direction: column; }
+  .cn-st-cal-dow, .cn-st-cal-pad, .cn-st-cal-empty { display: none; }
+  .cn-st-cal-day { min-height: 0; }
+  .cn-st-cal-ep { white-space: normal; }
+}
+
+/* Details: the backdrop behind everything, the title on the left and the
+   side panel of episodes and streams on the right. */
+.cn-st-detail-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background-position: center top;
+  background-size: cover;
+  opacity: .22;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, black 40%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 0%, black 40%, transparent 100%);
+}
+#view-detail { position: relative; }
+#view-detail > :not(.cn-st-detail-bg) { position: relative; z-index: 2; }
+.cn-st-detail { display: grid; gap: var(--mx-space-5); margin-top: var(--mx-space-3); }
+@media (min-width: 1024px) {
+  .cn-st-detail { grid-template-columns: minmax(0, 1fr) minmax(360px, 440px); align-items: start; }
+  .cn-st-side { position: sticky; top: var(--mx-space-4); max-height: calc(100vh - 2 * var(--mx-space-4)); overflow-y: auto; }
+}
+.cn-st-detail-main { min-width: 0; padding-top: var(--mx-space-4); }
+.cn-st-detail-main .mx-title { font-size: var(--mx-text-2xl); margin: 0; }
+.cn-st-logo { display: block; max-width: min(100%, 380px); max-height: 130px; object-fit: contain; object-position: left center; margin-bottom: var(--mx-space-3); }
+.cn-st-logo.cn-hidden { display: none; }
+.cn-st-logo:not(.cn-hidden) + .mx-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.cn-st-actions { flex-wrap: wrap; align-items: center; }
+.cn-st-side { margin: 0; }
+.cn-st-side .mx-back { margin-bottom: var(--mx-space-2); }
+.cn-st-side .mx-panel-title { margin-top: 0; }
+.cn-st-side .mx-btn.mx-primary[hidden] { display: none; }
+#side-streams > .mx-btn.mx-primary { width: 100%; margin-bottom: var(--mx-space-3); }
+.cn-st-season { display: flex; align-items: center; gap: var(--mx-space-2); margin-bottom: var(--mx-space-3); }
+.cn-st-season .mx-input { flex: 1 1 auto; min-width: 0; }
+#side-streams.cn-hidden, #side-episodes.cn-hidden { display: none; }
+#streams-addon { width: 100%; margin-bottom: var(--mx-space-2); }
+
+.cn-st-episodes { display: flex; flex-direction: column; gap: var(--mx-space-2); }
+.cn-st-episode {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: var(--mx-space-3);
+  align-items: center;
+  padding: var(--mx-space-2);
+  color: var(--mx-ink);
+  text-decoration: none;
+  background: var(--mx-surface-raised);
+  border: 1px solid var(--mx-border-soft);
+  border-radius: var(--mx-r-sm);
+}
+.cn-st-episode:hover, .cn-st-episode:focus-visible { border-color: var(--mx-accent); outline: none; }
+.cn-st-episode-thumb { position: relative; display: block; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--mx-r-sm); background: var(--mx-surface-sunken); }
+.cn-st-episode-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cn-st-episode-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cn-st-episode-body .cn-row-name { white-space: normal; }
+.cn-st-watched .cn-st-episode-thumb img { opacity: .5; }
+
+/* Streams: the row plays; "save" keeps it in your library without casting. */
+.cn-st-local:not(:empty) { margin-bottom: var(--mx-space-3); padding-bottom: var(--mx-space-3); border-bottom: 1px solid var(--mx-border-soft); }
+.cn-st-stream { align-items: stretch; cursor: default; padding: 0; }
+.cn-st-stream-play {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 10px 0 10px 14px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.cn-st-stream-play:focus-visible { outline: var(--mx-focus); outline-offset: -2px; }
+.cn-st-stream .cn-stream-badges { padding: 10px 14px 10px 0; }
+.cn-st-disabled { opacity: .5; }
+.cn-st-disabled .cn-st-stream-play { cursor: default; }
+.cn-st-file { flex-wrap: wrap; cursor: default; }
+.cn-st-file .cn-st-progress { margin-top: var(--mx-space-1); }
+.cn-st-file-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mx-space-2); }
+.cn-st-file .cn-saved-manage { color: var(--mx-ink-dim); font-size: var(--mx-text-sm); }
+.cn-st-file .cn-saved-manage summary { cursor: pointer; }
+.cn-st-file .cn-saved-manage-body { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mx-space-2); padding-top: var(--mx-space-2); }
+.cn-st-file .cn-confirm, .cn-st-addon .cn-confirm { color: var(--mx-danger); border-color: var(--mx-danger-line); background: var(--mx-danger-low); }
+
+/* Addons: one card per installed addon. */
+.cn-st-addons { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: var(--mx-space-3); }
+.cn-st-addon { display: flex; align-items: flex-start; gap: var(--mx-space-3); margin: 0; }
+.cn-st-addon-logo {
+  flex: 0 0 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  font-family: var(--mx-gothic);
+  font-size: var(--mx-text-xl);
+  color: var(--mx-accent);
+  background: var(--mx-surface-sunken);
+  border: 1px solid var(--mx-border-soft);
+  border-radius: var(--mx-r-md);
+}
+.cn-st-addon-logo img { width: 100%; height: 100%; object-fit: contain; }
+.cn-st-addon-body { flex: 1 1 auto; min-width: 0; }
+.cn-st-addon-body h3 { margin: 0 0 var(--mx-space-1); font-size: var(--mx-text-base); white-space: normal; }
+.cn-st-addon-body p { margin: 0 0 var(--mx-space-1); }
+.cn-st-addon-actions { display: flex; flex-direction: column; gap: var(--mx-space-2); flex: 0 0 auto; }
