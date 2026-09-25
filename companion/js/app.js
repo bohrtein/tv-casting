@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', function () {
   var lastPositionSec = 0;
   var lastDurationSec = 0;
   var seeking = false; // true while the user is dragging the seek bar
+  var playingLibraryEntry = null;
+  var lastProgressWriteSec = -1;
 
   var el = {
     relayChip: document.getElementById('relay-chip'),
@@ -67,9 +69,12 @@ document.addEventListener('DOMContentLoaded', function () {
     return div.innerHTML;
   }
 
-  function castToTv(url, title) {
+  function castToTv(url, title, libraryEntry) {
+    playingLibraryEntry = libraryEntry ? { kind: libraryEntry.kind, key: libraryEntry.key } : null;
+    lastProgressWriteSec = -1;
     nowCasting.set(url, title);
-    relay.sendCommand('play', { url: url, title: title });
+    var resumeAt = libraryEntry && (libraryEntry.progressSec || libraryEntry.metadata && libraryEntry.metadata.progressSec) || 0;
+    relay.sendCommand('play', { url: url, title: title, startPositionSec: resumeAt });
     MX.toast(true, 'Casting: ' + title);
     if (MX.view) MX.view.show('remote');
   }
@@ -242,6 +247,13 @@ document.addEventListener('DOMContentLoaded', function () {
     if (typeof msg.title === 'string') lastStatusTitle = msg.title;
     if (typeof msg.positionSec === 'number') lastPositionSec = msg.positionSec;
     if (typeof msg.durationSec === 'number') lastDurationSec = msg.durationSec;
+    if (playingLibraryEntry && typeof msg.positionSec === 'number' &&
+        (lastProgressWriteSec < 0 || Math.abs(msg.positionSec - lastProgressWriteSec) >= 10 || msg.state === 'paused' || msg.state === 'stopped')) {
+      lastProgressWriteSec = msg.positionSec;
+      resolver.updateLibrary(playingLibraryEntry.kind, playingLibraryEntry.key, {
+        progressSec: msg.positionSec, durationSec: msg.durationSec || lastDurationSec
+      }).catch(function () {});
+    }
 
     var label;
     if (msg.state === 'error') {
@@ -278,6 +290,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (msg.state === 'stopped') {
       nowCasting.clear();
       lastDurationSec = 0;
+      playingLibraryEntry = null;
     }
   }
 

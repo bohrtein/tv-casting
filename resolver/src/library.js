@@ -7,6 +7,11 @@ const CATEGORIES = ['porn', 'movies', 'series', 'youtube', 'other'];
 function libraryFields(body) {
   const fields = {};
   if (typeof body.title === 'string' && body.title.trim()) fields.title = body.title.trim().slice(0, 300);
+  if (Number.isFinite(body.progressSec) && body.progressSec >= 0) {
+    fields.progressSec = Math.floor(body.progressSec);
+    if (Number.isFinite(body.durationSec) && body.durationSec >= 0) fields.durationSec = Math.floor(body.durationSec);
+    return fields;
+  }
   if (body.category && body.category !== 'auto') {
     if (!CATEGORIES.includes(body.category)) throw new Error('Unknown library category.');
     fields.category = body.category;
@@ -16,11 +21,25 @@ function libraryFields(body) {
     if (!['movie', 'series'].includes(m.type) || typeof m.id !== 'string' || !m.id ||
         typeof m.name !== 'string' || !m.name) throw new Error('Invalid Stremio metadata.');
     fields.metadata = {};
-    for (const key of ['id', 'type', 'name', 'poster', 'description', 'videoId', 'episodeTitle', 'addon']) {
+    for (const key of ['id', 'type', 'name', 'poster', 'description', 'videoId', 'episodeTitle', 'episodePoster', 'addon']) {
       if (typeof m[key] === 'string') fields.metadata[key] = m[key].slice(0, key === 'description' ? 5000 : 2000);
     }
     for (const key of ['season', 'episode']) {
       if (Number.isInteger(m[key]) && m[key] >= 0) fields.metadata[key] = m[key];
+    }
+    if (Number.isFinite(m.progressSec) && m.progressSec >= 0) fields.metadata.progressSec = Math.floor(m.progressSec);
+    if (Number.isFinite(m.durationSec) && m.durationSec >= 0) fields.metadata.durationSec = Math.floor(m.durationSec);
+    if (m.videos && Array.isArray(m.videos)) {
+      fields.metadata.videos = m.videos.slice(0, 2000).map((v) => {
+        const video = {};
+        for (const key of ['id', 'name', 'title', 'thumbnail', 'overview', 'released']) {
+          if (typeof v[key] === 'string') video[key] = v[key].slice(0, 2000);
+        }
+        for (const key of ['season', 'episode', 'number']) {
+          if (Number.isInteger(v[key]) && v[key] >= 0) video[key] = v[key];
+        }
+        return video;
+      });
     }
     if (m.type === 'series' && (!fields.metadata.videoId || !Number.isInteger(m.season) || !Number.isInteger(m.episode))) {
       throw new Error('Choose a specific season and episode before saving a series download.');

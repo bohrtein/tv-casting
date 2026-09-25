@@ -14,6 +14,8 @@ document.addEventListener('DOMContentLoaded', function () {
   var detail = { token: 0, meta: null };
   var nowCasting = createNowCasting(); // what this browser last cast, see now-casting.js
   var lastStatusTitle = ''; // title in the TV's latest status
+  var playingLibraryEntry = null;
+  var lastProgressWriteSec = -1;
 
   var el = {
     relayChip: document.getElementById('relay-chip'),
@@ -86,8 +88,11 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  function castToTv(url, title) {
-    if (!relay.sendCommand('play', { url: url, title: title })) {
+  function castToTv(url, title, libraryEntry) {
+    playingLibraryEntry = libraryEntry || null;
+    lastProgressWriteSec = -1;
+    var resumeAt = libraryEntry && libraryEntry.progressSec || 0;
+    if (!relay.sendCommand('play', { url: url, title: title, startPositionSec: resumeAt })) {
       MX.toast(false, 'Not connected to the relay yet, try again in a moment.');
       return;
     }
@@ -419,10 +424,11 @@ document.addEventListener('DOMContentLoaded', function () {
     var meta = detail.meta;
     if (!meta || !lastStreams || ['movie', 'series'].indexOf(lastStreams.type) === -1) return {};
     var m = { id: meta.id, type: lastStreams.type, name: meta.name, poster: meta.poster, description: meta.description };
+    if (m.type === 'series') m.videos = meta.videos || [];
     if (m.type === 'series') {
       var video = (meta.videos || []).find(function (v) { return v.id === lastStreams.id; });
       if (!video) return {};
-      Object.assign(m, { videoId: video.id, season: video.season, episode: video.episode != null ? video.episode : video.number, episodeTitle: video.name || video.title });
+      Object.assign(m, { videoId: video.id, season: video.season, episode: video.episode != null ? video.episode : video.number, episodeTitle: video.name || video.title, episodePoster: video.thumbnail || '' });
     }
     var adult = (meta.genres || []).some(function (g) { return /^(adult|porn|pornography|xxx)$/i.test(g); });
     return adult ? { metadata: m, category: 'porn' } : { metadata: m };
@@ -536,7 +542,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!refreshed) { refreshed = true; refreshSaving(); }
       }, fields).then(function (result) {
         setReadout(el.streamsReadout, '', false);
-        if (!saveOnly) castToTv(result.streamUrl, title);
+        if (!saveOnly) castToTv(result.streamUrl, title, libraryRef(result.streamUrl, fields));
         else setReadout(el.streamsReadout, 'Saving to Library. Progress is shown in Downloads.', false);
       }).catch(function (err) {
         setReadout(el.streamsReadout, err.message, true);
@@ -550,11 +556,21 @@ document.addEventListener('DOMContentLoaded', function () {
       setReadout(el.streamsReadout, job.status === 'downloading' ? 'downloading…' + pct : 'looking up that video…', false);
     }, fields).then(function (result) {
       setReadout(el.streamsReadout, '', false);
-      if (!saveOnly) castToTv(result.streamUrl, title);
+      if (!saveOnly) castToTv(result.streamUrl, title, libraryRef(result.streamUrl, fields));
       else setReadout(el.streamsReadout, 'Saved to Library.', false);
     }).catch(function (err) {
       setReadout(el.streamsReadout, err.message, true);
     });
+  }
+
+  function libraryRef(streamUrl, fields) {
+    try {
+      var path = new URL(streamUrl).pathname;
+      var torrent = /^\/media\/torrents\/([^/]+)/.exec(path);
+      var media = /^\/media\/([^/]+\.mp4)$/.exec(path);
+      return torrent ? { kind: 'torrents', key: decodeURIComponent(torrent[1]), progressSec: 0 } :
+        media ? { kind: 'media', key: decodeURIComponent(media[1]), progressSec: 0 } : null;
+    } catch (e) { return null; }
   }
 
   // --- now playing ---
@@ -573,6 +589,13 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
     if (typeof msg.title === 'string') lastStatusTitle = msg.title;
+    if (playingLibraryEntry && typeof msg.positionSec === 'number' &&
+        (lastProgressWriteSec < 0 || Math.abs(msg.positionSec - lastProgressWriteSec) >= 10 || msg.state === 'paused' || msg.state === 'stopped')) {
+      lastProgressWriteSec = msg.positionSec;
+      resolver.updateLibrary(playingLibraryEntry.kind, playingLibraryEntry.key, {
+        progressSec: msg.positionSec, durationSec: msg.durationSec || 0
+      }).catch(function () {});
+    }
     var label;
     if (msg.state === 'error') {
       label = (msg.title ? msg.title + ': ' : '') + (msg.error ? msg.error.message : 'error');
@@ -587,7 +610,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var hasMedia = msg.state !== 'idle' && msg.state !== 'stopped';
     el.nowPlaying.classList.toggle('cn-hidden', !hasMedia);
     el.npPlayPause.textContent = (msg.state === 'playing' || msg.state === 'buffering') ? 'pause' : 'play';
-    if (msg.state === 'stopped') nowCasting.clear();
+    if (msg.state === 'stopped') { nowCasting.clear(); playingLibraryEntry = null; }
   }
 
   el.npPlayPause.addEventListener('click', function () {
