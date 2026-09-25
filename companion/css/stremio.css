@@ -116,12 +116,25 @@
   position: fixed;
   inset: 0;
   z-index: 1;
+  /* Solid picture over the rain; the rain shows only where it fades out. */
+  height: 100vh;
+  height: 100lvh;
+  background-color: var(--mx-bg);
   background-position: center top;
   background-size: cover;
-  opacity: .22;
   pointer-events: none;
-  -webkit-mask-image: linear-gradient(to bottom, black 0%, black 40%, transparent 100%);
-  mask-image: linear-gradient(to bottom, black 0%, black 40%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, black 55%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 0%, black 55%, transparent 100%);
+}
+.cn-st-detail-bg[style*="none"] { display: none; }
+/* Darken the picture behind the text so the title and details stay readable. */
+.cn-st-detail-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to right, color-mix(in srgb, var(--mx-bg) 88%, transparent) 0%, color-mix(in srgb, var(--mx-bg) 55%, transparent) 55%, color-mix(in srgb, var(--mx-bg) 35%, transparent) 100%),
+    linear-gradient(to bottom, transparent 40%, var(--mx-bg) 100%);
 }
 #view-detail { position: relative; }
 #view-detail > :not(.cn-st-detail-bg) { position: relative; z-index: 2; }
