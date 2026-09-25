@@ -31,7 +31,7 @@ const METADATA_TIMEOUT_MS = parseInt(process.env.METADATA_TIMEOUT_MS || '170000'
 // A torrent nobody has read from for this long is dropped, with its
 // files: the resolver keeps its own copy of what it finished saving.
 const IDLE_MS = parseInt(process.env.IDLE_MS || '600000', 10);
-const MAX_CONNS = parseInt(process.env.MAX_CONNS || '100', 10);
+const MAX_CONNS = parseInt(process.env.MAX_CONNS || '1000', 10);
 
 // Added to whatever trackers the addon sent: addons often send a short
 // or stale list, and these are the big open ones that are still up.
