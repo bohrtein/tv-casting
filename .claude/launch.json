@@ -15,7 +15,8 @@
       "runtimeArgs": [
         "companion/test/preview-stremio.js"
       ],
-      "port": 18080
+      "port": 18080,
+      "autoPort": true
     }
   ]
 }

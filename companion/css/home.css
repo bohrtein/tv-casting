@@ -1,0 +1,119 @@
+/* index.html: your library, a tools sheet, and the remote as a bottom
+   sheet. Colours all come from Matrix tokens. */
+
+/* --- library ------------------------------------------------------------ */
+.cn-home-library {
+  /* Room under the grid for the collapsed remote. */
+  padding-bottom: calc(110px + env(safe-area-inset-bottom));
+}
+.cn-home-selects { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mx-space-2); margin-bottom: var(--mx-space-4); }
+.cn-home-selects .mx-input { flex: 0 1 220px; min-width: 0; width: auto; }
+.cn-home-selects input[type="search"] { flex: 1 1 180px; }
+.cn-home-info { color: var(--mx-ink-dim); font-size: 13px; margin: 0 0 var(--mx-space-3); }
+#title-sheet-files .cn-st-file + .cn-st-file { margin-top: 0; }
+
+/* --- tools button's unread dot ------------------------------------------ */
+#tools-open { position: relative; }
+#tools-open .mx-dot {
+  position: absolute;
+  top: 4px; right: 4px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--mx-accent);
+  opacity: 0;
+}
+#tools-open.mx-has-update .mx-dot { opacity: 1; }
+
+/* --- tools sheet: its tabs work at every width -------------------------- */
+#tools-sheet .mx-tabs {
+  display: grid;
+  position: static;
+  margin: 0;
+  padding: 0;
+  background: none;
+}
+body.cn-home.mx-tabbed #tools-sheet [data-mx-panel] { display: none; }
+body.cn-home.mx-tabbed #tools-sheet [data-mx-panel].mx-shown { display: block; }
+#tools-sheet label { display: block; margin: var(--mx-space-2) 0; }
+
+/* --- remote ------------------------------------------------------------- */
+.cn-remote {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30; /* under sheets (40), over the page */
+  margin: 0;
+  padding: 0 var(--mx-space-4) calc(var(--mx-space-4) + env(safe-area-inset-bottom));
+  border-radius: var(--mx-r-lg) var(--mx-r-lg) 0 0;
+  border-bottom: 0;
+  box-shadow: var(--mx-shadow);
+  transition: transform var(--mx-dur-slow) var(--mx-ease);
+  will-change: transform;
+}
+.cn-remote.cn-remote-dragging { transition: none; }
+.cn-remote-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mx-space-2) var(--mx-space-3);
+  padding-bottom: var(--mx-space-3);
+  touch-action: none; /* the head is the drag handle */
+  cursor: grab;
+  user-select: none;
+}
+.cn-remote-dragging .cn-remote-head { cursor: grabbing; }
+.cn-remote-grip {
+  flex: 0 0 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: inherit;
+}
+.cn-remote-grip > span {
+  width: 44px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--mx-border);
+}
+.cn-remote-grip:focus-visible > span { background: var(--mx-accent); }
+.cn-remote-head > .mx-readout {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cn-remote-head > .mx-btn { flex: 0 0 auto; min-width: 84px; }
+.cn-remote-body { display: flex; flex-direction: column; gap: var(--mx-space-3); }
+#remote-pending:empty { display: none; }
+.cn-remote-buttons { display: flex; gap: 10px; }
+.cn-remote-buttons > .mx-btn { flex: 1 1 0; min-width: 0; }
+
+@media (min-width: 600px) {
+  .cn-remote { left: 50%; right: auto; width: min(560px, 100vw); margin-left: min(-280px, -50vw); }
+}
+
+/* A computer: always open, docked bottom right, nothing to drag. */
+@media (min-width: 900px) {
+  .cn-remote {
+    left: auto;
+    right: var(--mx-space-5);
+    bottom: var(--mx-space-5);
+    width: 360px;
+    margin: 0;
+    padding-bottom: var(--mx-space-4);
+    border-radius: var(--mx-r-lg);
+    border-bottom: 1px solid var(--mx-border);
+    transform: none !important;
+  }
+  .cn-remote-grip { display: none; }
+  .cn-remote-head { padding-top: var(--mx-space-4); touch-action: auto; cursor: auto; user-select: auto; }
+  /* Scroll the last row clear of the docked remote. */
+  .cn-home-library { padding-bottom: 260px; }
+}

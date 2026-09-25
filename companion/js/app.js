@@ -25,8 +25,12 @@ document.addEventListener('DOMContentLoaded', function () {
     remotePlayPause: document.getElementById('remote-playpause'),
     remoteStop: document.getElementById('remote-stop'),
     remoteBack: document.getElementById('remote-back'),
-    remoteFwd: document.getElementById('remote-fwd')
+    remoteFwd: document.getElementById('remote-fwd'),
+    toolsOpen: document.getElementById('tools-open'),
+    toolsSheet: document.getElementById('tools-sheet')
   };
+
+  var remoteSheet = createRemoteSheet(document.getElementById('remote-sheet'));
 
   function setRelayChip(state, label) {
     el.relayChip.setAttribute('data-mx-state', state);
@@ -69,8 +73,23 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!relay.sendCommand('play', { url: url, title: title })) { MX.toast(false, 'Relay is disconnected. Try again when connected.'); return; }
     nowCasting.set(url, title);
     MX.toast(true, 'Casting: ' + title);
-    if (MX.view) MX.view.show('remote');
+    MX.sheet.close(el.toolsSheet);
+    remoteSheet.open();
   }
+
+  var library = createHomeLibrary(resolver, {
+    type: document.getElementById('library-type'),
+    sort: document.getElementById('library-sort'),
+    filter: document.getElementById('library-filter'),
+    readout: document.getElementById('library-readout'),
+    grid: document.getElementById('library-grid'),
+    sheet: document.getElementById('title-sheet'),
+    detailTitle: document.getElementById('title-sheet-title'),
+    detailInfo: document.getElementById('title-sheet-info'),
+    detailDesc: document.getElementById('title-sheet-desc'),
+    detailReadout: document.getElementById('title-sheet-readout'),
+    detailFiles: document.getElementById('title-sheet-files')
+  }, { onCast: castToTv });
 
   function describeResolveProgress(job) {
     if (job.status === 'starting') return 'looking up that video…';
@@ -139,9 +158,9 @@ document.addEventListener('DOMContentLoaded', function () {
   var downloadsView = createDownloadsView(resolver, el.downloadsEmpty, el.downloadsList, { emptyNotice: true, onCast: castToTv });
   downloadsView.onRefreshNeeded(function () { pollJobs(); });
 
-  // A download that started while another tab is open puts Matrix's
-  // update dot on the downloads tab. The first poll only records what's
-  // already there.
+  // A download that started while the downloads tab isn't on screen puts
+  // Matrix's update dot on it and on the tools button. The first poll only
+  // records what's already there.
   var seenDownloads = null;
 
   function markNewDownloads(allJobs) {
@@ -153,8 +172,15 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!seenDownloads[job.id] && !first) fresh = true;
       seenDownloads[job.id] = true;
     });
-    if (fresh && MX.view && !MX.view.visible('downloads')) MX.view.mark('downloads');
+    if (!fresh || downloadsOnScreen()) return;
+    if (MX.view) MX.view.mark('downloads');
+    el.toolsOpen.classList.add('mx-has-update');
   }
+
+  function downloadsOnScreen() {
+    return el.toolsSheet.classList.contains('mx-open') && MX.view && MX.view.current() === 'downloads';
+  }
+  el.toolsSheet.addEventListener('mx:open', function () { el.toolsOpen.classList.remove('mx-has-update'); });
 
   function renderActivity(allJobs) {
     el.activityList.innerHTML = '';
@@ -254,6 +280,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (msg.state === 'stopped') {
+      library.refresh();
       nowCasting.clear();
       lastDurationSec = 0;
     }
@@ -310,15 +337,18 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(function (err) { setReadout(el.linkReadout, err.message, true); })
       .then(function () { button.disabled = false; });
   });
+  // Old links still land somewhere sensible: #remote opens the remote,
+  // #link / #downloads / #activity open tools on that tab.
   function route() {
-    var view = location.hash.slice(1) || new URLSearchParams(location.search).get('view') || 'remote';
-    if (['remote', 'link', 'downloads', 'activity'].indexOf(view) < 0) view = 'remote';
-    if (MX.view) MX.view.show(view);
+    var view = location.hash.slice(1) || new URLSearchParams(location.search).get('view') || '';
+    if (view === 'remote') remoteSheet.open();
+    else if (['link', 'downloads', 'activity'].indexOf(view) !== -1) {
+      if (MX.view) MX.view.show(view);
+      MX.sheet.open(el.toolsSheet);
+    }
+    if (view) history.replaceState(null, '', location.pathname);
   }
   route();
   window.addEventListener('hashchange', route);
-  document.querySelectorAll('[data-mx-tab]').forEach(function (tab) {
-    tab.addEventListener('click', function () { history.replaceState(null, '', '#' + tab.getAttribute('data-mx-tab')); });
-  });
   relay.connect();
 });
