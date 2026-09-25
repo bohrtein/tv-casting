@@ -6,7 +6,8 @@
   "description": "Streams torrent files over HTTP from inside the VPN, taking incoming peers on the port PIA forwards. See README.md.",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=22"

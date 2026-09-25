@@ -28,8 +28,16 @@ URLs and the resolver only swaps the host:
 | Route | |
 |---|---|
 | `GET`/`HEAD /<infoHash>/<fileIdx>?tr=…&f=…` | The file, with `Range` support. `-1` picks the biggest video file (the biggest one matching an `f=` pattern, if any). Waits up to `METADATA_TIMEOUT_MS` for the torrent's metadata, then answers 504 with how many peers it had. |
-| `GET /<infoHash>/stats.json` | `peers` (and how many are `incoming`/`outgoing`), `knownPeers`, `downloadSpeed`, `downloaded`, `progress`… The resolver logs this while a job runs, and reads it to explain a failure. |
-| `GET /stats.json` | The forwarded port and every running torrent. |
+| `GET /<infoHash>/stats.json` | `peers` (and how many are `incoming`/`outgoing`), `knownPeers`, `downloadSpeed`, `uploadSpeed`, `uploaded`, `downloaded`, `progress`… The resolver logs this while a job runs, and reads it to explain a failure. |
+| `GET /stats.json` | The forwarded port, every running torrent, `distinctPeerAddresses`, `peerUploadedBytes`, and `streamedBytes`. The byte totals reset when the torrent server restarts. |
+
+`distinctPeerAddresses` deduplicates connected TCP/uTP peer IP addresses across
+active torrents. It does not identify individual people: several peers may
+share an address, and one person may use multiple addresses. It excludes
+connections without a remote address. `peerUploadedBytes` counts BitTorrent
+payload sent to peers; `streamedBytes` counts HTTP file bytes served to clients
+such as the resolver. These are different transfer paths and should not be added to each
+other as if they were a single upload total.
 
 Only the chosen file is downloaded, in order. A torrent nobody has read
 from for `IDLE_MS` is dropped and its files deleted (the resolver keeps

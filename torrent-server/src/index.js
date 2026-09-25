@@ -17,6 +17,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import WebTorrent from 'webtorrent';
+import { distinctPeerAddresses } from './metrics.js';
 
 const PORT = parseInt(process.env.PORT || '11480', 10);
 const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
@@ -114,6 +115,9 @@ client.on('error', (err) => log('client error:', err.message));
 
 // infoHash -> { torrent, active, lastUsed }
 const entries = new Map();
+const serverStartedAt = Date.now();
+let peerUploadedBytes = 0;
+let streamedBytes = 0;
 
 function trackersFrom(params) {
   const list = [];
@@ -137,6 +141,7 @@ function getEntry(infoHash, params) {
   });
   entry = { torrent, active: 0, lastUsed: Date.now() };
   entries.set(infoHash, entry);
+  torrent.on('upload', (bytes) => { peerUploadedBytes += bytes; });
   torrent.on('error', (err) => {
     log('torrent error', infoHash, err.message);
     entries.delete(infoHash);
@@ -228,6 +233,7 @@ function torrentStats(infoHash, entry) {
     knownPeers: typeof t._peersLength === 'number' ? t._peersLength : null,
     downloadSpeed: Math.round(t.downloadSpeed),
     uploadSpeed: Math.round(t.uploadSpeed),
+    uploaded: t.uploaded,
     downloaded: t.downloaded,
     progress: t.progress,
     activeStreams: entry.active,
@@ -287,6 +293,7 @@ async function serveFile(req, res, infoHash, idx, params) {
   }
 
   const stream = file.createReadStream({ start, end });
+  stream.on('data', (chunk) => { streamedBytes += chunk.length; });
   stream.on('error', (err) => {
     log('stream error', infoHash, err.message);
     res.destroy();
@@ -302,10 +309,15 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (url.pathname === '/stats.json') {
+    const torrents = [...entries].map(([hash, e]) => torrentStats(hash, e));
     sendJson(res, 200, {
       forwardedPort,
       listeningPort: client.torrentPort || null,
-      torrents: [...entries].map(([hash, e]) => torrentStats(hash, e))
+      serverStartedAt,
+      torrents,
+      distinctPeerAddresses: distinctPeerAddresses([...entries.values()].map((e) => e.torrent)),
+      peerUploadedBytes,
+      streamedBytes
     });
     return;
   }
