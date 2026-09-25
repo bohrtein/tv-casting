@@ -53,7 +53,10 @@ function createPlayer(handlers) {
       },
       onbufferingcomplete: function () {
         log.info('buffering complete');
-        handlers.onStateChange('playing');
+        var state = webapis.avplay.getState();
+        if (state === 'PAUSED' || state === 'PLAYING') {
+          handlers.onStateChange(state === 'PAUSED' ? 'paused' : 'playing');
+        }
       },
       onstreamcompleted: function () {
         log.info('stream completed');
@@ -207,10 +210,19 @@ function createPlayer(handlers) {
       log.warn('seekBy ignored: nothing loaded');
       return;
     }
-    var current = webapis.avplay.getCurrentTime();
-    var target = Math.max(0, current + deltaSec * 1000);
-    log.info('seekBy ' + deltaSec + 's: ' + Math.floor(current / 1000) + 's -> ' + Math.floor(target / 1000) + 's');
-    webapis.avplay.seekTo(target);
+    try {
+      var current = webapis.avplay.getCurrentTime();
+      var target = Math.max(0, current + deltaSec * 1000);
+      var duration = webapis.avplay.getDuration();
+      if (duration > 0) target = Math.min(target, Math.max(0, duration - 1000));
+      log.info('seekBy ' + deltaSec + 's: ' + Math.floor(current / 1000) + 's -> ' + Math.floor(target / 1000) + 's');
+      webapis.avplay.seekTo(target, function () {}, function (err) {
+        log.warn('seekBy failed', describeError(err));
+      });
+    } catch (e) {
+      // Live/non-seekable streams and overlapping remote presses can reject a seek.
+      log.warn('seekBy failed', describeError(e));
+    }
   }
 
   function stop() {
