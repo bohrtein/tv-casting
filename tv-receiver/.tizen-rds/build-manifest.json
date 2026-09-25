@@ -4,10 +4,10 @@
   "hashAlgorithm": "xxh3-128",
   "input": {
     "css/style.css": {
-      "hash": "9efda7a14875d6f04a8aab1777b348a8"
+      "hash": "21ea58b8c0f90884085813945db57244"
     },
     "index.html": {
-      "hash": "3228afc92274f435381889d393f53429"
+      "hash": "53b927f450de922852215c242f3b49a7"
     },
     "matrix/fonts/OFL.txt": {
       "hash": "1223916b1a89adc59991ec4a437ff320"
@@ -31,7 +31,7 @@
       "hash": "cce3b30ae8ad3b2eafcaff747c533044"
     },
     "README.md": {
-      "hash": "d74ee7d9f03500fd57940db6e79141e8"
+      "hash": "9ef01b55134d93c59b39dec10c9ba807"
     },
     "tizen_web_project.yaml": {
       "hash": "8d70338d68d00d269054c8f0c2cb5d9d"
@@ -40,27 +40,27 @@
       "hash": "cfa83a20b8b756ede3de09e0174d09a3"
     },
     "js/player.js": {
-      "hash": "abd61c1ae7a13ff9c4a60ecfa171c9a6"
+      "hash": "10b555c639460a87fb6eb47d39d130cd"
     },
     "js/app.js": {
-      "hash": "fecab7d875a3010b26f318e3c3f2688f"
+      "hash": "401d5a03b3875b1e629d3b69564260ea"
     }
   },
   "output": {
     "Debug/projects/tv-receiver/css/style.css": {
-      "hash": "51bb4abce195d2b81ffed1964f83d9d1"
+      "hash": "21ea58b8c0f90884085813945db57244"
     },
     "Debug/projects/tv-receiver/index.html": {
-      "hash": "093f6f4fde6fecd3e3817ed5bc08f49f"
+      "hash": "53b927f450de922852215c242f3b49a7"
     },
     "Debug/projects/tv-receiver/js/app.js": {
-      "hash": "fecab7d875a3010b26f318e3c3f2688f"
+      "hash": "401d5a03b3875b1e629d3b69564260ea"
     },
     "Debug/projects/tv-receiver/js/log.js": {
       "hash": "436aaebb000a269b31ef30c748c2a663"
     },
     "Debug/projects/tv-receiver/js/player.js": {
-      "hash": "08c1f202c7ef4f9a499d0db8b51e96e1"
+      "hash": "10b555c639460a87fb6eb47d39d130cd"
     },
     "Debug/projects/tv-receiver/js/relay-client.js": {
       "hash": "b1ba561cbd45e7011a0e71ebf27818c2"
@@ -69,7 +69,7 @@
       "hash": "6d08eb7830b3222bbeba2c706c635eba"
     },
     "Debug/projects/tv-receiver/README.md": {
-      "hash": "d74ee7d9f03500fd57940db6e79141e8"
+      "hash": "9ef01b55134d93c59b39dec10c9ba807"
     },
     "Debug/projects/tv-receiver/matrix/fonts/OFL.txt": {
       "hash": "1223916b1a89adc59991ec4a437ff320"
@@ -96,7 +96,7 @@
       "hash": "6c2277957038a4a986034f806e6f6f88"
     },
     "Debug/projects/tv-receiver/tests/remote-controls.test.js": {
-      "hash": "ae848edc12d4e62ef2e1f469d0d501d8"
+      "hash": "9f82271e8db58d3164614c4539df131b"
     }
   }
 }

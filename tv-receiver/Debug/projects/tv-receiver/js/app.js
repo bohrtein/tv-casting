@@ -13,6 +13,7 @@
     playPause: document.getElementById('play-pause'),
     rewind: document.getElementById('rewind'),
     forward: document.getElementById('forward'),
+    seekIndicator: document.getElementById('seek-indicator'),
     errorBanner: document.getElementById('error-banner')
   };
 
@@ -22,6 +23,10 @@
   var controlsTimer = null;
   var CONTROLS_TIMEOUT_MS = 4000;
   var SEEK_STEP_SEC = 10; // matches companion's own <<10s/10s>> buttons
+  var queuedSeekSec = 0;
+  var seekFlushTimer = null;
+  var seekIndicatorTimer = null;
+  var SEEK_COALESCE_MS = 250;
 
   var relay = createRelayClient(APP_CONFIG, {
     onRegistered: onRegistered,
@@ -77,7 +82,36 @@
 
   function skipBy(seconds) {
     showControls();
-    if (canControlPlayback()) player.seekBy(seconds);
+    if (canControlPlayback() || currentPlaybackState === 'buffering') {
+      queuedSeekSec += seconds;
+      showSeekIndicator();
+      if (canControlPlayback()) scheduleSeekFlush();
+    }
+  }
+
+  function showSeekIndicator() {
+    elements.seekIndicator.textContent = (queuedSeekSec > 0 ? '+' : '') + queuedSeekSec + 's';
+    elements.seekIndicator.classList.remove('hidden');
+    clearTimeout(seekIndicatorTimer);
+    seekIndicatorTimer = setTimeout(function () {
+      if (!queuedSeekSec) elements.seekIndicator.classList.add('hidden');
+    }, 1800);
+  }
+
+  function scheduleSeekFlush() {
+    clearTimeout(seekFlushTimer);
+    seekFlushTimer = setTimeout(flushQueuedSeek, SEEK_COALESCE_MS);
+  }
+
+  function flushQueuedSeek() {
+    if (!queuedSeekSec || !canControlPlayback()) return;
+    var delta = queuedSeekSec;
+    queuedSeekSec = 0;
+    player.seekBy(delta);
+    clearTimeout(seekIndicatorTimer);
+    seekIndicatorTimer = setTimeout(function () {
+      elements.seekIndicator.classList.add('hidden');
+    }, 900);
   }
 
   function onRegistered() {
@@ -103,6 +137,9 @@
     log.info('command: ' + msg.action, msg.payload || '');
     switch (msg.action) {
       case 'play':
+        queuedSeekSec = 0;
+        clearTimeout(seekFlushTimer);
+        elements.seekIndicator.classList.add('hidden');
         currentTitle = (msg.payload && msg.payload.title) || '';
         elements.nowPlayingTitle.textContent = currentTitle;
         currentPlaybackState = 'buffering';
@@ -114,7 +151,13 @@
       case 'pause':
         player.pause();
         break;
+      case 'resume':
+        player.resume();
+        break;
       case 'stop':
+        queuedSeekSec = 0;
+        clearTimeout(seekFlushTimer);
+        elements.seekIndicator.classList.add('hidden');
         player.stop();
         relay.sendStatus({ state: 'stopped' });
         showIdleScreen();
@@ -133,6 +176,7 @@
     currentPlaybackState = state;
     elements.nowPlayingState.textContent = state;
     updateControls();
+    if ((state === 'playing' || state === 'paused') && queuedSeekSec) scheduleSeekFlush();
     if (state === 'paused') showControls();
     var durationSec = player.getDurationSec();
     var status = { state: state, title: currentTitle };
@@ -160,6 +204,9 @@
       elements.errorBanner.classList.add('hidden');
     }, 5000);
     showIdleScreen();
+    queuedSeekSec = 0;
+    clearTimeout(seekFlushTimer);
+    elements.seekIndicator.classList.add('hidden');
   }
 
   // Standard Tizen TV input device key names/codes for the remote's own

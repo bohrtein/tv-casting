@@ -95,6 +95,10 @@
         "type": "add"
       },
       {
+        "path": "Debug/projects/tv-receiver/tests",
+        "type": "modify"
+      },
+      {
         "path": "Debug/projects/tv-receiver/tests/remote-controls.test.js",
         "type": "add"
       }

@@ -1,11 +1,11 @@
 {
   "deployId": 1,
   "projectDir": "c:\\tv-casting\\tv-receiver",
-  "timestamp": "2026-09-25T03:01:16.719Z",
+  "timestamp": "2026-09-25T03:05:40.418Z",
   "hashAlgorithm": "xxh3-128",
   "input": {
     "README.md": {
-      "hash": "e80d3168335375fce61663a3ef578e7e"
+      "hash": "d74ee7d9f03500fd57940db6e79141e8"
     },
     "index.html": {
       "hash": "093f6f4fde6fecd3e3817ed5bc08f49f"
@@ -16,8 +16,20 @@
     "config.xml": {
       "hash": "afdc94a211f8772b9f72b59d95d8b590"
     },
+    "tests/remote-controls.test.js": {
+      "hash": "ae848edc12d4e62ef2e1f469d0d501d8"
+    },
     "media/idle-background.jpg": {
       "hash": "6d08eb7830b3222bbeba2c706c635eba"
+    },
+    "matrix/VERSION": {
+      "hash": "cce3b30ae8ad3b2eafcaff747c533044"
+    },
+    "matrix/matrix-tokens.css": {
+      "hash": "44c094952c7c0c1ffc7956ebf5091624"
+    },
+    "matrix/MANIFEST.json": {
+      "hash": "3b2ef8b9b15b88591bc6941e89fec2a8"
     },
     "js/relay-client.js": {
       "hash": "5d9040ae0da8f82979cf3c02db1bd68d"
@@ -32,19 +44,7 @@
       "hash": "be51ea212d6c6bf0ba92a816fd00cce5"
     },
     "js/app.js": {
-      "hash": "9ff1303d0b11cd4f15ebfab0fe9146b8"
-    },
-    "matrix/VERSION": {
-      "hash": "cce3b30ae8ad3b2eafcaff747c533044"
-    },
-    "matrix/matrix-tokens.css": {
-      "hash": "44c094952c7c0c1ffc7956ebf5091624"
-    },
-    "matrix/MANIFEST.json": {
-      "hash": "3b2ef8b9b15b88591bc6941e89fec2a8"
-    },
-    "tests/remote-controls.test.js": {
-      "hash": "ae848edc12d4e62ef2e1f469d0d501d8"
+      "hash": "fecab7d875a3010b26f318e3c3f2688f"
     },
     "css/style.css": {
       "hash": "51bb4abce195d2b81ffed1964f83d9d1"
@@ -64,7 +64,7 @@
   },
   "output": {
     "Debug/projects/tv-receiver/README.md": {
-      "hash": "e80d3168335375fce61663a3ef578e7e"
+      "hash": "d74ee7d9f03500fd57940db6e79141e8"
     },
     "Debug/projects/tv-receiver/index.html": {
       "hash": "093f6f4fde6fecd3e3817ed5bc08f49f"
@@ -103,7 +103,7 @@
       "hash": "be51ea212d6c6bf0ba92a816fd00cce5"
     },
     "Debug/projects/tv-receiver/js/app.js": {
-      "hash": "9ff1303d0b11cd4f15ebfab0fe9146b8"
+      "hash": "fecab7d875a3010b26f318e3c3f2688f"
     },
     "Debug/projects/tv-receiver/css/style.css": {
       "hash": "51bb4abce195d2b81ffed1964f83d9d1"

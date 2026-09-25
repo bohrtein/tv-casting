@@ -140,6 +140,22 @@ html, body {
   height: 1080px;
 }
 
+.seek-indicator {
+  position: absolute;
+  top: 50%;
+  right: var(--safe);
+  transform: translateY(-50%);
+  padding: 18px 28px;
+  border: 1px solid var(--mx-border);
+  border-right: 4px solid var(--mx-accent);
+  border-radius: var(--mx-r-sm);
+  background: var(--mx-scrim);
+  color: var(--mx-ink-hot);
+  font-size: 48px;
+  font-weight: 700;
+  text-shadow: 0 0 12px var(--mx-accent-glow);
+}
+
 .now-playing {
   position: absolute;
   left: var(--safe);
