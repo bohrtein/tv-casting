@@ -1,14 +1,14 @@
 {
   "deployId": 1,
   "projectDir": "c:\\tv-casting\\tv-receiver",
-  "timestamp": "2026-09-25T03:05:40.418Z",
+  "timestamp": "2026-09-25T03:56:44.785Z",
   "hashAlgorithm": "xxh3-128",
   "input": {
     "README.md": {
-      "hash": "d74ee7d9f03500fd57940db6e79141e8"
+      "hash": "9ef01b55134d93c59b39dec10c9ba807"
     },
     "index.html": {
-      "hash": "093f6f4fde6fecd3e3817ed5bc08f49f"
+      "hash": "53b927f450de922852215c242f3b49a7"
     },
     "icon.png": {
       "hash": "bd44cc37e2f9e1f535090ea4b90b0d5f"
@@ -22,20 +22,14 @@
     "media/idle-background.jpg": {
       "hash": "6d08eb7830b3222bbeba2c706c635eba"
     },
-    "matrix/VERSION": {
-      "hash": "cce3b30ae8ad3b2eafcaff747c533044"
-    },
-    "matrix/matrix-tokens.css": {
-      "hash": "44c094952c7c0c1ffc7956ebf5091624"
-    },
-    "matrix/MANIFEST.json": {
-      "hash": "3b2ef8b9b15b88591bc6941e89fec2a8"
+    "css/style.css": {
+      "hash": "21ea58b8c0f90884085813945db57244"
     },
     "js/relay-client.js": {
       "hash": "5d9040ae0da8f82979cf3c02db1bd68d"
     },
     "js/player.js": {
-      "hash": "08c1f202c7ef4f9a499d0db8b51e96e1"
+      "hash": "10b555c639460a87fb6eb47d39d130cd"
     },
     "js/log.js": {
       "hash": "436aaebb000a269b31ef30c748c2a663"
@@ -44,10 +38,16 @@
       "hash": "be51ea212d6c6bf0ba92a816fd00cce5"
     },
     "js/app.js": {
-      "hash": "fecab7d875a3010b26f318e3c3f2688f"
+      "hash": "401d5a03b3875b1e629d3b69564260ea"
     },
-    "css/style.css": {
-      "hash": "51bb4abce195d2b81ffed1964f83d9d1"
+    "matrix/VERSION": {
+      "hash": "cce3b30ae8ad3b2eafcaff747c533044"
+    },
+    "matrix/matrix-tokens.css": {
+      "hash": "44c094952c7c0c1ffc7956ebf5091624"
+    },
+    "matrix/MANIFEST.json": {
+      "hash": "3b2ef8b9b15b88591bc6941e89fec2a8"
     },
     "matrix/fonts/UnifrakturMaguntia-Book.ttf": {
       "hash": "a231106bc472e71af7258651859b03fa"
@@ -64,10 +64,10 @@
   },
   "output": {
     "Debug/projects/tv-receiver/README.md": {
-      "hash": "d74ee7d9f03500fd57940db6e79141e8"
+      "hash": "9ef01b55134d93c59b39dec10c9ba807"
     },
     "Debug/projects/tv-receiver/index.html": {
-      "hash": "093f6f4fde6fecd3e3817ed5bc08f49f"
+      "hash": "53b927f450de922852215c242f3b49a7"
     },
     "Debug/projects/tv-receiver/icon.png": {
       "hash": "bd44cc37e2f9e1f535090ea4b90b0d5f"
@@ -94,7 +94,7 @@
       "hash": "5d9040ae0da8f82979cf3c02db1bd68d"
     },
     "Debug/projects/tv-receiver/js/player.js": {
-      "hash": "08c1f202c7ef4f9a499d0db8b51e96e1"
+      "hash": "10b555c639460a87fb6eb47d39d130cd"
     },
     "Debug/projects/tv-receiver/js/log.js": {
       "hash": "436aaebb000a269b31ef30c748c2a663"
@@ -103,10 +103,10 @@
       "hash": "be51ea212d6c6bf0ba92a816fd00cce5"
     },
     "Debug/projects/tv-receiver/js/app.js": {
-      "hash": "fecab7d875a3010b26f318e3c3f2688f"
+      "hash": "401d5a03b3875b1e629d3b69564260ea"
     },
     "Debug/projects/tv-receiver/css/style.css": {
-      "hash": "51bb4abce195d2b81ffed1964f83d9d1"
+      "hash": "21ea58b8c0f90884085813945db57244"
     },
     "Debug/projects/tv-receiver/.vscode/settings.json": {
       "hash": "4363d5c883c8ad50eb39176c2df0bdb7"

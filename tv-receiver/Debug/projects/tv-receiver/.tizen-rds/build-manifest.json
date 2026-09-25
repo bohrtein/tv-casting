@@ -48,19 +48,19 @@
   },
   "output": {
     "Debug/projects/tv-receiver/css/style.css": {
-      "hash": "21ea58b8c0f90884085813945db57244"
+      "hash": "4e6e55c3eca8daf719e487386306d040"
     },
     "Debug/projects/tv-receiver/index.html": {
-      "hash": "53b927f450de922852215c242f3b49a7"
+      "hash": "b9f29a961b82bd7b14caaa018bab563a"
     },
     "Debug/projects/tv-receiver/js/app.js": {
-      "hash": "401d5a03b3875b1e629d3b69564260ea"
+      "hash": "379e1211237a93650049ad914847148d"
     },
     "Debug/projects/tv-receiver/js/log.js": {
       "hash": "436aaebb000a269b31ef30c748c2a663"
     },
     "Debug/projects/tv-receiver/js/player.js": {
-      "hash": "10b555c639460a87fb6eb47d39d130cd"
+      "hash": "2e203930cd727c21832d65145b35daf4"
     },
     "Debug/projects/tv-receiver/js/relay-client.js": {
       "hash": "b1ba561cbd45e7011a0e71ebf27818c2"
@@ -69,7 +69,7 @@
       "hash": "6d08eb7830b3222bbeba2c706c635eba"
     },
     "Debug/projects/tv-receiver/README.md": {
-      "hash": "9ef01b55134d93c59b39dec10c9ba807"
+      "hash": "0b333cfe19fda61df9cde7cb72e8a6f7"
     },
     "Debug/projects/tv-receiver/matrix/fonts/OFL.txt": {
       "hash": "1223916b1a89adc59991ec4a437ff320"
@@ -96,7 +96,16 @@
       "hash": "6c2277957038a4a986034f806e6f6f88"
     },
     "Debug/projects/tv-receiver/tests/remote-controls.test.js": {
-      "hash": "9f82271e8db58d3164614c4539df131b"
+      "hash": "a20100ac1131b47f7886e9972b9a944a"
+    },
+    "Debug/projects/tv-receiver/js/playback-history.js": {
+      "hash": "778ef71b08f1e193fb2a97eee106aa02"
+    },
+    "Debug/projects/tv-receiver/tests/aspect-ratio.test.js": {
+      "hash": "1567ec26a285c9caa8750364c395da83"
+    },
+    "Debug/projects/tv-receiver/tests/playback-history.test.js": {
+      "hash": "1f5666e7ef6aab763fc45919d5166c73"
     }
   }
 }

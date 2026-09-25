@@ -7,6 +7,76 @@
 // still loads but webapis.avplay is undefined.
 function createPlayer(handlers) {
   var currentUrl = null;
+  var generation = 0, seekTarget = null, seekBusy = false, seekTimer = null;
+  var seekFailures = 0, buffering = false;
+
+  function fitDisplay() {
+    if (!isAvailable() || !currentUrl) return;
+    try {
+      var w = typeof window !== 'undefined' ? window.innerWidth : 1920;
+      var h = typeof window !== 'undefined' ? window.innerHeight : 1080;
+      w = w || 1920; h = h || 1080;
+      var rect = { x: 0, y: 0, width: w, height: h };
+      var tracks = [];
+      try { tracks = webapis.avplay.getCurrentStreamInfo ? webapis.avplay.getCurrentStreamInfo() : []; } catch (_) {};
+      tracks.forEach(function (track) {
+        if (track.type !== 'VIDEO') return;
+        var info = typeof track.extra_info === 'string' ? JSON.parse(track.extra_info) : track.extra_info || {};
+        var vw = Number(info.Width || info.width), vh = Number(info.Height || info.height);
+        if (!(vw > 0 && vh > 0)) return;
+        var scale = Math.min(w / vw, h / vh);
+        rect.width = vw * scale; rect.height = vh * scale;
+        rect.x = (w - rect.width) / 2; rect.y = (h - rect.height) / 2;
+      });
+      // AVPlay uses 1920x1080 coordinates regardless of the CSS viewport.
+      webapis.avplay.setDisplayRect(Math.round(rect.x * 1920 / w), Math.round(rect.y * 1080 / h),
+        Math.round(rect.width * 1920 / w), Math.round(rect.height * 1080 / h));
+      if (webapis.avplay.setDisplayMethod) webapis.avplay.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX');
+      var surface = typeof document !== 'undefined' && document.getElementById('av-player');
+      if (surface && surface.style) {
+        surface.style.left = rect.x + 'px'; surface.style.top = rect.y + 'px';
+        surface.style.width = rect.width + 'px'; surface.style.height = rect.height + 'px';
+      }
+    } catch (e) { log.warn('display metadata unavailable', describeError(e));
+      try { webapis.avplay.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX'); } catch (_) {}
+    }
+  }
+  if (typeof window !== 'undefined') window.addEventListener('resize', fitDisplay);
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', fitDisplay);
+
+  function reportSeek(error) {
+    if (handlers.onSeek) handlers.onSeek({ targetSec: seekTarget, busy: seekBusy, error: error || null });
+  }
+  function processSeek() {
+    if (seekTarget === null || seekBusy || buffering || !currentUrl) return;
+    clearTimeout(seekTimer);
+    var state = webapis.avplay.getState();
+    if (state !== 'PLAYING' && state !== 'PAUSED') return;
+    var target = seekTarget, token = generation, settled = false;
+    seekBusy = true; reportSeek();
+    function failed(err) {
+      if (token !== generation || settled) return;
+      settled = true;
+      clearTimeout(seekTimer); seekBusy = false; seekFailures++;
+      log.warn('seek retained for retry', target, describeError(err));
+      reportSeek('Seek pending: ' + describeError(err));
+      if (seekFailures < 3) seekTimer = setTimeout(processSeek, 750);
+    }
+    seekTimer = setTimeout(function () { failed('TV did not acknowledge seek'); }, 10000);
+    try {
+      webapis.avplay.seekTo(target * 1000, function () {
+        if (token !== generation || settled) return;
+        settled = true;
+        clearTimeout(seekTimer); seekBusy = false; seekFailures = 0;
+        if (seekTarget === target) seekTarget = null;
+        reportSeek(); processSeek();
+      }, failed);
+    } catch (e) { failed(e); }
+  }
+  function resetSeek() {
+    generation++; clearTimeout(seekTimer); seekTarget = null; seekBusy = false; seekFailures = 0; buffering = false;
+    reportSeek();
+  }
   var log = createLogger('player');
   var lastLoggedPlayTimeSec = -1;
 
@@ -34,6 +104,7 @@ function createPlayer(handlers) {
   // player stays half-open, and the next open() throws InvalidStateError,
   // so one bad link would break every link after it.
   function resetAfterFailure() {
+    resetSeek();
     currentUrl = null;
     try {
       webapis.avplay.close();
@@ -43,8 +114,10 @@ function createPlayer(handlers) {
   }
 
   function attachListeners() {
-    webapis.avplay.setListener({
+    var token = generation;
+    var listeners = {
       onbufferingstart: function () {
+        buffering = true;
         log.info('buffering start');
         handlers.onStateChange('buffering');
       },
@@ -52,6 +125,7 @@ function createPlayer(handlers) {
         log.info('buffering ' + percent + '%');
       },
       onbufferingcomplete: function () {
+        buffering = false; fitDisplay(); processSeek();
         log.info('buffering complete');
         var state = webapis.avplay.getState();
         if (state === 'PAUSED' || state === 'PLAYING') {
@@ -59,9 +133,11 @@ function createPlayer(handlers) {
         }
       },
       onstreamcompleted: function () {
+        if (!currentUrl) return;
         log.info('stream completed');
         stop();
         handlers.onStateChange('stopped');
+        if (handlers.onCompleted) handlers.onCompleted();
       },
       oncurrentplaytime: function (currentTime) {
         var sec = Math.floor(currentTime / 1000);
@@ -92,6 +168,7 @@ function createPlayer(handlers) {
         });
       },
       onevent: function (eventType, eventData) {
+        fitDisplay();
         log.info('onevent', eventType, eventData);
       },
       onsubtitlechange: function (duration, text) {
@@ -100,7 +177,12 @@ function createPlayer(handlers) {
       ondrmevent: function (drmEvent, drmData) {
         log.info('ondrmevent', drmEvent, drmData);
       }
+    };
+    Object.keys(listeners).forEach(function (name) {
+      var callback = listeners[name];
+      listeners[name] = function () { if (token === generation) callback.apply(null, arguments); };
     });
+    webapis.avplay.setListener(listeners);
   }
 
   function openAndPlay(url, startPositionSec) {
@@ -110,17 +192,22 @@ function createPlayer(handlers) {
     try {
       webapis.avplay.open(url);
       attachListeners();
-      webapis.avplay.setDisplayRect(0, 0, 1920, 1080);
+      fitDisplay();
+      var token = generation;
       webapis.avplay.prepareAsync(
         function () {
+          if (token !== generation) return;
+          fitDisplay(); buffering = false;
           log.info('prepared, duration=' + getDurationSec() + 's');
           if (startPositionSec) {
             webapis.avplay.seekTo(startPositionSec * 1000);
           }
           webapis.avplay.play();
           handlers.onStateChange('playing');
+          processSeek();
         },
         function (err) {
+          if (token !== generation) return;
           log.error('prepareAsync failed', describeError(err), 'url=' + url, err);
           resetAfterFailure();
           handlers.onError({ code: 'PREPARE_FAILED', message: describeError(err) });
@@ -181,12 +268,11 @@ function createPlayer(handlers) {
   }
 
   function seek(positionSec) {
-    if (!isAvailable() || !currentUrl) {
-      log.warn('seek ignored: nothing loaded');
-      return;
-    }
-    log.info('seek to ' + positionSec + 's');
-    webapis.avplay.seekTo(positionSec * 1000);
+    if (!isAvailable() || !currentUrl || !isFinite(positionSec)) return;
+    var duration = getDurationSec();
+    seekTarget = Math.max(0, duration ? Math.min(positionSec, duration - 1) : positionSec);
+    seekFailures = 0; reportSeek();
+    if (!seekBusy) { clearTimeout(seekTimer); seekTimer = setTimeout(processSeek, 250); }
   }
 
   // Only valid once prepareAsync's success callback has fired -- AVPlay
@@ -206,26 +292,13 @@ function createPlayer(handlers) {
   // wherever playback actually is right now (getCurrentTime is a plain
   // synchronous AVPlay getter, no need to track position ourselves).
   function seekBy(deltaSec) {
-    if (!isAvailable() || !currentUrl) {
-      log.warn('seekBy ignored: nothing loaded');
-      return;
-    }
-    try {
-      var current = webapis.avplay.getCurrentTime();
-      var target = Math.max(0, current + deltaSec * 1000);
-      var duration = webapis.avplay.getDuration();
-      if (duration > 0) target = Math.min(target, Math.max(0, duration - 1000));
-      log.info('seekBy ' + deltaSec + 's: ' + Math.floor(current / 1000) + 's -> ' + Math.floor(target / 1000) + 's');
-      webapis.avplay.seekTo(target, function () {}, function (err) {
-        log.warn('seekBy failed', describeError(err));
-      });
-    } catch (e) {
-      // Live/non-seekable streams and overlapping remote presses can reject a seek.
-      log.warn('seekBy failed', describeError(e));
-    }
+    if (!isAvailable() || !currentUrl || !isFinite(deltaSec)) return;
+    var base = seekTarget !== null ? seekTarget : webapis.avplay.getCurrentTime() / 1000;
+    seek(base + deltaSec);
   }
 
   function stop() {
+    resetSeek();
     if (!isAvailable() || !currentUrl) return;
     log.info('stop + close');
     try {

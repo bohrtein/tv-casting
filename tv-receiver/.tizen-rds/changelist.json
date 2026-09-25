@@ -101,6 +101,18 @@
       {
         "path": "Debug/projects/tv-receiver/tests/remote-controls.test.js",
         "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/js/playback-history.js",
+        "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/tests/aspect-ratio.test.js",
+        "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/tests/playback-history.test.js",
+        "type": "add"
       }
     ]
   }
