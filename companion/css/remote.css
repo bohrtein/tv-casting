@@ -81,23 +81,36 @@ body.cn-st.cn-remote-off { padding-bottom: calc(var(--mx-space-5) + env(safe-are
   .cn-remote { left: 50%; right: auto; width: min(560px, 100vw); margin-left: min(-280px, -50vw); }
 }
 
-/* A computer: always open, docked bottom right, nothing to drag. */
+/* A computer: docked bottom right, compact. The grip steps through the
+   three stops (remote-sheet.js): peek hides the body, controls hides the
+   captions. Nothing slides or drags here. */
 @media (min-width: 900px) {
   .cn-remote {
     left: auto;
-    right: var(--mx-space-5);
-    bottom: var(--mx-space-5);
-    width: 360px;
+    right: var(--mx-space-4);
+    bottom: var(--mx-space-4);
+    width: 300px;
     margin: 0;
-    padding-bottom: var(--mx-space-4);
-    border-radius: var(--mx-r-lg);
+    padding: 0 var(--mx-space-3) var(--mx-space-3);
+    border-radius: var(--mx-r-md);
     border-bottom: 1px solid var(--mx-border);
     transform: none !important;
   }
-  .cn-remote-grip { display: none; }
-  .cn-remote-head { padding-top: var(--mx-space-4); touch-action: auto; cursor: auto; user-select: auto; }
+  .cn-remote-grip { height: 16px; cursor: pointer; }
+  .cn-remote-grip > span { width: 32px; height: 4px; }
+  .cn-remote-grip:hover > span { background: var(--mx-border-strong); }
+  .cn-remote-head { padding-bottom: var(--mx-space-2); gap: var(--mx-space-1) var(--mx-space-2); touch-action: auto; cursor: auto; user-select: auto; }
+  .cn-remote-head > .mx-readout { font-size: var(--mx-text-sm); }
+  .cn-remote-head > .mx-btn { min-width: 64px; }
+  .cn-remote-body { gap: var(--mx-space-2); }
+  .cn-remote-buttons { gap: var(--mx-space-2); }
+  .cn-remote-buttons > .mx-btn { --mx-z-h: 32px; font-size: var(--mx-text-sm); }
+  .cn-remote .cn-captions { margin-top: var(--mx-space-2); gap: var(--mx-space-1); font-size: var(--mx-text-sm); }
+  .cn-remote-lvl-peek .cn-remote-head { padding-bottom: 0; }
+  .cn-remote-lvl-peek .cn-remote-body { display: none; }
+  .cn-remote-lvl-controls .cn-captions { display: none; }
   /* Scroll the last row clear of the docked remote. */
-  body.cn-st { padding-bottom: 260px; }
+  body.cn-st { padding-bottom: 200px; }
 }
 
 /* A phone: sit on top of Stremio's bottom nav bar. */
