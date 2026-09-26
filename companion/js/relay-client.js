@@ -169,11 +169,39 @@ function createRelayClient(config, handlers) {
     } catch (_) { return url; }
   }
 
+  function targetById(id) {
+    return targets.find(function (t) { return t.id === id; }) || null;
+  }
+  function rebaseServiceUrl(url, sourceBase, targetBase) {
+    if (typeof url !== 'string' || !sourceBase || !targetBase) return url;
+    try {
+      var parsed = new URL(url);
+      var source = new URL(sourceBase);
+      var target = new URL(targetBase);
+      var sourcePrefix = source.pathname.replace(/\/+$/, '');
+      var targetPrefix = target.pathname.replace(/\/+$/, '');
+      if (parsed.origin !== source.origin) return url;
+      if (sourcePrefix && parsed.pathname.indexOf(sourcePrefix + '/') !== 0) return url;
+      var path = sourcePrefix ? parsed.pathname.slice(sourcePrefix.length) : parsed.pathname;
+      return target.origin + targetPrefix + path + parsed.search + parsed.hash;
+    } catch (_) { return url; }
+  }
+  function forBrowserReceiver(url) {
+    var target = targetById(targetId);
+    if (!target) return url;
+    var mapped = rebaseServiceUrl(url, config.RESOLVER_URL, target.resolverUrl);
+    if (mapped !== url) return mapped;
+    mapped = rebaseServiceUrl(url, config.STREMIO_SERVER_URL, target.stremioUrl);
+    return mapped;
+  }
+
   function sendCommand(action, payload) {
     var message = { type: 'command', action: action };
-    if (payload && action === 'play' && targetId === 'tv') {
-      payload = Object.assign({}, payload, { url: forTv(payload.url) });
-      if (payload.subtitleUrl) payload.subtitleUrl = forTv(payload.subtitleUrl);
+    if (payload && action === 'play') {
+      payload = Object.assign({}, payload);
+      var mapUrl = targetId === 'tv' ? forTv : forBrowserReceiver;
+      payload.url = mapUrl(payload.url);
+      if (payload.subtitleUrl) payload.subtitleUrl = mapUrl(payload.subtitleUrl);
     }
     if (payload) message.payload = payload;
     return send(message);

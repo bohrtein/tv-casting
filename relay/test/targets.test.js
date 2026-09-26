@@ -41,11 +41,18 @@ test('browser targets coexist with TV, route commands/status, and disconnect ind
   try {
     const tv = await connect({ type: 'register', role: 'tv' });
     await wait(tv, m => m.type === 'registered');
-    const pc = await connect({ type: 'register', role: 'receiver', name: 'Desktop' });
+    const pc = await connect({
+      type: 'register', role: 'receiver', name: 'Desktop',
+      resolverUrl: 'https://remote.example/resolver',
+      stremioUrl: 'https://remote.example/stremio'
+    });
     const registered = await wait(pc, m => m.type === 'registered');
     const c = await connect({ type: 'join', role: 'companion' });
     const targets = await wait(c, m => m.type === 'targets');
     assert.equal(targets.targets.length, 2);
+    const browserTarget = targets.targets.find(t => t.id === registered.targetId);
+    assert.equal(browserTarget.resolverUrl, 'https://remote.example/resolver');
+    assert.equal(browserTarget.stremioUrl, 'https://remote.example/stremio');
     send(c, { type: 'command', action: 'pause' });
     await wait(tv, m => m.action === 'pause');
     send(c, { type: 'select-target', targetId: registered.targetId });

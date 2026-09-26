@@ -179,7 +179,11 @@
     socket.onopen = function () {
       status.textContent = 'Registering…';
       activeName = currentName();
-      var registration = { type: 'register', role: 'receiver', name: activeName };
+      var registration = {
+        type: 'register', role: 'receiver', name: activeName,
+        resolverUrl: APP_CONFIG.RESOLVER_URL,
+        stremioUrl: APP_CONFIG.STREMIO_SERVER_URL
+      };
       if (receiverId) registration.receiverId = receiverId;
       own.send(JSON.stringify(registration));
     };

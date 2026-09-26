@@ -22,7 +22,11 @@ const receivers = new Map();
 const { randomUUID } = require('crypto');
 function targetList() {
   return [{ id: 'tv', name: 'TV', online: !!clients.tvSocket }].concat(
-    [...receivers].map(([id, s]) => ({ id, name: s.receiverName, online: true })));
+    [...receivers].map(([id, s]) => ({
+      id, name: s.receiverName, online: true,
+      resolverUrl: s.resolverUrl || null,
+      stremioUrl: s.stremioUrl || null
+    })));
 }
 function publishTargets() { broadcastToCompanions({ type: 'targets', targets: targetList() }); }
 function selectedSocket(id) { return id === 'tv' ? clients.tvSocket : receivers.get(id); }
@@ -76,7 +80,10 @@ function handleFirstMessage(socket, msg) {
       socket.targetId = 'browser-' + (msg.receiverId || randomUUID());
       const previous = receivers.get(socket.targetId);
       if (previous) previous.close(1000, 'Receiver reconnected');
-      socket.receiverName = msg.name.trim(); receivers.set(socket.targetId, socket);
+      socket.receiverName = msg.name.trim();
+      socket.resolverUrl = msg.resolverUrl || null;
+      socket.stremioUrl = msg.stremioUrl || null;
+      receivers.set(socket.targetId, socket);
     }
     send(socket, { type: TYPES.REGISTERED, role: msg.role, targetId: socket.targetId });
     publishTargets();
