@@ -20,14 +20,27 @@ function createResolverClient(config) {
     } catch (_) { return url; }
   }
 
+  function normalizeMetadata(meta) {
+    if (!meta) return meta;
+    if (meta.poster) meta.poster = browserMediaUrl(meta.poster);
+    if (meta.background) meta.background = browserMediaUrl(meta.background);
+    if (meta.logo) meta.logo = browserMediaUrl(meta.logo);
+    (meta.videos || []).forEach(function (video) {
+      if (video.thumbnail) video.thumbnail = browserMediaUrl(video.thumbnail);
+    });
+    return meta;
+  }
+
   function normalizeCache(body) {
     ['entries', 'torrents'].forEach(function (key) {
       (body[key] || []).forEach(function (item) {
         if (item.streamUrl) item.streamUrl = browserMediaUrl(item.streamUrl);
         if (item.originalUrl) item.originalUrl = browserMediaUrl(item.originalUrl);
         if (item.thumbUrl) item.thumbUrl = browserMediaUrl(item.thumbUrl);
+        if (item.metadata) normalizeMetadata(item.metadata);
       });
     });
+    (body.titles || []).forEach(normalizeMetadata);
     return body;
   }
 
