@@ -30,8 +30,17 @@
     return null;
   }
   receiverId = storage('sessionStorage', 'tvc.receiverId');
-  if (!receiverId && window.crypto && crypto.randomUUID) {
-    receiverId = crypto.randomUUID();
+  if (!receiverId) {
+    if (window.crypto && typeof crypto.randomUUID === 'function') {
+      receiverId = crypto.randomUUID();
+    } else {
+      // Plain HTTP/LAN pages may not expose crypto.randomUUID().
+      receiverId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16 | 0;
+        var v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
     storage('sessionStorage', 'tvc.receiverId', receiverId);
   }
   var savedName = storage('localStorage', 'tvc.receiverName') || storage('sessionStorage', 'tvc.receiverName');
@@ -170,7 +179,9 @@
     socket.onopen = function () {
       status.textContent = 'Registering…';
       activeName = currentName();
-      own.send(JSON.stringify({ type: 'register', role: 'receiver', name: activeName, receiverId: receiverId }));
+      var registration = { type: 'register', role: 'receiver', name: activeName };
+      if (receiverId) registration.receiverId = receiverId;
+      own.send(JSON.stringify(registration));
     };
     socket.onmessage = function (event) {
       var msg; try { msg = JSON.parse(event.data); } catch (_) { return; }
