@@ -40,10 +40,16 @@
       "hash": "cfa83a20b8b756ede3de09e0174d09a3"
     },
     "js/player.js": {
-      "hash": "10b555c639460a87fb6eb47d39d130cd"
+      "hash": "2a31aa75b69be03c7f62ad90d479288f"
     },
     "js/app.js": {
-      "hash": "401d5a03b3875b1e629d3b69564260ea"
+      "hash": "963691614f08f12cacf8fb62041e75b3"
+    },
+    "config.xml": {
+      "hash": "c25f399274a0c4188f69916852ece350"
+    },
+    "tests/external-subtitles.test.js": {
+      "hash": "12c73e1396b3ba09d8968a0107dca042"
     }
   },
   "output": {
@@ -54,13 +60,13 @@
       "hash": "b9f29a961b82bd7b14caaa018bab563a"
     },
     "Debug/projects/tv-receiver/js/app.js": {
-      "hash": "379e1211237a93650049ad914847148d"
+      "hash": "963691614f08f12cacf8fb62041e75b3"
     },
     "Debug/projects/tv-receiver/js/log.js": {
       "hash": "436aaebb000a269b31ef30c748c2a663"
     },
     "Debug/projects/tv-receiver/js/player.js": {
-      "hash": "2e203930cd727c21832d65145b35daf4"
+      "hash": "2a31aa75b69be03c7f62ad90d479288f"
     },
     "Debug/projects/tv-receiver/js/relay-client.js": {
       "hash": "b1ba561cbd45e7011a0e71ebf27818c2"
@@ -106,6 +112,12 @@
     },
     "Debug/projects/tv-receiver/tests/playback-history.test.js": {
       "hash": "1f5666e7ef6aab763fc45919d5166c73"
+    },
+    "Debug/projects/tv-receiver/config.xml": {
+      "hash": "c25f399274a0c4188f69916852ece350"
+    },
+    "Debug/projects/tv-receiver/tests/external-subtitles.test.js": {
+      "hash": "12c73e1396b3ba09d8968a0107dca042"
     }
   }
 }

@@ -113,6 +113,18 @@
       {
         "path": "Debug/projects/tv-receiver/tests/playback-history.test.js",
         "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/tests/external-subtitles.test.js",
+        "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/matrix",
+        "type": "modify"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/matrix/fonts",
+        "type": "modify"
       }
     ]
   }

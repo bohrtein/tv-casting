@@ -19,6 +19,7 @@
          which is exactly the "webapis.avplay is not available on this
          device" error player.js reports. -->
     <tizen:privilege name="http://tizen.org/privilege/tv.avplay"/>
+    <tizen:privilege name="http://tizen.org/privilege/download"/>
     <tizen:setting screen-orientation="landscape"
         context-menu="disable"
         background-support="disable"

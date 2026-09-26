@@ -1,7 +1,7 @@
 {
   "deployId": 1,
   "projectDir": "c:\\tv-casting\\tv-receiver",
-  "timestamp": "2026-09-25T19:31:00.335Z",
+  "timestamp": "2026-09-26T00:01:13.627Z",
   "hashAlgorithm": "xxh3-128",
   "input": {
     "README.md": {
@@ -14,25 +14,13 @@
       "hash": "bd44cc37e2f9e1f535090ea4b90b0d5f"
     },
     "config.xml": {
-      "hash": "afdc94a211f8772b9f72b59d95d8b590"
-    },
-    "tests/remote-controls.test.js": {
-      "hash": "a20100ac1131b47f7886e9972b9a944a"
-    },
-    "tests/playback-history.test.js": {
-      "hash": "1f5666e7ef6aab763fc45919d5166c73"
-    },
-    "tests/aspect-ratio.test.js": {
-      "hash": "1567ec26a285c9caa8750364c395da83"
-    },
-    "media/idle-background.jpg": {
-      "hash": "6d08eb7830b3222bbeba2c706c635eba"
+      "hash": "c25f399274a0c4188f69916852ece350"
     },
     "js/relay-client.js": {
       "hash": "5d9040ae0da8f82979cf3c02db1bd68d"
     },
     "js/player.js": {
-      "hash": "2e203930cd727c21832d65145b35daf4"
+      "hash": "2a31aa75b69be03c7f62ad90d479288f"
     },
     "js/playback-history.js": {
       "hash": "778ef71b08f1e193fb2a97eee106aa02"
@@ -44,10 +32,19 @@
       "hash": "be51ea212d6c6bf0ba92a816fd00cce5"
     },
     "js/app.js": {
-      "hash": "379e1211237a93650049ad914847148d"
+      "hash": "963691614f08f12cacf8fb62041e75b3"
     },
-    "css/style.css": {
-      "hash": "4e6e55c3eca8daf719e487386306d040"
+    "tests/remote-controls.test.js": {
+      "hash": "a20100ac1131b47f7886e9972b9a944a"
+    },
+    "tests/playback-history.test.js": {
+      "hash": "1f5666e7ef6aab763fc45919d5166c73"
+    },
+    "tests/external-subtitles.test.js": {
+      "hash": "12c73e1396b3ba09d8968a0107dca042"
+    },
+    "tests/aspect-ratio.test.js": {
+      "hash": "1567ec26a285c9caa8750364c395da83"
     },
     "matrix/VERSION": {
       "hash": "cce3b30ae8ad3b2eafcaff747c533044"
@@ -57,6 +54,12 @@
     },
     "matrix/MANIFEST.json": {
       "hash": "3b2ef8b9b15b88591bc6941e89fec2a8"
+    },
+    "css/style.css": {
+      "hash": "4e6e55c3eca8daf719e487386306d040"
+    },
+    "media/idle-background.jpg": {
+      "hash": "6d08eb7830b3222bbeba2c706c635eba"
     },
     "matrix/fonts/UnifrakturMaguntia-Book.ttf": {
       "hash": "a231106bc472e71af7258651859b03fa"
@@ -82,7 +85,7 @@
       "hash": "bd44cc37e2f9e1f535090ea4b90b0d5f"
     },
     "Debug/projects/tv-receiver/config.xml": {
-      "hash": "afdc94a211f8772b9f72b59d95d8b590"
+      "hash": "c25f399274a0c4188f69916852ece350"
     },
     "Debug/projects/tv-receiver/tests/remote-controls.test.js": {
       "hash": "a20100ac1131b47f7886e9972b9a944a"
@@ -90,26 +93,20 @@
     "Debug/projects/tv-receiver/tests/playback-history.test.js": {
       "hash": "1f5666e7ef6aab763fc45919d5166c73"
     },
+    "Debug/projects/tv-receiver/tests/external-subtitles.test.js": {
+      "hash": "12c73e1396b3ba09d8968a0107dca042"
+    },
     "Debug/projects/tv-receiver/tests/aspect-ratio.test.js": {
       "hash": "1567ec26a285c9caa8750364c395da83"
     },
     "Debug/projects/tv-receiver/media/idle-background.jpg": {
       "hash": "6d08eb7830b3222bbeba2c706c635eba"
     },
-    "Debug/projects/tv-receiver/matrix/VERSION": {
-      "hash": "cce3b30ae8ad3b2eafcaff747c533044"
-    },
-    "Debug/projects/tv-receiver/matrix/matrix-tokens.css": {
-      "hash": "44c094952c7c0c1ffc7956ebf5091624"
-    },
-    "Debug/projects/tv-receiver/matrix/MANIFEST.json": {
-      "hash": "3b2ef8b9b15b88591bc6941e89fec2a8"
-    },
     "Debug/projects/tv-receiver/js/relay-client.js": {
       "hash": "5d9040ae0da8f82979cf3c02db1bd68d"
     },
     "Debug/projects/tv-receiver/js/player.js": {
-      "hash": "2e203930cd727c21832d65145b35daf4"
+      "hash": "2a31aa75b69be03c7f62ad90d479288f"
     },
     "Debug/projects/tv-receiver/js/playback-history.js": {
       "hash": "778ef71b08f1e193fb2a97eee106aa02"
@@ -121,13 +118,22 @@
       "hash": "be51ea212d6c6bf0ba92a816fd00cce5"
     },
     "Debug/projects/tv-receiver/js/app.js": {
-      "hash": "379e1211237a93650049ad914847148d"
-    },
-    "Debug/projects/tv-receiver/.vscode/settings.json": {
-      "hash": "4363d5c883c8ad50eb39176c2df0bdb7"
+      "hash": "963691614f08f12cacf8fb62041e75b3"
     },
     "Debug/projects/tv-receiver/css/style.css": {
       "hash": "4e6e55c3eca8daf719e487386306d040"
+    },
+    "Debug/projects/tv-receiver/matrix/VERSION": {
+      "hash": "cce3b30ae8ad3b2eafcaff747c533044"
+    },
+    "Debug/projects/tv-receiver/matrix/matrix-tokens.css": {
+      "hash": "44c094952c7c0c1ffc7956ebf5091624"
+    },
+    "Debug/projects/tv-receiver/matrix/MANIFEST.json": {
+      "hash": "3b2ef8b9b15b88591bc6941e89fec2a8"
+    },
+    "Debug/projects/tv-receiver/.vscode/settings.json": {
+      "hash": "4363d5c883c8ad50eb39176c2df0bdb7"
     },
     "Debug/projects/tv-receiver/matrix/fonts/UnifrakturMaguntia-Book.ttf": {
       "hash": "a231106bc472e71af7258651859b03fa"
