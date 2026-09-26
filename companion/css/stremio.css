@@ -23,6 +23,7 @@
 .cn-st-view { padding-bottom: var(--mx-space-6); }
 .cn-st-note { color: var(--mx-ink-dim); font-size: var(--mx-text-md); margin: var(--mx-space-2) 0; }
 .cn-st-view > .mx-panel { margin-bottom: var(--mx-space-4); }
+.cn-st-refresh { display: flex; justify-content: flex-end; margin-bottom: var(--mx-space-2); }
 
 .cn-st-selects { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mx-space-2); margin-bottom: var(--mx-space-4); }
 .cn-st-selects .mx-input { flex: 0 1 220px; min-width: 0; width: auto; }

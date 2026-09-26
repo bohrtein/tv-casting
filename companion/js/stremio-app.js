@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var matchKey = pageParams.get('matchKey');
   var CATALOG_KEY = 'tvc.stremio.catalog';
   var LIBRARY_KEY = 'tvc.stremio.library';
+  var browseCache = createStremioBrowseCache(localStorage);
   var WIDE = window.matchMedia('(min-width: 1024px)');
 
   var addons = [];
@@ -76,6 +77,15 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   function store(key, value) { try { localStorage.setItem(key + '.' + section, value); } catch (e) {} }
   function stored(key) { try { return localStorage.getItem(key + '.' + section); } catch (e) { return null; } }
+  function browseScope() {
+    return JSON.stringify({
+      addons: addons.map(function (item) { return item.url + '@' + (item.manifest && item.manifest.version || ''); }).sort(),
+      catalogs: catalogs.map(function (item) { return item.addon.url + '|' + item.catalog.type + '|' + item.catalog.id; }).sort()
+    });
+  }
+  // A row worth caching: loaded, or an addon that simply had nothing to
+  // return. Real errors are left out so the next visit retries them.
+  function settledRow(item) { return item.state === 'Ready' || item.empty; }
   function blocked(meta) { return section === 'normal' && ContentPolicy.restricted(meta); }
   function yearOf(meta) { return meta.releaseInfo || meta.year || ''; }
   function typeLabel(type) { return type ? type.charAt(0).toUpperCase() + type.slice(1) : ''; }
@@ -350,7 +360,7 @@ document.addEventListener('DOMContentLoaded', function () {
       }));
     });
   }
-  function renderBoard() {
+  function renderBoard(fresh) {
     var key = section + '|' + addonsGeneration;
     if (board.key === key) { renderContinueWatching(); return; }
     board.key = key;
@@ -361,13 +371,21 @@ document.addEventListener('DOMContentLoaded', function () {
     board.cw.row.hidden = true;
     libraryReady().then(function () { if (token === board.token) renderContinueWatching(); });
     setReadout(el.boardReadout, 'loading catalogs…', false);
+    $('board-refresh').disabled = true;
+    var requestSection = section;
+    var scope, fromCache = false;
     whenAddonsReady.then(function () {
+      if (token !== board.token) return null;
       if (addonsError) throw addonsError;
+      scope = browseScope();
+      var cached = browseCache.get('board', requestSection, scope, '');
+      if (cached) { fromCache = true; return cached; }
       return stremio.getBoard(function (rows) {
         if (token === board.token) rows.forEach(function (item) { catalogRow(el.boardRows, board.rows, item); });
-      });
+      }, fresh);
     }).then(function (rows) {
-      if (token !== board.token) return;
+      if (!rows || token !== board.token) return;
+      if (!fromCache && rows.every(settledRow)) browseCache.put('board', requestSection, scope, '', rows);
       rows.forEach(function (item) { catalogRow(el.boardRows, board.rows, item); });
       setReadout(el.boardReadout, rows.length ? '' : section === 'plus18'
         ? 'No Plus18 catalogs yet. Install an addon under Addons.'
@@ -376,12 +394,19 @@ document.addEventListener('DOMContentLoaded', function () {
       if (token !== board.token) return;
       board.key = null;
       setReadout(el.boardReadout, err.message, true);
+    }).then(function () {
+      if (token === board.token) $('board-refresh').disabled = false;
     });
   }
+  $('board-refresh').addEventListener('click', function () {
+    browseCache.remove('board', section, browseScope(), '');
+    board.key = null;
+    renderBoard(true);
+  });
 
   // --- Discover ---
 
-  var discover = { key: null, token: 0, skip: 0, seen: {}, loading: false, done: false, selected: null, entry: null, extra: {} };
+  var discover = { key: null, token: 0, skip: 0, seen: {}, loading: false, done: false, selected: null, entry: null, extra: {}, metas: [], filters: [], scope: null };
 
   function discoverHash(entry, extra) {
     var params = new URLSearchParams({ addon: entry.addon.url, type: entry.catalog.type, catalog: entry.catalog.id });
@@ -391,7 +416,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function renderDiscover(route) {
     whenAddonsReady.then(function () {
-      if (current.view !== 'discover') return;
+      if (current.view !== 'discover' || parseRoute().params.toString() !== route.params.toString()) return;
       if (addonsError) { setReadout(el.discoverReadout, addonsError.message, true); return; }
       if (!catalogs.length) {
         el.discoverGrid.innerHTML = '';
@@ -426,6 +451,9 @@ document.addEventListener('DOMContentLoaded', function () {
       discover.key = key;
       discover.entry = entry;
       discover.extra = extra;
+      discover.scope = browseScope();
+      var cached = browseCache.get('discover', section, discover.scope, key);
+      if (cached) { restoreDiscover(cached); return; }
       loadDiscoverPage(true);
     });
   }
@@ -470,7 +498,37 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  function loadDiscoverPage(reset) {
+  function appendDiscoverMeta(meta) {
+    if (!meta || !meta.id || blocked(meta) || discover.seen[meta.type + ':' + meta.id]) return;
+    discover.seen[meta.type + ':' + meta.id] = true;
+    var tile = metaTile(meta, function () { selectDiscover(meta, tile); });
+    el.discoverGrid.appendChild(tile);
+  }
+  function restoreDiscover(cached) {
+    ++discover.token;
+    discover.loading = false;
+    discover.skip = cached.skip;
+    discover.done = cached.done;
+    discover.selected = null;
+    discover.seen = {};
+    discover.metas = cached.metas.slice();
+    discover.filters = cached.filters || [];
+    el.discoverGrid.innerHTML = '';
+    hidden(el.discoverPreview, true);
+    discover.metas.forEach(appendDiscoverMeta);
+    renderDiscoverFilters(discover.filters);
+    setReadout(el.discoverReadout, !discover.skip ? 'This catalog is empty.' : '', false);
+    hidden(el.discoverMore, discover.done || !discover.skip);
+    el.discoverMore.disabled = false;
+    $('discover-refresh').disabled = false;
+  }
+  function saveDiscover() {
+    browseCache.put('discover', section, discover.scope, discover.key, {
+      metas: discover.metas, skip: discover.skip, done: discover.done, filters: discover.filters
+    });
+  }
+
+  function loadDiscoverPage(reset, fresh) {
     var entry = discover.entry;
     if (!entry || discover.loading && !reset) return;
     var token = ++discover.token;
@@ -479,37 +537,47 @@ document.addEventListener('DOMContentLoaded', function () {
       discover.seen = {};
       discover.done = false;
       discover.selected = null;
+      discover.metas = [];
+      discover.filters = [];
       el.discoverGrid.innerHTML = '';
       hidden(el.discoverPreview, true);
       window.scrollTo(0, 0);
       setReadout(el.discoverReadout, 'loading…', false);
     }
     discover.loading = true;
+    $('discover-refresh').disabled = true;
     el.discoverMore.disabled = true;
-    stremio.getCatalog(entry.addon, entry.catalog, discover.skip, discover.extra).then(function (metas) {
+    stremio.getCatalog(entry.addon, entry.catalog, discover.skip, discover.extra, fresh).then(function (metas) {
       if (token !== discover.token) return;
       setReadout(el.discoverReadout, reset && !metas.length ? 'This catalog is empty.' : '', false);
-      metas.forEach(function (meta) {
-        if (!meta || !meta.id || blocked(meta) || discover.seen[meta.type + ':' + meta.id]) return;
-        discover.seen[meta.type + ':' + meta.id] = true;
-        var tile = metaTile(meta, function () { selectDiscover(meta, tile); });
-        el.discoverGrid.appendChild(tile);
-      });
+      discover.metas = discover.metas.concat(metas);
+      metas.forEach(appendDiscoverMeta);
       discover.skip += metas.length;
       discover.done = metas.length === 0;
+      saveDiscover();
     }).catch(function (err) {
       if (token === discover.token) setReadout(el.discoverReadout, err.message, true);
     }).then(function () {
       if (token !== discover.token) return;
       discover.loading = false;
+      $('discover-refresh').disabled = false;
       el.discoverMore.disabled = false;
       hidden(el.discoverMore, discover.done || !discover.skip);
       stremio.getCatalogFilters().then(function (filters) {
-        if (token === discover.token) renderDiscoverFilters(filters);
+        if (token === discover.token) {
+          discover.filters = filters;
+          renderDiscoverFilters(filters);
+          saveDiscover();
+        }
       }).catch(function () {});
     });
   }
   el.discoverMore.addEventListener('click', function () { loadDiscoverPage(false); });
+  $('discover-refresh').addEventListener('click', function () {
+    if (!discover.key) return;
+    browseCache.remove('discover', section, discover.scope, discover.key);
+    loadDiscoverPage(true, true);
+  });
 
   // Wide screens: the first tap selects and previews, as in Stremio Web;
   // tapping the selected title (or "show") opens it. Phones open it directly.
@@ -711,15 +779,18 @@ document.addEventListener('DOMContentLoaded', function () {
     }, 500);
   });
 
-  function renderSearch(query) {
+  function renderSearch(query, force) {
     if (document.activeElement !== el.searchInput) el.searchInput.value = query;
-    if (searchState.query === section + '|' + query) return;
+    if (!force && searchState.query === section + '|' + query) return;
     searchState.query = section + '|' + query;
     searchState.rows = {};
     var token = ++searchState.token;
     el.searchRows.innerHTML = '';
+    $('search-refresh').disabled = !query;
     if (!query) { setReadout(el.searchReadout, 'Type a title to search your library and addons.', false); return; }
     setReadout(el.searchReadout, 'searching…', false);
+    $('search-refresh').disabled = true;
+    var requestSection = section;
     var mine = makeRow(el.searchRows, 'Your library', null);
     mine.row.hidden = true;
     libraryReady().then(function () {
@@ -731,12 +802,19 @@ document.addEventListener('DOMContentLoaded', function () {
           onClick: function () { location.hash = item.kind === 'title' ? detailHref(item.type, item.metadata.id) : detailHref('local', item.key); } }));
       });
     });
+    var scope, fromCache = false;
     whenAddonsReady.then(function () {
+      if (token !== searchState.token) return null;
       if (addonsError) throw addonsError;
+      scope = browseScope();
+      var cached = browseCache.get('search', requestSection, scope, query);
+      if (cached) { fromCache = true; return cached; }
       return stremio.searchRows(query, function (rows) {
         if (token === searchState.token) rows.forEach(function (item) { catalogRow(el.searchRows, searchState.rows, item); });
-      });
+      }, force);
     }).then(function (rows) {
+      if (!rows) return;
+      if (!fromCache && rows.every(settledRow)) browseCache.put('search', requestSection, scope, query, rows);
       if (token !== searchState.token) return;
       rows.forEach(function (item) { catalogRow(el.searchRows, searchState.rows, item); });
       var found = rows.some(function (item) { return item.metas.some(function (meta) { return !blocked(meta); }); }) || !mine.row.hidden;
@@ -744,8 +822,16 @@ document.addEventListener('DOMContentLoaded', function () {
         : 'None of your addons can search. Cinemeta can.', !found);
     }).catch(function (err) {
       if (token === searchState.token) { searchState.query = null; setReadout(el.searchReadout, err.message, true); }
+    }).then(function () {
+      if (token === searchState.token) $('search-refresh').disabled = false;
     });
   }
+  $('search-refresh').addEventListener('click', function () {
+    var query = parseRoute().params.get('q') || '';
+    if (!query) return;
+    browseCache.remove('search', section, browseScope(), query);
+    renderSearch(query, true);
+  });
 
   // --- Details ---
 
@@ -1401,6 +1487,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (section === 'plus18') params.set('section', 'plus18'); else params.delete('section');
     var query = params.toString();
     board.key = null; discover.key = null; detail.key = null; detail.local = null; searchState.query = null; libraryView.signature = null;
+    ++board.token; ++discover.token; ++searchState.token;
     ++streamsToken; ++subtitleToken;
     MX.sheet.close('subtitles-sheet');
     addons = [];
@@ -1435,6 +1522,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (section === loadingSection) addonsError = err instanceof Error ? err : new Error(String(err && err.message || err));
     });
     board.key = null; discover.key = null; searchState.query = null;
+    ++board.token; ++discover.token; ++searchState.token;
     if (detail.meta) detail.key = null;
     render();
     return whenAddonsReady;

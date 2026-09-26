@@ -94,6 +94,9 @@ test('Core installs an addon and supplies catalogs, metadata, search, and stream
         const filters = await client.getCatalogFilters();
         const curated = catalogs.find((item) => item.catalog.id === 'curated');
         const required = await client.getCatalog(curated.addon, curated.catalog, 0, { genre: 'Action' });
+        // A cached Discover grid can ask for its next page after another catalog was selected.
+        const resumed = await client.getCatalog(catalogs[0].addon, catalogs[0].catalog, 1);
+        const refreshed = await client.getCatalog(catalogs[0].addon, catalogs[0].catalog, 0);
         const found = await client.search(addons, 'Mock');
         const board = await client.getBoard();
         const searchRows = await client.searchRows('Mock');
@@ -108,6 +111,8 @@ test('Core installs an addon and supplies catalogs, metadata, search, and stream
           next: next.map((item) => item.name),
           filtered: filtered.map((item) => item.name), filters: filters.map((item) => item.name),
           required: required.map((item) => item.name),
+          resumed: resumed.map((item) => item.name),
+          refreshed: refreshed.map((item) => item.name),
           adultAddons: adultAddons.map((item) => item.manifest && item.manifest.name),
           adultMetas: adultMetas.map((item) => item.name),
           found: found.flatMap((item) => item.metas.map((metaItem) => metaItem.name)),
@@ -125,6 +130,8 @@ test('Core installs an addon and supplies catalogs, metadata, search, and stream
       assert.deepEqual(result.filtered, ['Action Mock Film']);
       assert.ok(result.filters.includes('genre'));
       assert.deepEqual(result.required, ['Curated Mock Film']);
+      assert.deepEqual(result.resumed, ['Mock Film 2']);
+      assert.deepEqual(result.refreshed, ['Mock Film']);
       assert.deepEqual(result.adultAddons, ['Adult Mock Addon']);
       assert.deepEqual(result.adultMetas, ['Adult Mock Film']);
       assert.ok(result.found.includes('Mock Film'));

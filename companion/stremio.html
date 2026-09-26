@@ -74,6 +74,7 @@
   <main>
     <!-- Board: continue watching from your library, then one row per addon catalog. -->
     <section id="view-board" class="cn-st-view" data-view="board">
+      <div class="cn-st-refresh"><button id="board-refresh" class="mx-btn mx-sm" type="button">refresh catalogs</button></div>
       <div id="board-rows"></div>
       <div id="board-readout" class="mx-readout" style="display:none"></div>
     </section>
@@ -84,6 +85,7 @@
         <select class="mx-input mx-select" id="discover-type" aria-label="Type"></select>
         <select class="mx-input mx-select" id="discover-catalog" aria-label="Catalog"></select>
         <span id="discover-extra" class="cn-st-selects"></span>
+        <button id="discover-refresh" class="mx-btn mx-sm" type="button">refresh</button>
       </div>
       <div id="discover-readout" class="mx-readout" style="display:none"></div>
       <div class="cn-st-discover">
@@ -124,6 +126,7 @@
 
     <!-- Search: your library first, then a row per searchable addon catalog. -->
     <section id="view-search" class="cn-st-view cn-hidden" data-view="search">
+      <div class="cn-st-refresh"><button id="search-refresh" class="mx-btn mx-sm" type="button">refresh results</button></div>
       <div id="search-rows"></div>
       <div id="search-readout" class="mx-readout" style="display:none"></div>
     </section>
@@ -306,6 +309,7 @@
 <script src="js/stremio-core-transport.js" defer></script>
 <script src="js/stremio-core-client.js" defer></script>
 <script src="js/stremio-local-files.js" defer></script>
+<script src="js/stremio-browse-cache.js" defer></script>
 <script src="js/stremio-app.js" defer></script>
 <script>
   if ('serviceWorker' in navigator) {

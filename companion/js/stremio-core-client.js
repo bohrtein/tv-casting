@@ -212,25 +212,55 @@ function createStremioCoreClient(config) {
     });
   }
 
-  function getCatalog(addon, catalog, skip, extra) {
+  // fresh: drop Core's loaded copy first, so a refresh reaches the addon
+  // instead of reusing what Core already holds for the same request.
+  function getCatalog(addon, catalog, skip, extra, fresh) {
     var section = activeSection;
     return transport(section).then(function (core) {
       var request = { base: addon.url,
         path: { resource: 'catalog', type: catalog.type, id: catalog.id, extra: Object.entries(extra || {}) } };
-      var action = skip ? { action: 'CatalogWithFilters', args: { action: 'LoadNextPage' } } :
-        { action: 'Load', args: { model: 'CatalogWithFiltersSelection', args: { request: request } } };
-      var loaded = stateWhen(core, 'discover', function (state, events) {
-          return state.selected && state.selected.request && state.selected.request.base === addon.url &&
-            state.selected.request.path.id === catalog.id &&
-            (skip || JSON.stringify(state.selected.request.path.extra || []) === JSON.stringify(request.path.extra)) &&
-            state.catalog && state.catalog.content &&
-            state.catalog.content.type !== 'Loading' && (!skip || state.catalog.content.type === 'Err' ||
-              state.catalog.content.content.length > skip || events >= 2 && !state.selectable.nextPage);
+      function matches(state) {
+        var selected = state.selected && state.selected.request;
+        return selected && selected.base === request.base && selected.path.type === catalog.type &&
+          selected.path.id === catalog.id &&
+          JSON.stringify(selected.path.extra || []) === JSON.stringify(request.path.extra);
+      }
+      function loadSelection() {
+        var loaded = stateWhen(core, 'discover', function (state, events) {
+          return events > 0 && matches(state) && state.catalog && state.catalog.content && state.catalog.content.type !== 'Loading';
         });
-      return Promise.all([core.dispatch(action, 'discover'), loaded]).then(function (values) {
-        var state = values[1];
+        return Promise.all([core.dispatch({ action: 'Load', args: {
+          model: 'CatalogWithFiltersSelection', args: { request: request }
+        } }, 'discover'), loaded]).then(function (values) { return values[1]; });
+      }
+      function unload() {
+        return fresh ? core.dispatch({ action: 'Unload' }, 'discover') : Promise.resolve();
+      }
+      function loadNext(previousLength) {
+        var loaded = stateWhen(core, 'discover', function (state, events) {
+          return matches(state) && state.catalog && state.catalog.content &&
+            state.catalog.content.type !== 'Loading' &&
+            (state.catalog.content.type === 'Err' || state.catalog.content.content.length > previousLength ||
+              events >= 2 && !state.selectable.nextPage);
+        });
+        return Promise.all([core.dispatch({ action: 'CatalogWithFilters', args: {
+          action: 'LoadNextPage'
+        } }, 'discover'), loaded]).then(function (values) { return values[1]; });
+      }
+      function results(state, attempts) {
         if (state.catalog.content.type === 'Err') throw new Error(coreError(state.catalog.content.content));
-        return state.catalog.content.content.slice(skip || 0);
+        var metas = state.catalog.content.content;
+        if (!skip || metas.length > skip || !state.selectable.nextPage || attempts >= 100) return metas.slice(skip || 0);
+        return loadNext(metas.length).then(function (next) {
+          if (next.catalog.content.type === 'Ready' && next.catalog.content.content.length === metas.length) return [];
+          return results(next, attempts + 1);
+        });
+      }
+      return (skip ? core.getState('discover').then(function (state) {
+        return matches(state) && state.catalog && state.catalog.content && state.catalog.content.type !== 'Loading'
+          ? state : loadSelection();
+      }) : unload().then(loadSelection)).then(function (state) {
+        return results(state, 0);
       });
     });
   }
@@ -245,7 +275,7 @@ function createStremioCoreClient(config) {
 
   // Stremio's Board and Search pages: one row per addon catalog, via Core's
   // CatalogsWithExtra model. onUpdate(rows) fires as each catalog arrives.
-  function catalogRows(model, extra, onUpdate) {
+  function catalogRows(model, extra, onUpdate, fresh) {
     var section = activeSection;
     var key = JSON.stringify(extra);
     function rows(state) {
@@ -255,6 +285,7 @@ function createStremioCoreClient(config) {
           addonName: item.addon && item.addon.manifest && item.addon.manifest.name,
           addonUrl: item.addon && item.addon.transportUrl,
           state: content.type, error: content.type === 'Err' ? coreError(content.content) : '',
+          empty: content.type === 'Err' && (content.content === 'EmptyContent' || !!content.content && content.content.type === 'EmptyContent'),
           metas: content.type === 'Ready' ? content.content || [] : [] };
       });
     }
@@ -264,8 +295,9 @@ function createStremioCoreClient(config) {
         if (!event || event.name !== 'NewState' || !event.args || event.args.indexOf(model) === -1) return;
         core.getState(model).then(function (state) { if (current(state) && onUpdate) onUpdate(rows(state)); }).catch(function () {});
       });
-      return core.dispatch({ action: 'Load', args: { model: 'CatalogsWithExtra', args: { extra: extra } } }, model)
-        .then(function () { return stateWhen(core, model, function (state) { return current(state) && state.catalogs; }); })
+      return (fresh ? core.dispatch({ action: 'Unload' }, model) : Promise.resolve()).then(function () {
+        return core.dispatch({ action: 'Load', args: { model: 'CatalogsWithExtra', args: { extra: extra } } }, model);
+      }).then(function () { return stateWhen(core, model, function (state) { return current(state) && state.catalogs; }); })
         .then(function (state) {
           if (!state.catalogs.length) return state;
           return core.dispatch({ action: 'CatalogsWithExtra', args: {
@@ -425,8 +457,8 @@ function createStremioCoreClient(config) {
     getCatalog: getCatalog,
     getCatalogFilters: getCatalogFilters,
     search: search,
-    getBoard: function (onUpdate) { return catalogRows('board', [], onUpdate); },
-    searchRows: function (query, onUpdate) { return catalogRows('search', [['search', query]], onUpdate); },
+    getBoard: function (onUpdate, fresh) { return catalogRows('board', [], onUpdate, fresh); },
+    searchRows: function (query, onUpdate, fresh) { return catalogRows('search', [['search', query]], onUpdate, fresh); },
     getMeta: getMeta,
     getStreams: getStreams,
     getSubtitles: getSubtitles,
