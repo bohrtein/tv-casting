@@ -141,8 +141,24 @@ function createRelayClient(config, handlers) {
     }
   }
 
+  // Off the Wi-Fi (Tailscale) the resolver hands back URLs on the host this
+  // page reached it through, which the TV can't; it only knows the LAN IP.
+  function forTv(url) {
+    if (typeof url !== 'string' || !config.LAN_HOST || !config.SERVER_HOST || config.SERVER_HOST === config.LAN_HOST) return url;
+    try {
+      var parsed = new URL(url);
+      if (parsed.hostname !== config.SERVER_HOST) return url;
+      parsed.hostname = config.LAN_HOST;
+      return parsed.toString();
+    } catch (_) { return url; }
+  }
+
   function sendCommand(action, payload) {
     var message = { type: 'command', action: action };
+    if (payload && action === 'play' && targetId === 'tv') {
+      payload = Object.assign({}, payload, { url: forTv(payload.url) });
+      if (payload.subtitleUrl) payload.subtitleUrl = forTv(payload.subtitleUrl);
+    }
     if (payload) message.payload = payload;
     return send(message);
   }
