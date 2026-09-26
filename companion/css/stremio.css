@@ -153,6 +153,17 @@
 .cn-st-strip > * { flex: 0 0 clamp(118px, 30vw, 176px); scroll-snap-align: start; }
 .cn-st-ghost { display: block; aspect-ratio: 2 / 3; border-radius: var(--mx-r-md); }
 
+/* Search narrowed to one catalog ("see all" on a search row): the row
+   becomes a grid of every result, and "see all" has nowhere further to go. */
+.cn-st-search-one .cn-st-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--mx-card-min, 140px)), 1fr));
+  overflow: visible;
+  padding-inline: 0;
+}
+.cn-st-search-one .cn-st-row-head > .mx-btn { display: none; }
+.cn-st-plus18 .cn-st-search-one .cn-st-strip { --mx-card-min: 240px; }
+
 /* Poster extras: a badge in the corner and a progress line at the bottom. */
 .cn-poster > .mx-slot-lead { position: relative; }
 .cn-st-badge {

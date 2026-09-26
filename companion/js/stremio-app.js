@@ -169,12 +169,13 @@ document.addEventListener('DOMContentLoaded', function () {
     return { row: row, strip: row.querySelector('.cn-st-strip') };
   }
 
-  function catalogRow(parent, rows, item) {
+  // seeAll: where "see all" goes; the catalog on Discover unless given.
+  function catalogRow(parent, rows, item, seeAll) {
     var key = item.addonUrl + '|' + item.type + '|' + item.id;
     var entry = rows[key];
     if (!entry) {
       entry = rows[key] = makeRow(parent, (item.name || item.id) + ' · ' + typeLabel(item.type),
-        '#/discover?' + new URLSearchParams({ addon: item.addonUrl, type: item.type, catalog: item.id }).toString());
+        seeAll || '#/discover?' + new URLSearchParams({ addon: item.addonUrl, type: item.type, catalog: item.id }).toString());
       entry.state = null;
     }
     if (entry.state === item.state) return;
@@ -974,7 +975,8 @@ document.addEventListener('DOMContentLoaded', function () {
     while (searchRenderQueue.length && painted < 2) {
       var job = searchRenderQueue.shift();
       if (job.token === searchState.token && inSearchScope(rowKey(job.item))) {
-        catalogRow(el.searchRows, searchState.rows, job.item);
+        // "see all" keeps the words and searches only this catalog.
+        catalogRow(el.searchRows, searchState.rows, job.item, searchHash(searchState.text, [rowKey(job.item)]));
         painted++;
       }
     }
@@ -1056,6 +1058,8 @@ document.addEventListener('DOMContentLoaded', function () {
     searchState.controller = typeof AbortController === 'function' ? new AbortController() : null;
     var signal = searchState.controller && searchState.controller.signal;
     searchState.scope = scope;
+    // One catalog (from a row's "see all"): its results as a full grid.
+    el.searchRows.classList.toggle('cn-st-search-one', !!scope && scope.length === 1 && scope[0] !== LIBRARY_INDEX);
     renderSearchScope();
     var token = ++searchState.token;
     searchState.all = [];

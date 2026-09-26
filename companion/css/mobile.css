@@ -63,6 +63,8 @@
   }
   .cn-st-strip { gap: 10px; padding: var(--mx-space-2) 0 var(--mx-space-2); margin: 0 calc(-1 * var(--mx-gutter)); padding-inline: var(--mx-gutter); scroll-padding-inline: var(--mx-gutter); }
   .cn-st-strip > * { flex-basis: clamp(104px, 29vw, 140px); }
+  .cn-st-search-one .cn-st-strip { --mx-card-min: 100px; margin-inline: 0; padding-inline: 0; }
+  .cn-st-plus18 .cn-st-search-one .cn-st-strip { --mx-card-min: 160px; }
 
   /* --- posters: three across, lighter captions and badges ------------- */
   .cn-st .cn-posters { --mx-card-min: 100px; gap: 10px; }
