@@ -23,7 +23,7 @@ html, body {
   padding: 0;
   width: 100%;
   height: 100%;
-  background: var(--mx-bg);
+  background: #000;
   color: var(--mx-ink);
   font-family: var(--mx-mono);
   overflow: hidden;
@@ -50,13 +50,8 @@ html, body {
   overflow: hidden;
 }
 
-/* Digital-rain still, matching the Matrix design system used in
-   companion/. Static on purpose: a live canvas animation was too slow on
-   the TV's CPU and a looping <video> never played on the real TV (see
-   README.md). #idle-screen is already position:absolute (.screen), so
-   this fills it. Longhand top/right/bottom/left, not the `inset`
-   shorthand: this app's real target is an old TV WebKit build that
-   predates `inset` support. */
+/* Three pre-drawn rain tiles: only transforms animate, with no frame loop
+   or video decoder. Longhand edges keep this compatible with older TVs. */
 .idle-bg {
   position: absolute;
   top: 0;
@@ -64,12 +59,32 @@ html, body {
   bottom: 0;
   left: 0;
   z-index: 0;
-  background-color: var(--mx-bg);
-  background-image: url('../media/idle-background.jpg');
-  background-position: center;
-  background-size: cover;
-  background-repeat: no-repeat;
+  background: #000;
+  overflow: hidden;
   pointer-events: none;
+}
+
+.matrix-rain {
+  position: absolute;
+  top: -675px;
+  left: 0;
+  width: 100%;
+  height: calc(100% + 675px);
+  background-repeat: repeat;
+  /* Scale the rain up 25%; travel exactly one tile for a seamless loop. */
+  background-size: 1200px 675px;
+  animation: matrix-fall 24s linear infinite;
+}
+.matrix-rain-back { background-image: url('../media/matrix-back.svg'); opacity: 0.3; }
+.matrix-rain-mid { background-image: url('../media/matrix-mid.svg'); animation-duration: 17s; opacity: 0.55; }
+.matrix-rain-front { background-image: url('../media/matrix-front.svg'); animation-duration: 11s; opacity: 0.8; }
+@keyframes matrix-fall {
+  from { transform: translateY(0); }
+  to { transform: translateY(675px); }
+}
+#idle-screen.hidden .matrix-rain { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .matrix-rain { animation: none; }
 }
 
 .idle-vignette, .idle-scanlines {
@@ -83,9 +98,7 @@ html, body {
 }
 
 .idle-vignette {
-  background:
-    radial-gradient(120% 90% at 50% 0%, var(--mx-accent-low), transparent 60%),
-    radial-gradient(130% 100% at 50% 100%, rgba(0, 0, 0, 0.85), transparent 55%);
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.12) 75%);
 }
 
 .idle-scanlines {
@@ -129,7 +142,7 @@ html, body {
 /* --- Player screen --- */
 
 #player-screen {
-  background: var(--mx-bg);
+  background: #000;
 }
 
 #av-player {

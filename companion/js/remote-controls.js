@@ -3,7 +3,7 @@
 // The remote's controls (the #remote-sheet markup): what the TV is playing,
 // play/pause, stop, +/-10s and the seek bar. Feed it the relay's status
 // messages through render(); buttons send commands through the relay.
-function createRemoteControls(relay, nowCasting) {
+function createRemoteControls(relay, nowCasting, resolver) {
   function $(id) { return document.getElementById(id); }
   var el = {
     readout: $('remote-readout'), pending: $('remote-pending'), seek: $('remote-seek'),
@@ -13,6 +13,69 @@ function createRemoteControls(relay, nowCasting) {
   var lastPositionSec = 0;
   var lastDurationSec = 0;
   var seeking = false; // true while the user is dragging the seek bar
+  var captions = $('remote-captions'), captionNote = $('remote-captions-note');
+  var captionUrl = $('remote-caption-url'), captionLoad = $('remote-caption-load');
+  var captionState = null, captionTarget = null, captionToken = 0, convertingCaption = false;
+  var captionOptions = '';
+  var captionLocalError = '';
+
+  function renderCaptions(msg) {
+    if (!captions) return;
+    var active = ['playing', 'paused', 'buffering'].indexOf(msg.state) !== -1;
+    var next = active ? msg.captions || null : null;
+    if ((next && next.mediaId) !== (captionState && captionState.mediaId) || captionTarget !== msg.targetId) {
+      captionToken++; convertingCaption = false; captionUrl.value = ''; captionLocalError = '';
+    }
+    captionTarget = msg.targetId; captionState = next;
+    var tracks = next && next.tracks || [];
+    var signature = JSON.stringify(tracks);
+    if (signature !== captionOptions) {
+      captionOptions = signature; captions.innerHTML = '';
+      [{ id: '', label: 'Off' }].concat(tracks).forEach(function (track) {
+        var option = document.createElement('option'); option.value = track.id; option.textContent = track.label;
+        captions.appendChild(option);
+      });
+    }
+    captions.value = next && next.selectedId || '';
+    var ready = next && next.supported && next.mediaId && ['playing', 'paused'].indexOf(msg.state) !== -1;
+    captions.disabled = !ready || convertingCaption;
+    captionUrl.disabled = !ready || convertingCaption;
+    captionLoad.disabled = !ready || !resolver || convertingCaption || next.busy;
+    captionNote.textContent = captionLocalError || (convertingCaption ? 'Preparing captions…' : next && next.busy ? 'Loading captions…' :
+      next && next.error ? next.error : !active ? 'Start a video on the TV to choose captions.' :
+      !next || !next.supported ? 'Caption controls are unavailable on this receiver.' :
+      !tracks.length ? 'No caption tracks in this video. You can add a subtitle link.' : '');
+  }
+
+  if (captions) {
+    captions.addEventListener('change', function () {
+      if (!captionState || captions.disabled) return;
+      captionLocalError = '';
+      if (!relay.sendCommand('captions', { mediaId: captionState.mediaId, trackId: captions.value || null })) {
+        captions.value = captionState.selectedId || '';
+        captionNote.textContent = captionLocalError = 'Not connected. Reconnect and try again.';
+      }
+    });
+    captionLoad.addEventListener('click', function () {
+      if (!captionState || captionLoad.disabled) return;
+      var url = captionUrl.value.trim();
+      if (!/^https?:\/\//i.test(url)) { captionNote.textContent = captionLocalError = 'Enter an HTTP or HTTPS subtitle file link.'; return; }
+      captionLocalError = '';
+      var token = ++captionToken, mediaId = captionState.mediaId;
+      convertingCaption = true; captionLoad.disabled = true; captions.disabled = true; captionUrl.disabled = true;
+      captionNote.textContent = 'Preparing captions…';
+      resolver.resolveSubtitle(url).then(function (localUrl) {
+        if (token !== captionToken) return;
+        if (!relay.sendCommand('captions', { mediaId: mediaId, subtitleUrl: localUrl })) throw new Error('Not connected. Reconnect and try again.');
+        captionNote.textContent = 'Loading captions…';
+      }).catch(function (error) {
+        if (token === captionToken) captionNote.textContent = captionLocalError = error.message;
+      }).then(function () {
+        if (token !== captionToken) return;
+        convertingCaption = false; captionLoad.disabled = false; captions.disabled = false; captionUrl.disabled = false;
+      });
+    });
+  }
 
   function setReadout(message, isError) {
     el.readout.textContent = message;
@@ -30,6 +93,7 @@ function createRemoteControls(relay, nowCasting) {
   }
 
   function render(msg) {
+    renderCaptions(msg);
     if (msg.state === 'tv_offline') {
       nowCasting.clear();
       setReadout('Selected playback target is offline.', false);

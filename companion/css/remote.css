@@ -61,7 +61,7 @@ body.cn-st { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
   white-space: nowrap;
 }
 .cn-remote-head > .mx-btn { flex: 0 0 auto; min-width: 84px; }
-.cn-remote-body { display: flex; flex-direction: column; gap: var(--mx-space-3); }
+.cn-remote-body { display: flex; flex-direction: column; gap: var(--mx-space-3); max-height: calc(100vh - 210px); overflow-y: auto; overscroll-behavior: contain; }
 #remote-pending:empty { display: none; }
 .cn-remote-buttons { display: flex; gap: 10px; }
 .cn-remote-buttons > .mx-btn { flex: 1 1 0; min-width: 0; }
@@ -99,3 +99,9 @@ body.cn-st { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
 @media (min-width: 600px) and (max-width: 899px) {
   body.mx-has-nav .cn-remote { margin-left: calc(min(-280px, -50vw) + var(--mx-rail-w) / 2); }
 }
+.cn-captions { margin-top: 16px; display: grid; gap: 8px; }
+#remote-captions-note:empty { display: none; }
+.cn-captions details { margin-top: 4px; }
+.cn-captions summary { cursor: pointer; }
+.cn-captions details label { display: block; margin: 12px 0 8px; }
+.cn-captions details input { width: 100%; margin-bottom: 8px; }

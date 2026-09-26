@@ -232,7 +232,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var relay = createRelayClient(APP_CONFIG, {
     localTarget: localTarget,
     onConnected: function () { setRelayChip('busy', 'connected'); },
-    onDisconnected: function () { setRelayChip('err', 'reconnecting…'); },
+    onDisconnected: function () { setRelayChip('err', 'reconnecting…'); if (remote) remote.render({ state: 'tv_offline' }); },
     onJoined: function () { setRelayChip('ok', 'connected'); },
     onStatus: renderStatus,
     onError: function (msg) {
@@ -300,7 +300,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // The remote sheet at the bottom (remote-sheet.js, remote-controls.js).
   var remoteSheet = createRemoteSheet($('remote-sheet'));
-  var remote = createRemoteControls(relay, nowCasting);
+  var remote = createRemoteControls(relay, nowCasting, resolver);
   function renderStatus(msg) {
     if (msg.state === 'tv_offline') setRelayChip('err', 'tv offline');
     remote.render(msg);

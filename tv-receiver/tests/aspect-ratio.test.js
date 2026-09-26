@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const fs = require('node:fs');
 const path = require('node:path');
-test('AVPlay contain fit centers 16:9, 4:3, ultrawide and portrait at different viewports', () => {
+test('all source dimensions use the full native display with one letterbox fit', () => {
   for (const [width, height] of [[1920,1080], [1440,1080], [2390,1000], [1080,1920]]) {
     for (const [sw, sh] of [[1920,1080], [1280,720], [3840,2160]]) {
       let rectangle, mode, prepared, listener;
@@ -25,10 +25,11 @@ test('AVPlay contain fit centers 16:9, 4:3, ultrawide and portrait at different 
       player.play('fixture.mp4'); prepared();
       assert.equal(mode, 'PLAYER_DISPLAY_MODE_LETTER_BOX');
       const [x,y,w,h] = rectangle;
-      assert.ok(Math.abs(w/h - width/height) < 0.004);
+      assert.deepEqual([x,y,w,h], [0,0,1920,1080]);
       assert.ok(Math.abs(x*2+w-1920) <= 1); assert.ok(Math.abs(y*2+h-1080) <= 1);
       assert.ok(w<=1920 && h<=1080);
-      assert.equal(parseFloat(surface.style.width) / parseFloat(surface.style.height), width/height);
+      assert.equal(parseFloat(surface.style.width), sw);
+      assert.equal(parseFloat(surface.style.height), sh);
       assert.ok(listener);
     }
   }

@@ -35,13 +35,16 @@ files:
   - js/config.js
   - js/log.js
   - js/player.js
+  - js/playback-history.js
   - js/relay-client.js
   - matrix/matrix-tokens.css
   - matrix/fonts/SpaceMono-Regular.ttf
   - matrix/fonts/SpaceMono-Bold.ttf
   - matrix/fonts/UnifrakturMaguntia-Book.ttf
   - matrix/fonts/OFL.txt
-  - media/idle-background.jpg
+  - media/matrix-back.svg
+  - media/matrix-mid.svg
+  - media/matrix-front.svg
 
 # list of files to exclude based on the matched patterns
 excludes:

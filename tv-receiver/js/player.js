@@ -10,6 +10,78 @@ function createPlayer(handlers) {
   var currentSubtitleUrl = null;
   var generation = 0, seekTarget = null, seekBusy = false, seekTimer = null;
   var seekFailures = 0, buffering = false;
+  var captionTracks = [], selectedCaption = null, captionPath = null;
+  var captionRequest = 0, captionBusy = false, captionError = null, captionTimer = null;
+
+  function getCaptions() {
+    return { supported: isAvailable() && typeof webapis.avplay.setSilentSubtitle === 'function',
+      mediaId: currentUrl ? String(generation) : null, tracks: captionTracks.slice(),
+      selectedId: selectedCaption, busy: captionBusy, error: captionError };
+  }
+  function reportCaptions() { if (handlers.onCaptions) handlers.onCaptions(getCaptions()); }
+  function resetCaptions() {
+    captionRequest++; clearTimeout(captionTimer);
+    captionTracks = []; selectedCaption = null; captionPath = null;
+    captionBusy = false; captionError = null;
+  }
+  function refreshCaptions() {
+    var tracks = [];
+    try {
+      if (webapis.avplay.getTotalTrackInfo) tracks = webapis.avplay.getTotalTrackInfo();
+    } catch (_) { return; } // Some firmware exposes tracks only after playback starts.
+    if (!Array.isArray(tracks)) tracks = [];
+    captionTracks = tracks.filter(function (track) { return track && track.type === 'TEXT' && typeof track.index === 'number' && isFinite(track.index) && track.index >= 0; }).slice(0, 64).map(function (track) {
+      var info = {};
+      try { info = typeof track.extra_info === 'string' ? JSON.parse(track.extra_info) : track.extra_info || {}; } catch (_) {}
+      info = info || {};
+      return { id: 'embedded:' + track.index, label: String(info.track_lang || info.language || 'Captions').slice(0, 80) + ' (track ' + (track.index + 1) + ')' };
+    });
+    if (captionPath) captionTracks.push({ id: 'external', label: 'External subtitles' });
+  }
+  function setCaptions(payload) {
+    if (!currentUrl || !payload || payload.mediaId !== String(generation)) return;
+    var token = ++captionRequest, session = generation;
+    clearTimeout(captionTimer); captionBusy = false; captionError = null;
+    function valid() { return session === generation && token === captionRequest; }
+    function fail(error) {
+      if (!valid()) return;
+      clearTimeout(captionTimer); captionBusy = false; captionError = describeError(error);
+      captionRequest++; reportCaptions();
+    }
+    try {
+      var state = webapis.avplay.getState();
+      if (state !== 'PLAYING' && state !== 'PAUSED') throw new Error('Wait until playback is ready to change captions.');
+      if (!getCaptions().supported) throw new Error('Captions are unavailable on this TV.');
+      if (payload.subtitleUrl) {
+        if (typeof tizen === 'undefined' || !tizen.download || !webapis.avplay.setExternalSubtitlePath) throw new Error('External subtitles are unavailable on this TV.');
+        captionBusy = true; reportCaptions();
+        captionTimer = setTimeout(function () { fail(new Error('Subtitle download timed out. Try again.')); }, 20000);
+        tizen.download.start(new tizen.DownloadRequest(payload.subtitleUrl, 'wgt-private-tmp'), {
+          oncompleted: function (id, localPath) {
+            if (!valid()) return;
+            try {
+              webapis.avplay.setExternalSubtitlePath(localPath);
+              webapis.avplay.setSilentSubtitle(false);
+              captionPath = localPath; currentSubtitleUrl = payload.subtitleUrl;
+              selectedCaption = 'external'; captionBusy = false; clearTimeout(captionTimer);
+              refreshCaptions(); reportCaptions();
+            } catch (error) { fail(error); }
+          },
+          onfailed: function (id, error) { fail(error); }
+        });
+        return;
+      }
+      if (payload.trackId === null) webapis.avplay.setSilentSubtitle(true);
+      else {
+        refreshCaptions();
+        if (!captionTracks.some(function (track) { return track.id === payload.trackId; })) throw new Error('This caption track is no longer available.');
+        if (payload.trackId === 'external') webapis.avplay.setExternalSubtitlePath(captionPath);
+        else webapis.avplay.setSelectTrack('TEXT', Number(payload.trackId.split(':')[1]));
+        webapis.avplay.setSilentSubtitle(false);
+      }
+      selectedCaption = payload.trackId; reportCaptions();
+    } catch (error) { fail(error); }
+  }
 
   function fitDisplay() {
     if (!isAvailable() || !currentUrl) return;
@@ -18,17 +90,9 @@ function createPlayer(handlers) {
       var h = typeof window !== 'undefined' ? window.innerHeight : 1080;
       w = w || 1920; h = h || 1080;
       var rect = { x: 0, y: 0, width: w, height: h };
-      var tracks = [];
-      try { tracks = webapis.avplay.getCurrentStreamInfo ? webapis.avplay.getCurrentStreamInfo() : []; } catch (_) {};
-      tracks.forEach(function (track) {
-        if (track.type !== 'VIDEO') return;
-        var info = typeof track.extra_info === 'string' ? JSON.parse(track.extra_info) : track.extra_info || {};
-        var vw = Number(info.Width || info.width), vh = Number(info.Height || info.height);
-        if (!(vw > 0 && vh > 0)) return;
-        var scale = Math.min(w / vw, h / vh);
-        rect.width = vw * scale; rect.height = vh * scale;
-        rect.x = (w - rect.width) / 2; rect.y = (h - rect.height) / 2;
-      });
+      // Give the decoder the whole screen and let LETTER_BOX fit the video.
+      // Do not also derive the display rectangle from coded Width/Height;
+      // malformed metadata must never leave the previous video's layout behind.
       // AVPlay uses 1920x1080 coordinates regardless of the CSS viewport.
       webapis.avplay.setDisplayRect(Math.round(rect.x * 1920 / w), Math.round(rect.y * 1080 / h),
         Math.round(rect.width * 1920 / w), Math.round(rect.height * 1080 / h));
@@ -38,7 +102,7 @@ function createPlayer(handlers) {
         surface.style.left = rect.x + 'px'; surface.style.top = rect.y + 'px';
         surface.style.width = rect.width + 'px'; surface.style.height = rect.height + 'px';
       }
-    } catch (e) { log.warn('display metadata unavailable', describeError(e));
+    } catch (e) { log.warn('display layout unavailable', describeError(e));
       try { webapis.avplay.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX'); } catch (_) {}
     }
   }
@@ -106,6 +170,7 @@ function createPlayer(handlers) {
   // so one bad link would break every link after it.
   function resetAfterFailure() {
     resetSeek();
+    resetCaptions();
     currentUrl = null;
     currentSubtitleUrl = null;
     try {
@@ -131,6 +196,7 @@ function createPlayer(handlers) {
         log.info('buffering complete');
         var state = webapis.avplay.getState();
         if (state === 'PAUSED' || state === 'PLAYING') {
+          refreshCaptions();
           handlers.onStateChange(state === 'PAUSED' ? 'paused' : 'playing');
         }
       },
@@ -171,6 +237,7 @@ function createPlayer(handlers) {
       },
       onevent: function (eventType, eventData) {
         fitDisplay();
+        refreshCaptions(); reportCaptions();
         log.info('onevent', eventType, eventData);
       },
       onsubtitlechange: function (duration, text) {
@@ -206,6 +273,11 @@ function createPlayer(handlers) {
             webapis.avplay.seekTo(startPositionSec * 1000);
           }
           webapis.avplay.play();
+          refreshCaptions();
+          try {
+            if (webapis.avplay.setSilentSubtitle) webapis.avplay.setSilentSubtitle(!captionPath);
+            selectedCaption = captionPath ? 'external' : null;
+          } catch (error) { captionError = describeError(error); }
           handlers.onStateChange('playing');
           processSeek();
         },
@@ -224,7 +296,7 @@ function createPlayer(handlers) {
         tizen.download.start(request, {
           oncompleted: function (id, localPath) {
             if (token !== generation) return;
-            try { webapis.avplay.setExternalSubtitlePath(localPath); prepare(); }
+            try { webapis.avplay.setExternalSubtitlePath(localPath); captionPath = localPath; prepare(); }
             catch (error) {
               resetAfterFailure();
               handlers.onError({ code: 'SUBTITLE_FAILED', message: describeError(error) });
@@ -323,6 +395,7 @@ function createPlayer(handlers) {
 
   function stop() {
     resetSeek();
+    resetCaptions();
     if (!isAvailable() || !currentUrl) return;
     log.info('stop + close');
     try {
@@ -344,6 +417,8 @@ function createPlayer(handlers) {
     seek: seek,
     seekBy: seekBy,
     stop: stop,
-    getDurationSec: getDurationSec
+    getDurationSec: getDurationSec,
+    getCaptions: getCaptions,
+    setCaptions: setCaptions
   };
 }

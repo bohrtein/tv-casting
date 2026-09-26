@@ -4,7 +4,7 @@
     "next": [
       {
         "path": "Debug/projects/tv-receiver/js/app.js",
-        "type": "modify"
+        "type": "add"
       },
       {
         "path": "Debug/projects/tv-receiver/js/player.js",
@@ -96,7 +96,7 @@
       },
       {
         "path": "Debug/projects/tv-receiver/tests",
-        "type": "modify"
+        "type": "delete"
       },
       {
         "path": "Debug/projects/tv-receiver/tests/remote-controls.test.js",
@@ -120,11 +120,27 @@
       },
       {
         "path": "Debug/projects/tv-receiver/matrix",
-        "type": "modify"
+        "type": "delete"
       },
       {
         "path": "Debug/projects/tv-receiver/matrix/fonts",
         "type": "modify"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/media/matrix-back.svg",
+        "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/media/matrix-front.svg",
+        "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/media/matrix-mid.svg",
+        "type": "add"
+      },
+      {
+        "path": "Debug/projects/tv-receiver/tests/captions.test.js",
+        "type": "add"
       }
     ]
   }

@@ -67,7 +67,7 @@ TV verbatim.
 { "type": "command", "action": "seek", "payload": { "positionSec": 120 } }
 ```
 
-- `action` is one of `play`, `pause`, `resume`, `stop`, `seek`.
+- `action` is one of `play`, `pause`, `resume`, `stop`, `seek`, `captions`.
 - `payload` is required for `play` and `seek`, omitted for
   `pause`/`resume`/`stop`.
 - `resume` un-pauses whatever the TV has loaded, without a url, so any
@@ -78,6 +78,12 @@ TV verbatim.
   `startPositionSec` are optional metadata for the TV's UI. `subtitleUrl` may
   point to a resolver-hosted UTF-8 SAMI file. The receiver downloads it locally
   before preparing AVPlay.
+- `captions.payload` requires the `mediaId` from the selected receiver's latest
+  `status.captions`, and either `trackId` (`null` for Off, `embedded:N`, or
+  `external`) or `subtitleUrl` (a resolver-hosted HTTP(S) SAMI URL).
+  The TV downloads a new external subtitle and attaches it during playback.
+  Commands for an earlier media ID are ignored. Example:
+  `{ "type": "command", "action": "captions", "payload": { "mediaId": "2", "trackId": "embedded:3" } }`.
 - If no TV is currently connected, the relay replies to the sender with
   `{ "type": "error", "code": "TV_NOT_FOUND", ... }` instead of forwarding.
 
@@ -102,6 +108,10 @@ asked), and the relay broadcasts it to every connected companion:
   the stream (it can't be known before then), and companions should treat
   its absence as "not seekable yet" rather than assume 0.
 - `error` is present only when `state` is `error`.
+- TV status also includes `captions: { supported, mediaId, tracks: [{id, label}],
+  selectedId, busy, error }`. A null `selectedId` means Off. Caption errors are
+  nonfatal and do not change playback state. Caption data is repeated in status
+  updates so joining companions and target snapshots have the current selection.
 
 ## Disconnects
 

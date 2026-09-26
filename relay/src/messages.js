@@ -13,7 +13,7 @@ const TYPES = Object.freeze({
   ERROR: 'error',
 });
 
-const ACTIONS = Object.freeze(['play', 'pause', 'resume', 'stop', 'seek']);
+const ACTIONS = Object.freeze(['play', 'pause', 'resume', 'stop', 'seek', 'captions']);
 
 const STATES = Object.freeze([
   'idle',
@@ -72,6 +72,13 @@ function validateCommand(msg) {
   }
   if (msg.action === 'seek') {
     return !!msg.payload && (Number.isFinite(msg.payload.positionSec) && msg.payload.positionSec >= 0 || Number.isFinite(msg.payload.deltaSec) && Math.abs(msg.payload.deltaSec) <= 86400);
+  }
+  if (msg.action === 'captions') {
+    const p = msg.payload;
+    return !!p && typeof p.mediaId === 'string' && p.mediaId.length > 0 && p.mediaId.length <= 80 &&
+      (p.subtitleUrl === undefined
+        ? p.trackId === null || typeof p.trackId === 'string' && /^(external|embedded:\d+)$/.test(p.trackId)
+        : p.trackId === undefined && typeof p.subtitleUrl === 'string' && /^https?:\/\//i.test(p.subtitleUrl) && p.subtitleUrl.length <= 4096);
   }
   return true; // pause/resume/stop take no payload
 }

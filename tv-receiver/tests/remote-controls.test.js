@@ -119,7 +119,7 @@ test('loading ignores transport; buttons, media keys, Back and stop work', () =>
   assert.equal(app.calls.at(-1), 'pause');
   app.key(415); app.key(19); app.key(10252);
   assert.deepEqual(app.calls.slice(-3), ['play', 'pause', 'play']);
-  app.key(10009);
+  app.key(40);
   assert.equal(app.hidden(), true);
   app.key(417); app.flushSeek(); app.key(412); app.flushSeek();
   assert.equal(app.calls.at(-1), 30000);
@@ -164,4 +164,39 @@ test('seeks arriving during an outstanding operation accumulate and failure reta
 test('new media invalidates old prepare callbacks', () => {
   const app = setup(); app.start(); app.command({action:'stop'}); app.prepared();
   assert.equal(app.calls.includes('play'), false);
+});
+
+test('Back returns straight to the menu while playing, paused, loading or controls hidden', () => {
+  for (const phase of ['playing', 'paused', 'loading', 'hidden']) {
+    const app = setup(); app.start();
+    if (phase !== 'loading') app.prepared();
+    if (phase === 'paused') app.key(19);
+    if (phase === 'hidden') app.expire();
+    app.key(10009);
+    assert.equal(app.calls.at(-1), 'stop');
+    assert.equal(app.nodes['idle-screen'].classList.contains('hidden'), false);
+    assert.equal(app.nodes['player-screen'].classList.contains('hidden'), true);
+    assert.equal(app.statuses.at(-1).state, 'stopped');
+    const count = app.calls.length;
+    app.key(10009, true); app.key(10009);
+    assert.equal(app.calls.length, count);
+    if (phase === 'loading') { app.prepared(); assert.equal(app.calls.includes('play'), false); }
+    app.start(); app.prepared();
+    assert.equal(app.nodes['player-screen'].classList.contains('hidden'), false);
+  }
+});
+
+test('TV status exposes caption choices and companion commands update them', () => {
+  const app = setup();
+  app.avplay.getTotalTrackInfo = () => [{type:'TEXT',index:2,extra_info:'{"track_lang":"en"}'}];
+  app.avplay.setSilentSubtitle = () => {};
+  app.avplay.setSelectTrack = (type, index) => app.calls.push([type,index]);
+  app.start(); app.prepared();
+  const captions = app.statuses.at(-1).captions;
+  assert.equal(captions.tracks[0].id, 'embedded:2');
+  app.command({action:'captions',payload:{mediaId:captions.mediaId,trackId:'embedded:2'}});
+  assert.deepEqual(app.calls.at(-1), ['TEXT',2]);
+  assert.equal(app.statuses.at(-1).captions.selectedId, 'embedded:2');
+  app.key(10009);
+  assert.equal(app.statuses.at(-1).captions.mediaId, null);
 });

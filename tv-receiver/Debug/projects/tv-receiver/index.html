@@ -13,9 +13,11 @@
 <body>
 
   <div id="idle-screen" class="screen">
-    <!-- Static still, on purpose: a looping <video> background never
-         played on the real TV (see README.md). Don't reintroduce one. -->
-    <div class="idle-bg" aria-hidden="true"></div>
+    <div class="idle-bg" aria-hidden="true">
+      <div class="matrix-rain matrix-rain-back"></div>
+      <div class="matrix-rain matrix-rain-mid"></div>
+      <div class="matrix-rain matrix-rain-front"></div>
+    </div>
     <div class="idle-vignette" aria-hidden="true"></div>
     <div class="idle-scanlines" aria-hidden="true"></div>
     <div class="idle-panel">
@@ -35,7 +37,7 @@
         <button id="play-pause" class="primary-control" type="button">Pause</button>
         <button id="forward" type="button" aria-label="Forward 10 seconds">10s &#9654;</button>
       </div>
-      <div class="remote-hint">&#8592; Back 10s &nbsp; OK Play / pause &nbsp; Forward 10s &#8594;</div>
+      <div class="remote-hint">&#8592; Back 10s &nbsp; OK Play / pause &nbsp; Forward 10s &#8594;<br>Back: Main menu &nbsp; Down: Hide controls</div>
     </div>
   </div>
 

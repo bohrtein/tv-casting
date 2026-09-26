@@ -84,8 +84,13 @@ See the "Current status" section at the bottom of [PLAN.md](PLAN.md).
   reuse server streams without making another saved copy. Codec support depends on the browser.
 - TV seeks combine relative button presses, serialize AVPlay calls, retain failed targets,
   retry transient failures and show pending feedback. After repeated failure, press seek to retry.
-- TV uses contain fitting, dynamic viewport sizing, and Samsung's documented AVPlay coordinate
-  conversion: https://developer.samsung.com/smarttv/develop/guides/multimedia/media-playback/using-avplay.html
+- TV gives AVPlay the full display with native letterbox fitting and pure-black
+  backgrounds. Back stops playback and returns to the receiver's main screen.
+  The Matrix background uses three SVG rain layers animated with CSS transforms.
+- The companion remote has a Captions selector (available tracks or Off) and can
+  load an SRT/WebVTT subtitle link while watching. Deploy relay and companion and
+  rebuild/reinstall the receiver for these controls. Native caption support depends
+  on the stream and Samsung firmware; browser receivers keep these controls disabled.
 - Natural episode completion uses the saved ordered catalog (excluding specials and future
   releases). It plays the next saved episode or resolves it using saved addon settings and
   the existing stream-selection/download clients. Manual stop, replacement, errors and

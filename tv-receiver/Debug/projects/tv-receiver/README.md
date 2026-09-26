@@ -18,19 +18,15 @@ messages this app sends and receives.
   update it with
   `python ../matrix_design/tools/sync.py tv-receiver/matrix --tokens-only --device tv`
   so a change to Matrix (a new accent, a theme) reaches the TV too.
-- `css/style.css` — fixed 1920x1080, 10-foot-UI layout, styled only from
-  those tokens. Keep to what old Chromium supports (custom properties
+- `css/style.css` — viewport-filling, 10-foot-UI layout. Playback uses pure
+  black behind Samsung's native letterbox display. Keep to what old Chromium supports (custom properties
   yes; `inset`, flex `gap`, `color-mix()`, `clamp()` no).
-- `media/idle-background.jpg` — the idle screen's background: a
-  **static** still of `companion/matrix/matrix.js`'s digital rain, shown as a
-  plain CSS background image. Deliberately not animated. A live canvas
-  animation was unusably slow on this TV's CPU, and a pre-rendered
-  looping `<video>` never worked on the real TV no matter how it was
-  encoded (it showed the first frame, then disappeared). Don't bring
-  either back. The generator that recorded the video and this frame
-  (`tools/render-idle-background.js`) was removed along with the video;
-  it's in git history before this change if the still ever needs
-  re-rendering.
+- `media/matrix-{back,mid,front}.svg` — three seamless digital-rain tiles,
+  rebuilt with `node tv-receiver/tools/build-matrix-background.js`. CSS moves
+  each layer at a different speed; there is no runtime drawing loop or video
+  decoder. Animation pauses during playback and respects reduced motion.
+  This replaces the old static JPEG after previous canvas and video versions
+  failed on the TV. The new animation still needs physical-TV performance validation.
 - `js/config.js` — `RELAY_URL`. Edit for your setup.
 - `js/relay-client.js` — WebSocket client: registers as `tv`, reconnects
   with exponential backoff on drop.
@@ -51,10 +47,12 @@ after four seconds without input, including while paused. On the remote:
 - **OK:** reveal the overlay; when it is visible, pause or resume.
 - **Left / Right:** skip back or forward 10 seconds and reveal the overlay.
 - **Down:** hide the controls and title immediately without changing playback.
-- **Back:** dismiss the visible overlay; otherwise retain the app exit action.
+- **Back:** stop playback and return directly to the main idle screen, even
+  while loading or paused. Repeated Back stays in the menu. Escape and
+  Backspace do the same in a browser. Pending resume/autoplay work is cancelled.
 - Dedicated media keys still play, pause, stop, and skip as before.
 
-Transport controls are disabled while loading/buffering. Skips are bounded
+Play/pause is disabled while loading/buffering; skips queue until ready. Skips are bounded
 by the video duration when known; streams that reject seeking keep playing.
 
 Run `node --test tv-receiver/tests/remote-controls.test.js` from the repository
@@ -62,6 +60,31 @@ root for the mocked AVPlay/remote tests. These cover the overlay timer,
 OK toggle, arrow skips and bounds, paused state after buffering, loading,
 click controls, media keys, and stop. Physical-TV validation still requires
 rebuilding and installing the receiver through the Tizen extension.
+
+## Captions from the companion
+
+The companion remote's **Captions** selector lists the TV's subtitle tracks
+and **Off**. Captions initially stay off unless an external subtitle was selected
+when casting. **Add subtitles from a link** accepts an SRT/WebVTT URL; the resolver
+converts it to SAMI and the TV loads it without restarting the video. A previously
+loaded external subtitle can be selected again. There is no TV-side caption menu.
+
+Caption failures are reported to the companion without stopping playback. Track
+selection depends on the stream and TV firmware (for example, AVPlay does not
+support selecting TEXT tracks in DASH). Caption commands carry a media ID so
+downloads for a previous video cannot affect a new video. Browser receivers and
+older TV builds report caption controls as unavailable.
+
+Deploy the updated relay and companion and rebuild/reinstall the TV receiver
+together. `tizen_web_project.yaml` includes the rain assets and playback-history
+helper. The existing `Debug/*.wgt` is an old build and is not updated by source edits.
+
+For isolated visual fixtures run `node tv-receiver/tools/preview-ui.js`, then open
+`http://127.0.0.1:8879/tv-receiver/index.html` or `/remote`. These use mock playback
+status and never connect to the real relay. Run `node --test tv-receiver/tests/*.test.js
+relay/test/*.test.js companion/test/*.test.js resolver/test/subtitles.test.js` for
+automated checks. Real video framing, native subtitles and animation performance
+must also be checked on Samsung hardware.
 
 ## Tooling note: "Tizen Studio" no longer exists
 

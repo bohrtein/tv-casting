@@ -38,16 +38,22 @@
   });
 
   var player = createPlayer({
+    onCaptions: function () { sendStatus({ state: currentPlaybackState, title: currentTitle }); },
     onSeek: function (seek) {
       elements.seekIndicator.textContent = seek.targetSec === null ? '' : 'Seek to ' + Math.round(seek.targetSec) + 's pending' + (seek.error ? ' — retry with seek' : '');
       elements.seekIndicator.classList.toggle('hidden', seek.targetSec === null);
-      relay.sendStatus({ state: currentPlaybackState, title: currentTitle, pendingSeek: seek });
+      sendStatus({ state: currentPlaybackState, title: currentTitle, pendingSeek: seek });
     },
     onStateChange: onPlaybackStateChange,
     onPlayTime: onPlayTime,
     onError: onPlaybackError,
-    onCompleted: function () { relay.sendStatus({ state: 'ended', title: currentTitle }); history.completed(function (payload) { onCommand({ action: 'play', payload: payload }); }); }
+    onCompleted: function () { sendStatus({ state: 'ended', title: currentTitle }); history.completed(function (payload) { onCommand({ action: 'play', payload: payload }); }); }
   });
+
+  function sendStatus(status) {
+    if (player) status.captions = player.getCaptions();
+    relay.sendStatus(status);
+  }
 
   function showIdleScreen() {
     log.info('screen -> idle');
@@ -55,6 +61,18 @@
     hideControls();
     elements.playerScreen.classList.add('hidden');
     elements.idleScreen.classList.remove('hidden');
+  }
+
+  function returnToMenu() {
+    // Cancel pending resume/next-episode requests before closing the decoder.
+    history.stop();
+    player.stop();
+    currentTitle = '';
+    clearTimeout(errorBannerTimer);
+    elements.errorBanner.classList.add('hidden');
+    elements.seekIndicator.classList.add('hidden');
+    sendStatus({ state: 'stopped' });
+    showIdleScreen();
   }
 
   function showPlayerScreen() {
@@ -95,6 +113,7 @@
   function onRegistered() {
     log.info('registered with relay as tv');
     elements.connectionNote.textContent = 'Waiting for a companion…';
+    sendStatus({ state: currentPlaybackState, title: currentTitle });
   }
 
   function onDisconnected() {
@@ -126,14 +145,14 @@
         player.resume();
         break;
       case 'stop':
-        history.stop();
-        player.stop();
-        relay.sendStatus({ state: 'stopped' });
-        showIdleScreen();
+        returnToMenu();
         break;
       case 'seek':
         if (typeof msg.payload.deltaSec === 'number') player.seekBy(msg.payload.deltaSec);
         else player.seek(msg.payload.positionSec);
+        break;
+      case 'captions':
+        player.setCaptions(msg.payload);
         break;
       default:
         log.warn('unknown command action', msg.action);
@@ -160,7 +179,7 @@
     var durationSec = player.getDurationSec();
     var status = { state: state, title: currentTitle };
     if (durationSec > 0) status.durationSec = durationSec;
-    relay.sendStatus(status);
+    sendStatus(status);
     if (state === 'stopped') {
       showIdleScreen();
     }
@@ -171,13 +190,13 @@
     var status = { state: currentPlaybackState, title: currentTitle, positionSec: positionSec };
     var durationSec = player.getDurationSec();
     if (durationSec > 0) status.durationSec = durationSec;
-    relay.sendStatus(status);
+    sendStatus(status);
   }
 
   function onPlaybackError(error) {
     history.stop();
     log.error('playback error ' + error.code + ': ' + error.message);
-    relay.sendStatus({ state: 'error', error: error });
+    sendStatus({ state: 'error', error: error });
     elements.errorBanner.textContent = error.message;
     elements.errorBanner.classList.remove('hidden');
     clearTimeout(errorBannerTimer);
@@ -238,14 +257,9 @@
     });
     document.addEventListener('keydown', function (e) {
       log.info('keydown keyCode=' + e.keyCode + ' key=' + e.key);
-      if (e.keyCode === KEYCODE_RETURN) {
+      if (e.keyCode === KEYCODE_RETURN || e.keyCode === 27 || e.keyCode === 8) {
         e.preventDefault();
-        if (!elements.controls.classList.contains('hidden')) {
-          hideControls();
-        } else if (typeof tizen !== 'undefined' && tizen.application) {
-          history.stop();
-          tizen.application.getCurrentApplication().exit();
-        }
+        if (!e.repeat) returnToMenu();
         return;
       }
       if (elements.playerScreen.classList.contains('hidden')) return;
@@ -278,10 +292,7 @@
           break;
         case KEYCODE_MEDIA_STOP:
           e.preventDefault();
-          history.stop();
-          player.stop();
-          relay.sendStatus({ state: 'stopped' });
-          showIdleScreen();
+          returnToMenu();
           break;
         case KEYCODE_MEDIA_REWIND:
         case 37:

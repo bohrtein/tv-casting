@@ -55,6 +55,11 @@ test('browser targets coexist with TV, route commands/status, and disconnect ind
     assert.equal(browserTarget.stremioUrl, 'https://remote.example/stremio');
     send(c, { type: 'command', action: 'pause' });
     await wait(tv, m => m.action === 'pause');
+    const captions = { supported: true, mediaId: '2', tracks: [{ id: 'embedded:3', label: 'English' }], selectedId: null, busy: false, error: null };
+    send(tv, { type: 'status', state: 'paused', captions });
+    assert.deepEqual((await wait(c, m => m.state === 'paused')).captions, captions);
+    send(c, { type: 'command', action: 'captions', payload: { mediaId: '2', trackId: 'embedded:3' } });
+    assert.equal((await wait(tv, m => m.action === 'captions')).payload.trackId, 'embedded:3');
     send(c, { type: 'select-target', targetId: registered.targetId });
     send(c, { type: 'command', action: 'seek', payload: { deltaSec: 30 } });
     assert.equal((await wait(pc, m => m.action === 'seek')).payload.deltaSec, 30);

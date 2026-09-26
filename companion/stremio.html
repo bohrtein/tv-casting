@@ -272,6 +272,17 @@
       <button id="remote-stop" class="mx-btn" type="button" disabled>stop</button>
       <button id="remote-fwd" class="mx-btn" type="button" disabled>10s &raquo;</button>
     </div>
+    <div class="cn-captions">
+      <label for="remote-captions">Captions</label>
+      <select id="remote-captions" class="mx-input" disabled><option value="">Off</option></select>
+      <div id="remote-captions-note" class="mx-readout" role="status" aria-live="polite">Start a video on the TV to choose captions.</div>
+      <details>
+        <summary>Add subtitles from a link</summary>
+        <label for="remote-caption-url">Subtitle file URL (SRT or VTT)</label>
+        <input id="remote-caption-url" class="mx-input" type="url" placeholder="https://…/subtitles.srt" disabled>
+        <button id="remote-caption-load" class="mx-btn mx-sm" type="button" disabled>Load captions</button>
+      </details>
+    </div>
   </div>
 </section>
 

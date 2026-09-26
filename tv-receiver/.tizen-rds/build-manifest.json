@@ -4,10 +4,10 @@
   "hashAlgorithm": "xxh3-128",
   "input": {
     "css/style.css": {
-      "hash": "21ea58b8c0f90884085813945db57244"
+      "hash": "3a97e654a006c768ffbfa181ef26688b"
     },
     "index.html": {
-      "hash": "53b927f450de922852215c242f3b49a7"
+      "hash": "727be188246ecbb357b32158a501f61c"
     },
     "matrix/fonts/OFL.txt": {
       "hash": "1223916b1a89adc59991ec4a437ff320"
@@ -31,7 +31,7 @@
       "hash": "cce3b30ae8ad3b2eafcaff747c533044"
     },
     "README.md": {
-      "hash": "9ef01b55134d93c59b39dec10c9ba807"
+      "hash": "288677c365263303cfe3ee0cc2d46942"
     },
     "tizen_web_project.yaml": {
       "hash": "8d70338d68d00d269054c8f0c2cb5d9d"
@@ -40,33 +40,51 @@
       "hash": "cfa83a20b8b756ede3de09e0174d09a3"
     },
     "js/player.js": {
-      "hash": "2a31aa75b69be03c7f62ad90d479288f"
+      "hash": "1d06539b60ca1c8065950800b1baff08"
     },
     "js/app.js": {
-      "hash": "963691614f08f12cacf8fb62041e75b3"
+      "hash": "1b1e603d34e1595e75492577eec49c00"
     },
     "config.xml": {
       "hash": "c25f399274a0c4188f69916852ece350"
     },
     "tests/external-subtitles.test.js": {
       "hash": "12c73e1396b3ba09d8968a0107dca042"
+    },
+    "media/matrix-back.svg": {
+      "hash": "cfd6785e401aacc2ddc7a927fcab1767"
+    },
+    "media/matrix-front.svg": {
+      "hash": "8870487c914b1f5383b32ae4fadb5f78"
+    },
+    "media/matrix-mid.svg": {
+      "hash": "e2914e9f6c244867b904b29a17f8005c"
+    },
+    "tests/remote-controls.test.js": {
+      "hash": "be7f6bd13142d3b547ccbcba8001eb2a"
+    },
+    "tests/aspect-ratio.test.js": {
+      "hash": "8bb2448201a4b7e9e67ee3955d7b0f92"
+    },
+    "tests/captions.test.js": {
+      "hash": "2374c96a711f4ea0215e152e9531f528"
     }
   },
   "output": {
     "Debug/projects/tv-receiver/css/style.css": {
-      "hash": "4e6e55c3eca8daf719e487386306d040"
+      "hash": "3a97e654a006c768ffbfa181ef26688b"
     },
     "Debug/projects/tv-receiver/index.html": {
-      "hash": "b9f29a961b82bd7b14caaa018bab563a"
+      "hash": "727be188246ecbb357b32158a501f61c"
     },
     "Debug/projects/tv-receiver/js/app.js": {
-      "hash": "963691614f08f12cacf8fb62041e75b3"
+      "hash": "1b1e603d34e1595e75492577eec49c00"
     },
     "Debug/projects/tv-receiver/js/log.js": {
       "hash": "436aaebb000a269b31ef30c748c2a663"
     },
     "Debug/projects/tv-receiver/js/player.js": {
-      "hash": "2a31aa75b69be03c7f62ad90d479288f"
+      "hash": "1d06539b60ca1c8065950800b1baff08"
     },
     "Debug/projects/tv-receiver/js/relay-client.js": {
       "hash": "b1ba561cbd45e7011a0e71ebf27818c2"
@@ -75,7 +93,7 @@
       "hash": "6d08eb7830b3222bbeba2c706c635eba"
     },
     "Debug/projects/tv-receiver/README.md": {
-      "hash": "0b333cfe19fda61df9cde7cb72e8a6f7"
+      "hash": "288677c365263303cfe3ee0cc2d46942"
     },
     "Debug/projects/tv-receiver/matrix/fonts/OFL.txt": {
       "hash": "1223916b1a89adc59991ec4a437ff320"
@@ -102,13 +120,13 @@
       "hash": "6c2277957038a4a986034f806e6f6f88"
     },
     "Debug/projects/tv-receiver/tests/remote-controls.test.js": {
-      "hash": "a20100ac1131b47f7886e9972b9a944a"
+      "hash": "be7f6bd13142d3b547ccbcba8001eb2a"
     },
     "Debug/projects/tv-receiver/js/playback-history.js": {
       "hash": "778ef71b08f1e193fb2a97eee106aa02"
     },
     "Debug/projects/tv-receiver/tests/aspect-ratio.test.js": {
-      "hash": "1567ec26a285c9caa8750364c395da83"
+      "hash": "8bb2448201a4b7e9e67ee3955d7b0f92"
     },
     "Debug/projects/tv-receiver/tests/playback-history.test.js": {
       "hash": "1f5666e7ef6aab763fc45919d5166c73"
@@ -118,6 +136,18 @@
     },
     "Debug/projects/tv-receiver/tests/external-subtitles.test.js": {
       "hash": "12c73e1396b3ba09d8968a0107dca042"
+    },
+    "Debug/projects/tv-receiver/media/matrix-back.svg": {
+      "hash": "cfd6785e401aacc2ddc7a927fcab1767"
+    },
+    "Debug/projects/tv-receiver/media/matrix-front.svg": {
+      "hash": "8870487c914b1f5383b32ae4fadb5f78"
+    },
+    "Debug/projects/tv-receiver/media/matrix-mid.svg": {
+      "hash": "e2914e9f6c244867b904b29a17f8005c"
+    },
+    "Debug/projects/tv-receiver/tests/captions.test.js": {
+      "hash": "2374c96a711f4ea0215e152e9531f528"
     }
   }
 }

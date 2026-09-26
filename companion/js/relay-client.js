@@ -218,6 +218,9 @@ function createRelayClient(config, handlers) {
       payload.url = mapUrl(payload.url);
       if (payload.subtitleUrl) payload.subtitleUrl = mapUrl(payload.subtitleUrl);
     }
+    if (payload && action === 'captions' && targetId === 'tv' && payload.subtitleUrl) {
+      payload = Object.assign({}, payload, { subtitleUrl: forTv(payload.subtitleUrl) });
+    }
     if (payload) message.payload = payload;
     return send(message);
   }
