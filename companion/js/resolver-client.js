@@ -52,7 +52,23 @@ function createResolverClient(config) {
     return /\.(mp4|m3u8|mpd|webm|mkv|mov|ts)$/i.test(path);
   }
 
+  // Away from home the Stremio server is reached through the HTTPS proxy
+  // prefix (https://HOST/stremio/...), but the resolver only takes a
+  // plain <server>/<infoHash>/<fileIdx> torrent URL and runs next to the
+  // Stremio server anyway, so hand it the direct LAN URL instead.
+  function serverSideUrl(url) {
+    if (typeof url !== 'string' || !config.STREMIO_SERVER_URL || !config.LAN_HOST) return url;
+    try {
+      var parsed = new URL(url);
+      var base = new URL(config.STREMIO_SERVER_URL, typeof location !== 'undefined' ? location.href : undefined);
+      var prefix = base.pathname.replace(/\/+$/, '');
+      if (!prefix || parsed.origin !== base.origin || parsed.pathname.indexOf(prefix + '/') !== 0) return url;
+      return 'http://' + config.LAN_HOST + ':11470' + parsed.pathname.slice(prefix.length) + parsed.search + parsed.hash;
+    } catch (_) { return url; }
+  }
+
   function startJob(endpoint, body) {
+    if (body && typeof body.url === 'string') body = Object.assign({}, body, { url: serverSideUrl(body.url) });
     return fetch(config.RESOLVER_URL + endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
