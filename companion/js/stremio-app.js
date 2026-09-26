@@ -89,6 +89,14 @@ document.addEventListener('DOMContentLoaded', function () {
   // A row worth caching: loaded, or an addon that simply had nothing to
   // return. Real errors are left out so the next visit retries them.
   function settledRow(item) { return item.state === 'Ready' || item.empty; }
+  // A row from one of this section's own addons. Keeps Plus18 from ever
+  // showing the normal section's catalogs (and the reverse), including rows
+  // an older page version cached without saying which addon they came from.
+  function ownRow(item) {
+    return !!item && addons.some(function (addon) { return addon.url === item.addonUrl; });
+  }
+  function ownRows(rows) { return (rows || []).filter(ownRow); }
+  function usableCache(rows) { return Array.isArray(rows) && rows.every(ownRow) ? rows : null; }
   function blocked(meta) { return section === 'normal' && ContentPolicy.restricted(meta); }
   function yearOf(meta) { return meta.releaseInfo || meta.year || ''; }
   function typeLabel(type) { return type ? type.charAt(0).toUpperCase() + type.slice(1) : ''; }
@@ -385,13 +393,15 @@ document.addEventListener('DOMContentLoaded', function () {
       return fresh ? null : browseCache.get('board', requestSection, scope, '');
     }).then(function (cached) {
       if (token !== board.token) return null;
-      if (cached) { fromCache = true; return cached; }
+      if (usableCache(cached)) { fromCache = true; return cached; }
+      // No addons: nothing to ask Core for (it would only sit loading).
+      if (!addons.length) return [];
       return stremio.getBoard(function (rows) {
-        if (token === board.token) rows.forEach(function (item) { catalogRow(el.boardRows, board.rows, item); });
-      }, fresh);
+        if (token === board.token) ownRows(rows).forEach(function (item) { catalogRow(el.boardRows, board.rows, item); });
+      }, fresh).then(ownRows);
     }).then(function (rows) {
       if (!rows || token !== board.token) return;
-      if (!fromCache && rows.every(settledRow)) browseCache.put('board', requestSection, scope, '', rows);
+      if (!fromCache && addons.length && rows.every(settledRow)) browseCache.put('board', requestSection, scope, '', rows);
       rows.forEach(function (item) { catalogRow(el.boardRows, board.rows, item); });
       setReadout(el.boardReadout, rows.length ? '' : section === 'plus18'
         ? 'No Plus18 catalogs yet. Install an addon under Addons.'
@@ -920,15 +930,16 @@ document.addEventListener('DOMContentLoaded', function () {
     var requestSection = section, cacheScope = browseScope(), fromCache = false;
     return (force ? Promise.resolve(null) : browseCache.get('search', requestSection, cacheScope, query)).then(function (cached) {
       if (token !== searchState.token) return null;
-      if (cached) { fromCache = true; return cached; }
+      if (usableCache(cached)) { fromCache = true; return cached; }
+      if (!addons.length) return [];
       return stremio.searchRows(query, function (rows) {
         if (token !== searchState.token) return;
-        searchState.all = rows;
-        showSearchRows(rows);
-      }, force);
+        searchState.all = ownRows(rows);
+        showSearchRows(searchState.all);
+      }, force).then(ownRows);
     }).then(function (rows) {
       if (!rows) return null;
-      if (!fromCache && rows.every(settledRow)) browseCache.put('search', requestSection, cacheScope, query, rows);
+      if (!fromCache && addons.length && rows.every(settledRow)) browseCache.put('search', requestSection, cacheScope, query, rows);
       rows.forEach(function (item) { if (item.state === 'Ready' || item.empty) searchState.fetched[rowKey(item)] = item; });
       return rows;
     });

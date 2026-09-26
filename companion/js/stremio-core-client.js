@@ -278,12 +278,19 @@ function createStremioCoreClient(config) {
   function catalogRows(model, extra, onUpdate, fresh) {
     var section = activeSection;
     var key = JSON.stringify(extra);
+    // Core's catalog rows carry only the addon's manifest, so find its URL
+    // among this section's installed addons by manifest id.
+    function addonUrl(addon) {
+      var id = addon && addon.manifest && addon.manifest.id;
+      var hit = (addonCache[section] || []).find(function (item) { return item.manifest && item.manifest.id === id; });
+      return hit ? hit.url : addon && addon.transportUrl;
+    }
     function rows(state) {
       return (state.catalogs || []).map(function (item) {
         var content = item.content || { type: 'Loading' };
         return { id: item.id, type: item.type, name: item.name,
           addonName: item.addon && item.addon.manifest && item.addon.manifest.name,
-          addonUrl: item.addon && item.addon.transportUrl,
+          addonUrl: addonUrl(item.addon),
           state: content.type, error: content.type === 'Err' ? coreError(content.content) : '',
           empty: content.type === 'Err' && (content.content === 'EmptyContent' || !!content.content && content.content.type === 'EmptyContent'),
           metas: content.type === 'Ready' ? content.content || [] : [] };
