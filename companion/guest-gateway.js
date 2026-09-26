@@ -24,6 +24,7 @@ const http = require('http');
 const dns = require('dns').promises;
 const net = require('net');
 const { createGuestCast } = require('./guest-cast');
+const ContentPolicy = require('./js/content-policy');
 
 const COOKIE = 'tvc_guest';
 const MAX_BODY = 4 * 1024 * 1024;
@@ -191,7 +192,7 @@ function createGuestGateway(opts) {
   // --- the guest's view of the library ------------------------------------
 
   function allowedEntry(entry) {
-    return entry && entry.category !== 'plus18' &&
+    return entry && !ContentPolicy.restricted(entry) &&
       (!entry.metadata || GUEST_TYPES.indexOf(entry.metadata.type) !== -1);
   }
   function titleKey(m) { return JSON.stringify([m.type, m.addon || '', m.id]); }
@@ -260,7 +261,7 @@ function createGuestGateway(opts) {
     if (method === 'POST' && (pathname === '/torrent' || pathname === '/resolve')) {
       const body = await readBody(req, MAX_BODY);
       const m = body.metadata;
-      if (body.category === 'plus18' || !m || GUEST_TYPES.indexOf(m.type) === -1) {
+      if (!m || ContentPolicy.restricted(body) || GUEST_TYPES.indexOf(m.type) === -1) {
         return sendJson(res, 403, { error: 'Only movies and series can be saved.' });
       }
       // Always your own streaming server, never an address from the page.

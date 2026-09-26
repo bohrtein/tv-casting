@@ -31,7 +31,9 @@ function fakeResolver() {
           ],
           // As the real resolver sends them: torrents are named by key only.
           torrents: [{ key: HASH + '-0', title: 'Adult', category: 'plus18', metadata: { type: 'movie', id: 'x' } },
-            { key: HASH + '-1', title: 'Saved film', metadata: { type: 'movie', id: 'tt3' } }],
+            { key: HASH + '-1', title: 'Saved film', metadata: { type: 'movie', id: 'tt3' } },
+            // Theirs, but you filed it under Porn afterwards.
+            { key: HASH + '-2', title: 'Refiled', category: 'porn', metadata: { type: 'movie', id: 'tt4' } }],
           titles: [{ type: 'movie', id: 'tt1', videos: [] }, { type: 'movie', id: 'tt2', videos: [] }, { type: 'movie', id: 'tt3', videos: [] }]
         });
       }
@@ -50,6 +52,7 @@ async function setup() {
   const accounts = createAccounts(path.join(dir, 'accounts.json'));
   accounts.create('guest', 'guest password');
   accounts.add('guest', 'media:' + MINE);
+  accounts.add('guest', `torrents:${HASH}-2`);
   const resolver = fakeResolver();
   await new Promise((r) => resolver.server.listen(0, '127.0.0.1', r));
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'guest-root-'));
@@ -171,6 +174,7 @@ test('guests can only save movies and series, and no links into the home network
     await g.login();
     const post = (p, body) => g.call(p, { method: 'POST', body: JSON.stringify(body) });
     assert.strictEqual((await post('/resolver/torrent', { url: `http://x/${HASH}/0`, metadata: { type: 'movie' }, category: 'plus18' })).status, 403);
+    assert.strictEqual((await post('/resolver/torrent', { url: `http://x/${HASH}/0`, metadata: { type: 'movie' }, category: 'porn' })).status, 403);
     assert.strictEqual((await post('/resolver/resolve', { url: 'https://example.com/v.mp4', metadata: { type: 'channel' } })).status, 403);
     for (const url of ['http://192.168.2.1/admin', 'http://127.0.0.1:8788/cache', 'http://localhost/', 'http://[::1]/', 'file:///etc/passwd', 'http://100.101.102.103/']) {
       assert.strictEqual((await post('/resolver/resolve', { url, metadata: { type: 'movie' } })).status, 403, url);
