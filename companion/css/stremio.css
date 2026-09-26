@@ -47,7 +47,21 @@
 
 /* Poster extras: a badge in the corner and a progress line at the bottom. */
 .cn-poster > .mx-slot-lead { position: relative; }
-.cn-st-badge { position: absolute; top: var(--mx-space-1); left: var(--mx-space-1); z-index: 1; }
+.cn-st-badge {
+  position: absolute;
+  top: var(--mx-space-2);
+  left: var(--mx-space-2);
+  z-index: 1;
+  padding: 4px 9px;
+  background: var(--mx-accent);
+  border: 1px solid var(--mx-accent);
+  color: var(--mx-on-accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .8);
+}
+.cn-st-badge-saved::before { content: '\2713'; margin-right: 5px; }
 .cn-st-progress {
   display: block;
   height: 3px;
@@ -323,3 +337,15 @@
 .cn-yt:focus-visible { outline: none; }
 .cn-yt:focus-visible .cn-yt-thumb { box-shadow: var(--mx-ring); border-color: var(--mx-accent); }
 .cn-yt:active .cn-yt-thumb { transform: scale(0.98); }
+
+/* Phones: the stream's buttons go on their own line under it, so the
+   release details keep the full width. */
+@media (max-width: 600px) {
+  .cn-st-stream { flex-wrap: wrap; }
+  .cn-st-stream .cn-st-stream-play { flex: 1 1 100%; }
+  .cn-st-stream .cn-stream-badges {
+    flex: 1 1 100%; flex-direction: row; flex-wrap: wrap; align-items: center;
+    justify-content: flex-end; padding: 0 14px 12px;
+  }
+  .cn-st-stream .cn-stream-badges button:first-of-type { margin-left: auto; }
+}

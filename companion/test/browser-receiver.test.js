@@ -44,25 +44,58 @@ test('opening a browser receiver selects its named target and keeps it on reconn
       stage = 'waiting for companion target menu';
       await companionPage.locator('select[aria-label="Playback target"] option').first().waitFor({ state: 'attached' });
       stage = 'opening receiver';
+      await companionPage.getByRole('button', { name: 'receiver', exact: true }).click();
       const [receiverPage] = await Promise.all([
         context.waitForEvent('page'),
-        companionPage.getByRole('link', { name: 'Open receiver' }).click()
+        companionPage.getByRole('link', { name: 'Open receiver', exact: true }).click()
       ]);
       await receiverPage.waitForLoadState();
       receiverPage.setDefaultTimeout(5000);
       stage = 'enabling receiver';
       await receiverPage.locator('#receiver-name').fill('Office laptop');
-      await receiverPage.getByRole('button', { name: 'Enable receiver' }).click();
-      await receiverPage.getByText('This device: Office laptop').waitFor();
+      await receiverPage.getByRole('button', { name: 'Save' }).click();
+      await receiverPage.locator('#receiver-enabled').check({ force: true });
+      await receiverPage.getByText('On as Office laptop').waitFor();
       stage = 'waiting for automatic target selection';
       await companionPage.waitForFunction(() => document.querySelector('select[aria-label="Playback target"] option:checked')?.textContent === 'Office laptop');
       const selected = await companionPage.locator('select[aria-label="Playback target"]').inputValue();
       assert.match(selected, /^browser-/);
       stage = 'reloading receiver';
       await receiverPage.reload();
-      await receiverPage.getByRole('button', { name: 'Enable receiver' }).click();
-      await receiverPage.getByText('This device: Office laptop').waitFor();
+      // Still on after a reload, under the same target.
+      await receiverPage.getByText('On as Office laptop').waitFor();
       assert.equal(await companionPage.locator('select[aria-label="Playback target"]').inputValue(), selected);
+      stage = 'renaming receiver';
+      await receiverPage.locator('#receiver-name').fill('Den laptop');
+      await receiverPage.getByRole('button', { name: 'Save' }).click();
+      await companionPage.waitForFunction(() => document.querySelector('select[aria-label="Playback target"] option:checked')?.textContent === 'Den laptop');
+      // The same call stremio.html's "play on this device" button makes.
+      const playHere = (title) => companionPage.evaluate((title) => {
+        const noop = () => {};
+        const client = createRelayClient(APP_CONFIG, { onConnected: noop, onDisconnected: noop, onJoined: noop, onStatus: noop, onError: noop });
+        client.connect();
+        return client.openLocalReceiver().then((id) => {
+          client.sendCommand('play', { url: location.origin + '/missing.mp4', title });
+          return id;
+        });
+      }, title);
+      stage = 'play on this device (reuses the open receiver tab)';
+      assert.equal(await playHere('Local test'), selected);
+      await receiverPage.locator('#receiver-title', { hasText: 'Local test' }).waitFor();
+      stage = 'switching receiver off';
+      await receiverPage.locator('#receiver-enabled').uncheck({ force: true });
+      await companionPage.waitForFunction(() => document.querySelector('select[aria-label="Playback target"] option:checked')?.textContent.endsWith('(offline)'));
+      assert.equal(await receiverPage.locator('#receiver-title').textContent(), '');
+      stage = 'play on this device (switches the receiver back on)';
+      assert.equal(await playHere('Back on'), selected);
+      await receiverPage.locator('#receiver-title', { hasText: 'Back on' }).waitFor();
+      assert.equal(await receiverPage.locator('#receiver-enabled').isChecked(), true);
+      stage = 'play on this device (opens a new receiver tab)';
+      await receiverPage.close();
+      const [freshPage, freshId] = await Promise.all([context.waitForEvent('page'), playHere('Fresh tab')]);
+      assert.match(freshId, /^browser-/);
+      await freshPage.locator('#receiver-title', { hasText: 'Fresh tab' }).waitFor();
+      assert.equal(await freshPage.locator('#receiver-enabled').isChecked(), true);
     } catch (error) {
       error.message = stage + ': ' + error.message;
       throw error;

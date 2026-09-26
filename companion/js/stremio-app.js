@@ -112,7 +112,7 @@ document.addEventListener('DOMContentLoaded', function () {
       '</span>';
     if (opts.badge) {
       var badge = document.createElement('span');
-      badge.className = 'mx-badge cn-st-badge';
+      badge.className = 'mx-badge cn-st-badge' + (opts.badge === 'saved' ? ' cn-st-badge-saved' : '');
       badge.textContent = opts.badge;
       tile.querySelector('.mx-slot-lead').appendChild(badge);
     }
@@ -125,7 +125,7 @@ document.addEventListener('DOMContentLoaded', function () {
     previews[meta.type + ':' + meta.id] = meta;
     var entry = library.items && LibraryModel.findTitle(library.items, meta.type, meta.id);
     return posterTile({
-      name: meta.name, poster: meta.poster, badge: entry ? 'library' : '',
+      name: meta.name, poster: meta.poster, badge: entry ? 'saved' : '',
       meta: [yearOf(meta), meta.imdbRating ? '★ ' + meta.imdbRating : ''].filter(Boolean).join(' · '),
       onClick: onClick || function () { location.hash = detailHref(meta.type, meta.id); }
     });
@@ -201,6 +201,37 @@ document.addEventListener('DOMContentLoaded', function () {
     nowCasting.set(url, title);
     MX.toast(true, 'Casting: ' + title);
     remoteSheet.open();
+  }
+
+  function openHereReceiver(castable, title, subtitleUrl) {
+    var receiver;
+    try { receiver = relay.openLocalReceiver(); }
+    catch (err) {
+      if (err.code !== 'POPUP_BLOCKED') { setReadout(el.streamsReadout, err.message, true); return null; }
+      // Too long since the click (slow subtitle lookup): ask for another tap.
+      setReadout(el.streamsReadout, ' ', false);
+      el.streamsReadout.textContent = '';
+      var again = document.createElement('button');
+      again.type = 'button';
+      again.className = 'mx-btn mx-sm mx-primary';
+      again.textContent = 'open the receiver to play';
+      again.addEventListener('click', function () {
+        setReadout(el.streamsReadout, '', false);
+        castStreamReady(castable, title, subtitleUrl, false, true);
+      });
+      el.streamsReadout.appendChild(again);
+      return null;
+    }
+    receiver.catch(function (err) { setReadout(el.streamsReadout, err.message, true); });
+    return receiver;
+  }
+
+  function playHere(receiver, url, title, subtitleUrl) {
+    setReadout(el.streamsReadout, 'waiting for the receiver tab…', false);
+    receiver.then(function () {
+      setReadout(el.streamsReadout, '', false);
+      castToTv(url, title, subtitleUrl);
+    }, function () {});
   }
 
   // The remote sheet at the bottom (remote-sheet.js, remote-controls.js).
@@ -479,12 +510,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
   el.discoverMore.addEventListener('click', function () { loadDiscoverPage(false); });
-  // Stremio's Discover keeps loading as you scroll.
-  if ('IntersectionObserver' in window) {
-    new IntersectionObserver(function (entries) {
-      if (entries[0].isIntersecting && current.view === 'discover' && !discover.done && !discover.loading && discover.skip) loadDiscoverPage(false);
-    }, { rootMargin: '600px' }).observe(el.discoverMore.parentNode);
-  }
 
   // Wide screens: the first tap selects and previews, as in Stremio Web;
   // tapping the selected title (or "show") opens it. Phones open it directly.
@@ -550,7 +575,7 @@ document.addEventListener('DOMContentLoaded', function () {
       el.libraryGrid.appendChild(posterTile({
         name: item.name, poster: item.poster, meta: meta,
         progress: ratio > 0 && ratio < 1 ? ratio : 0,
-        badge: item.files.some(function (e) { return e.downloading; }) ? 'downloading' : '',
+        badge: item.files.some(function (e) { return e.downloading; }) ? 'downloading' : 'saved',
         onClick: function () {
           location.hash = item.kind === 'title' ? detailHref(item.type, item.metadata.id) : detailHref('local', item.key);
         }
@@ -962,7 +987,7 @@ document.addEventListener('DOMContentLoaded', function () {
       ].filter(Boolean).join(' · ');
       if (status.saved !== 'missing') {
         var badge = document.createElement('span');
-        badge.className = 'mx-badge cn-st-badge';
+        badge.className = 'mx-badge cn-st-badge' + (status.saved === 'saved' ? ' cn-st-badge-saved' : '');
         badge.textContent = status.saved === 'saved' ? 'saved' : 'partial';
         row.querySelector('.cn-st-episode-thumb').appendChild(badge);
       }
@@ -1160,24 +1185,31 @@ document.addEventListener('DOMContentLoaded', function () {
       row.classList.add('cn-st-disabled');
       return row;
     }
+    var here = document.createElement('button');
+    here.type = 'button';
+    here.className = 'mx-btn mx-sm';
+    here.textContent = 'play on this device';
+    here.title = 'Open the receiver in this browser and play it there';
+    side.appendChild(here);
     var save = document.createElement('button');
     save.type = 'button';
     save.className = 'mx-btn mx-sm';
     save.textContent = 'save';
     save.title = 'Save to your library without casting';
     side.appendChild(save);
-    play.addEventListener('click', function () { selectStream(stream, castable, title); });
+    play.addEventListener('click', function () { selectStream(stream, castable, title, false); });
+    here.addEventListener('click', function () { selectStream(stream, castable, title, true); });
     save.addEventListener('click', function () { castStreamReady(castable, title, null, true); });
     return row;
   }
 
-  function selectStream(stream, castable, title) {
+  function selectStream(stream, castable, title, here) {
     var token = ++subtitleToken;
     setReadout(el.streamsReadout, 'checking subtitles…', false);
     stremio.getSubtitles(stream, target.type, target.id).then(function (subtitles) {
       if (token !== subtitleToken) return;
       setReadout(el.streamsReadout, '', false);
-      if (!subtitles.length) { castStreamReady(castable, title, null, false); return; }
+      if (!subtitles.length) { castStreamReady(castable, title, null, false, here); return; }
       var list = $('subtitles-list');
       list.innerHTML = '';
       function addChoice(label, subtitle) {
@@ -1188,7 +1220,7 @@ document.addEventListener('DOMContentLoaded', function () {
         button.addEventListener('click', function () {
           if (token !== subtitleToken) return;
           MX.sheet.close('subtitles-sheet');
-          castStream(castable, title, subtitle, token);
+          castStream(castable, title, subtitle, token, here);
         });
         list.appendChild(button);
       }
@@ -1200,25 +1232,31 @@ document.addEventListener('DOMContentLoaded', function () {
     }).catch(function (error) {
       if (token !== subtitleToken) return;
       setReadout(el.streamsReadout, 'Subtitles unavailable: ' + error.message, true);
-      castStreamReady(castable, title, null, false);
+      castStreamReady(castable, title, null, false, here);
     });
   }
 
-  function castStream(castable, title, subtitle, token) {
-    if (!subtitle) { castStreamReady(castable, title, null, false); return; }
+  function castStream(castable, title, subtitle, token, here) {
+    if (!subtitle) { castStreamReady(castable, title, null, false, here); return; }
     setReadout(el.streamsReadout, 'preparing subtitles…', false);
     resolver.resolveSubtitle(subtitle.url).then(function (url) {
-      if (token === subtitleToken) castStreamReady(castable, title, url, false);
+      if (token === subtitleToken) castStreamReady(castable, title, url, false, here);
     }).catch(function (error) { if (token === subtitleToken) setReadout(el.streamsReadout, error.message, true); });
   }
 
-  function castStreamReady(castable, title, subtitleUrl, saveOnly) {
+  // here: play in this browser's receiver tab instead of the selected
+  // target. The tab is opened now, while the click still counts as a user
+  // gesture, and gets the video once the resolver has it.
+  function castStreamReady(castable, title, subtitleUrl, saveOnly, here) {
+    var receiver = here ? openHereReceiver(castable, title, subtitleUrl) : null;
+    if (here && !receiver) return;
     var fields = libraryMetadata();
     if (section === 'plus18') fields.category = 'plus18';
     fields.title = title;
     function done(result) {
       setReadout(el.streamsReadout, saveOnly ? 'Saving to your library. Progress is shown under downloads.' : '', false);
-      if (!saveOnly) castToTv(result.streamUrl, title, subtitleUrl);
+      if (receiver) playHere(receiver, result.streamUrl, title, subtitleUrl);
+      else if (!saveOnly) castToTv(result.streamUrl, title, subtitleUrl);
       refreshLibrary();
       refreshSaving();
     }

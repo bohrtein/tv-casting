@@ -2,28 +2,94 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Browser receiver · TV Casting</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<title>Receiver · TV Casting</title>
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="matrix/matrix.css">
+<link rel="stylesheet" href="/ds/1/matrix.css">
+<script src="/ds/1/matrix.js"></script>
+<script src="matrix/matrix.js"></script>
 <link rel="stylesheet" href="css/receiver.css">
 </head>
 <body class="mx">
-<main>
-  <h1>Browser receiver</h1>
-  <p>Enter a name and enable this receiver. A companion open in this browser will select it automatically. On another device, choose the name under <strong>Play on</strong> in the companion. Keep this page open to play video here.</p>
-  <form id="receiver-join">
-    <label for="receiver-name">Device name</label>
-    <input class="mx-input" id="receiver-name" maxlength="80" required value="Browser receiver" placeholder="e.g. Living room laptop">
-    <button class="mx-btn mx-primary" type="submit">Enable receiver</button>
-  </form>
-  <p id="receiver-status" role="status" aria-live="polite">Receiver is disabled.</p>
-  <p id="receiver-connected-name" hidden></p>
-  <h2 id="receiver-title"></h2>
-  <video id="receiver-video" controls playsinline preload="metadata"></video>
-  <button id="receiver-play" class="mx-btn mx-primary" hidden>Tap to start playback</button>
-  <button id="receiver-stop" class="mx-btn" hidden>Stop</button>
-  <a class="mx-btn" href="index.html">Companion</a>
-</main>
+
+<div class="mx-shell rc-shell">
+
+  <div class="mx-topbar">
+    <div class="mx-brand">
+      <span class="mx-mark">tv-casting</span>
+      <h1 class="mx-tagline">receiver</h1>
+    </div>
+    <nav class="mx-topbar-nav">
+      <a class="mx-btn mx-sm" href="stremio.html#/library">library</a>
+      <a class="mx-btn mx-sm" href="tools.html">tools</a>
+    </nav>
+    <span id="receiver-chip" class="mx-status-chip" data-mx-state="err">
+      <span class="mx-led" aria-hidden="true"></span><span id="receiver-chip-label">off</span>
+    </span>
+  </div>
+
+  <div class="rc-layout">
+    <section class="rc-stage" aria-label="Player">
+      <div class="rc-screen">
+        <video id="receiver-video" controls playsinline preload="metadata" x-webkit-airplay="allow"></video>
+        <div id="receiver-idle" class="rc-idle">
+          <span class="rc-idle-mark" aria-hidden="true">▶</span>
+          <p id="receiver-idle-text">Turn the receiver on, then pick it under <strong>Play on</strong> in the companion.</p>
+        </div>
+        <button id="receiver-play" class="mx-btn mx-primary rc-tap" type="button" hidden>Tap to start playback</button>
+      </div>
+      <div class="rc-now">
+        <div class="rc-now-text">
+          <h2 id="receiver-title" class="rc-title"></h2>
+          <p id="receiver-status" class="rc-status" role="status" aria-live="polite">Receiver is off.</p>
+        </div>
+        <div class="rc-actions">
+          <button id="receiver-unmute" class="mx-btn mx-sm" type="button" hidden>Unmute</button>
+          <button id="receiver-airplay" class="mx-btn mx-sm" type="button" hidden title="Send this video to an AirPlay device">AirPlay</button>
+          <button id="receiver-remote" class="mx-btn mx-sm" type="button" hidden title="Send this video to a nearby device">Cast to device</button>
+          <button id="receiver-fullscreen" class="mx-btn mx-sm" type="button" hidden>Fullscreen</button>
+          <button id="receiver-stop" class="mx-btn mx-sm" type="button" hidden>Stop</button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="rc-side">
+      <section class="mx-panel">
+        <h2 class="mx-panel-title">this device</h2>
+        <label class="mx-toggle rc-enable">
+          <input id="receiver-enabled" type="checkbox">
+          <span class="mx-sw" aria-hidden="true"></span>
+          <span>Receiver <strong id="receiver-enabled-label">off</strong></span>
+        </label>
+        <form id="receiver-name-form" class="rc-name">
+          <div class="mx-field">
+            <div class="mx-field-head"><label class="mx-label" for="receiver-name">device name</label></div>
+            <div class="rc-name-row">
+              <input class="mx-input" id="receiver-name" maxlength="80" required value="Browser receiver" placeholder="e.g. Living room laptop" autocomplete="off">
+              <button id="receiver-rename" class="mx-btn" type="submit" disabled>Save</button>
+            </div>
+          </div>
+        </form>
+        <p class="rc-hint">This is the name the companion shows under <strong>Play on</strong>. Keep this page open while it's on.</p>
+      </section>
+
+      <section class="mx-panel">
+        <h2 class="mx-panel-title">airplay</h2>
+        <p id="receiver-airplay-note" class="rc-hint">
+          Open this page in Safari on an iPhone, iPad or Mac to send what's
+          playing here to an Apple TV or AirPlay speaker. The AirPlay button
+          shows up once a device is nearby.
+        </p>
+      </section>
+    </aside>
+  </div>
+
+</div>
+
 <script src="js/config.js"></script>
 <script src="vendor/hls.min.js"></script>
 <script src="js/playback-history.js"></script>

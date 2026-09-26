@@ -12,7 +12,6 @@ function createRelayClient(config, handlers) {
   var holder = document.querySelector('[data-relay-targets]') || document.querySelector('.mx-topbar-nav') || document.querySelector('.mx-topbar');
   if (holder) {
     var label = document.createElement('label'); label.className = 'tvc-target-label'; label.textContent = 'Play on '; label.appendChild(select); holder.appendChild(label);
-    var link = document.createElement('a'); link.className = 'mx-btn mx-sm'; link.href = 'receiver.html'; link.target = '_blank'; link.rel = 'noopener'; link.textContent = 'Open receiver'; holder.appendChild(link);
   }
   function renderTargets() {
     select.innerHTML = '';
@@ -31,11 +30,44 @@ function createRelayClient(config, handlers) {
   select.addEventListener('change', function () {
     selectTarget(select.value);
   });
+  var receiverChannel = null;
   if (typeof BroadcastChannel !== 'undefined') {
-    var receiverChannel = new BroadcastChannel('tvc.receiver');
-    receiverChannel.onmessage = function (event) {
+    receiverChannel = new BroadcastChannel('tvc.receiver');
+    receiverChannel.addEventListener('message', function (event) {
       if (event.data && event.data.type === 'select-receiver' && /^browser-[\w-]+$/.test(event.data.targetId || '')) selectTarget(event.data.targetId);
-    };
+    });
+  }
+
+  // "Play on this device": open (or reuse) this browser's receiver tab,
+  // turn it on, and resolve once it has registered and been selected
+  // here. Call from a click handler, or the browser blocks the new tab;
+  // that, or no BroadcastChannel, throws right away.
+  function openLocalReceiver() {
+    if (!receiverChannel) throw new Error('This browser cannot hand video to a receiver tab.');
+    // Reuse an open receiver tab as it is (reloading it would cut off
+    // whatever it's playing); only a brand-new tab gets the page.
+    var win = window.open('', 'tvc-receiver');
+    if (!win) throw Object.assign(new Error('The browser blocked the receiver tab.'), { code: 'POPUP_BLOCKED' });
+    var fresh = true;
+    try { fresh = win.location.href === 'about:blank'; } catch (_) {}
+    if (fresh) win.location.href = new URL('receiver.html?auto=1', location.href).href;
+    else win.focus();
+    return new Promise(function (resolve, reject) {
+      var timer = setTimeout(function () {
+        receiverChannel.removeEventListener('message', onMessage);
+        reject(new Error('The receiver tab did not connect to the relay.'));
+      }, 20000);
+      function onMessage(event) {
+        if (!event.data || event.data.type !== 'select-receiver' || !event.data.local) return;
+        clearTimeout(timer);
+        receiverChannel.removeEventListener('message', onMessage);
+        resolve(event.data.targetId);
+      }
+      receiverChannel.addEventListener('message', onMessage);
+      // An already-open receiver tab answers this; a new one announces
+      // itself once it registers.
+      receiverChannel.postMessage({ type: 'find-receiver' });
+    });
   }
   renderTargets();
   var reconnectAttempts = 0;
@@ -126,6 +158,7 @@ function createRelayClient(config, handlers) {
 
   return {
     connect: connect,
-    sendCommand: sendCommand
+    sendCommand: sendCommand,
+    openLocalReceiver: openLocalReceiver
   };
 }

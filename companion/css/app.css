@@ -577,3 +577,20 @@
 
 .mx-tabbed .mx-tabs { display: flex; }
 .mx-tabbed .mx-layout-split { display: block; }
+
+/* --- tools: browser receiver ------------------------------------------- */
+.tl-receiver { margin-top: 16px; }
+.tl-receiver-hero { display: flex; gap: 14px; align-items: flex-start; }
+.tl-receiver-hero p { margin: 0; color: var(--mx-ink-dim); font-size: 13px; line-height: 1.55; }
+.tl-receiver-icon {
+  display: grid; place-items: center; flex: 0 0 auto;
+  width: 44px; height: 44px;
+  border: 1px solid var(--mx-accent); border-radius: 50%;
+  color: var(--mx-accent); box-shadow: 0 0 14px var(--mx-accent-mid);
+}
+.tl-receiver-points { margin: 14px 0 16px; padding-left: 18px; color: var(--mx-ink-dim); font-size: 13px; line-height: 1.6; }
+.tl-receiver-points strong { color: var(--mx-ink); font-weight: 600; }
+.tl-receiver-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+@media (max-width: 600px) {
+  .tl-receiver-actions .mx-btn { flex: 1 1 auto; justify-content: center; }
+}
