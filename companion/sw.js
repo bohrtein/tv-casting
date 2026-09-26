@@ -37,6 +37,8 @@ var SHELL_FILES = [
   'js/remote-controls.js',
   'vendor/stremio-core/worker.js',
   'vendor/stremio-core/stremio_core_web_bg.wasm',
+  'js/playback-history.js',
+  'js/guest-player.js',
   'js/stremio-app.js',
   'js/app.js',
   'icon-192.png',

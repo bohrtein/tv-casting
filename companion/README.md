@@ -67,3 +67,44 @@ shared across companions and persists through resolver restarts.
 
 Deploy the updated resolver and companion, and rebuild/install the updated TV
 receiver to enable progress and continuation. No relay update is needed.
+
+## Accounts (the guest door)
+
+You use the companion as always, with no login. For other people, `serve.js`
+also runs a **guest door** on `127.0.0.1:8790` (`GUEST_PORT`, `0` turns it
+off; `guest-gateway.js`) where everything needs an account:
+
+- They see Board, Discover, Search, Calendar and Library for **Movies and
+  Series only**: no Plus18, no addons or settings, no tools, and no TV,
+  relay or remote. Videos play in the page on their own device.
+- Each account has **its own library and watch progress**. Saving
+  downloads onto the server like yours does, or reuses the file if it's
+  already there, and adds it to their list only. Removing it from their
+  library never deletes the file. You still see every saved file in yours.
+- The server checks all of this, not just the page: the guest door only
+  passes library, download and media requests for that person's own
+  titles; torrents always go to your own Stremio server
+  (`STREMIO_INTERNAL_URL`, default `http://127.0.0.1:11470`), links into
+  the home network are refused, and the resolver is reached at
+  `RESOLVER_INTERNAL_URL` (default `http://127.0.0.1:8788`).
+
+Accounts live in `DATA_DIR/accounts.json` (passwords as scrypt hashes).
+Create them on your own page under **Settings → accounts**. A new password
+logs that person out everywhere; wrong passwords lock that name out for
+15 minutes after 8 tries.
+
+Put the door on the internet with Tailscale Funnel, on the server
+(MagicDNS and HTTPS certificates on in the Tailscale admin console; the
+first run prints a link to allow Funnel):
+
+```bash
+sudo tailscale funnel --bg --https=10000 http://127.0.0.1:8790
+```
+
+People then open `https://<your server's name>.ts.net:10000` and log in.
+Port 10000 keeps it apart from your own `https://` address and the AirPlay
+links (8443); Funnel also allows 443 if nothing else uses it. To close the
+door: `sudo tailscale funnel --https=10000 off`.
+
+Not for guests yet: AirPlay from the page (the TV can't log in) and
+subtitles.

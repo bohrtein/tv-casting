@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex">
+<title>Log in · TV Casting</title>
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="matrix/matrix.css">
+<script src="matrix/matrix.js"></script>
+<style>
+  .lg { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: var(--mx-space-5) var(--mx-gutter); }
+  .lg-card { width: min(100%, 380px); }
+  .lg-card form { display: flex; flex-direction: column; gap: var(--mx-space-3); }
+  .lg-card .mx-input { width: 100%; font-size: 16px; }
+  .lg-card .mx-btn { width: 100%; }
+  .lg-mark { text-align: center; margin-bottom: var(--mx-space-4); }
+  .lg-note { color: var(--mx-ink-dim); font-size: var(--mx-text-sm); text-align: center; margin: var(--mx-space-3) 0 0; }
+</style>
+</head>
+<!-- The guest door's login (guest-gateway.js). Accounts are made by the
+     owner under Settings on their own page; there's no sign-up here. -->
+<body class="mx">
+<main class="lg">
+  <section class="mx-panel lg-card">
+    <div class="lg-mark"><span class="mx-mark">tv casting</span></div>
+    <form id="login-form">
+      <div class="mx-field">
+        <div class="mx-field-head"><label class="mx-label" for="login-name">name</label></div>
+        <input class="mx-input" id="login-name" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      </div>
+      <div class="mx-field">
+        <div class="mx-field-head"><label class="mx-label" for="login-password">password</label></div>
+        <input class="mx-input" id="login-password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <div id="login-readout" class="mx-readout" role="alert" style="display:none"></div>
+      <button id="login-button" class="mx-btn mx-primary" type="submit">log in</button>
+    </form>
+    <p class="lg-note">Ask the owner for an account.</p>
+  </section>
+</main>
+<script>
+  (function () {
+    var form = document.getElementById('login-form');
+    var readout = document.getElementById('login-readout');
+    var button = document.getElementById('login-button');
+    function show(text) { readout.textContent = text; readout.style.display = text ? '' : 'none'; readout.classList.toggle('mx-err', !!text); }
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      button.disabled = true;
+      show('');
+      fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: form.username.value.trim(), password: form.password.value })
+      }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (body) {
+          if (!res.ok) throw new Error(body.error || 'Could not log in.');
+          location.href = '/stremio.html#/';
+        });
+      }).catch(function (err) {
+        show(err.message);
+        button.disabled = false;
+        form.password.select();
+      });
+    });
+  })();
+</script>
+</body>
+</html>

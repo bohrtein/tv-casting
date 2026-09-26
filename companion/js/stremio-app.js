@@ -11,6 +11,23 @@ document.addEventListener('DOMContentLoaded', function () {
   var resolver = createResolverClient(APP_CONFIG);
   var pageParams = new URLSearchParams(location.search);
   var requestedSection = pageParams.get('section');
+  // Someone with an account, through the guest door (guest-gateway.js):
+  // Movies and Series only, their own library, playing on their own device.
+  var GUEST = APP_CONFIG.GUEST || null;
+  var GUEST_TYPES = ['movie', 'series'];
+  function guestAllows(type) { return !GUEST || GUEST_TYPES.indexOf(type) !== -1; }
+  if (GUEST) {
+    document.body.classList.add('cn-guest');
+    requestedSection = 'normal';
+    // A session that ran out (or was ended) goes back to the login page.
+    var pageFetch = window.fetch.bind(window);
+    window.fetch = function (input, init) {
+      return pageFetch(input, init).then(function (res) {
+        if (res.status === 401 && new URL(res.url, location.href).origin === location.origin) location.href = '/login.html';
+        return res;
+      });
+    };
+  }
   var section = requestedSection ? (requestedSection === 'plus18' ? 'plus18' : 'normal') : ContentPolicy.mode();
   ContentPolicy.setMode(section);
   var matchKind = pageParams.get('matchKind');
@@ -93,7 +110,7 @@ document.addEventListener('DOMContentLoaded', function () {
   // showing the normal section's catalogs (and the reverse), including rows
   // an older page version cached without saying which addon they came from.
   function ownRow(item) {
-    return !!item && addons.some(function (addon) { return addon.url === item.addonUrl; });
+    return !!item && guestAllows(item.type) && addons.some(function (addon) { return addon.url === item.addonUrl; });
   }
   function ownRows(rows) { return (rows || []).filter(ownRow); }
   function usableCache(rows) { return Array.isArray(rows) && rows.every(ownRow) ? rows : null; }
@@ -171,6 +188,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // seeAll: where "see all" goes; the catalog on Discover unless given.
   function catalogRow(parent, rows, item, seeAll) {
+    if (!guestAllows(item.type)) return;
     var key = item.addonUrl + '|' + item.type + '|' + item.id;
     var entry = rows[key];
     if (!entry) {
@@ -201,7 +219,7 @@ document.addEventListener('DOMContentLoaded', function () {
     el.relayChip.setAttribute('data-mx-state', state);
     el.relayChipLabel.textContent = label;
   }
-  var relay = createRelayClient(APP_CONFIG, {
+  var relay = GUEST ? createGuestPlayer({ onStopped: function () { refreshLibrary(); } }) : createRelayClient(APP_CONFIG, {
     onConnected: function () { setRelayChip('busy', 'connected'); },
     onDisconnected: function () { setRelayChip('err', 'reconnecting…'); },
     onJoined: function () { setRelayChip('ok', 'connected'); },
@@ -221,6 +239,7 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
     nowCasting.set(url, title);
+    if (GUEST) return;
     MX.toast(true, 'Casting: ' + title);
     remoteSheet.open();
   }
@@ -332,6 +351,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (route.name === 'library') route.type = parts[1] || null;
     if (['board', 'discover', 'library', 'calendar', 'search', 'detail', 'addons', 'settings'].indexOf(route.name) === -1) route.name = 'board';
     if (route.name === 'detail' && !(route.type && route.id)) route.name = 'board';
+    if (GUEST && (route.name === 'addons' || route.name === 'settings' || route.name === 'detail' && !guestAllows(route.type) && route.type !== 'local')) route.name = 'board';
     return route;
   }
 
@@ -859,7 +879,7 @@ document.addEventListener('DOMContentLoaded', function () {
       (manifest.catalogs || []).forEach(function (catalog) {
         var searchable = (catalog.extra || []).some(function (item) { return item.name === 'search'; }) ||
           (catalog.extraSupported || []).indexOf('search') !== -1;
-        if (!searchable) return;
+        if (!searchable || !guestAllows(catalog.type)) return;
         // Search-only catalogs have nothing to list until there are words.
         var needsWords = (catalog.extra || []).some(function (item) { return item.name === 'search' && item.isRequired; }) ||
           (catalog.extraRequired || []).indexOf('search') !== -1;
@@ -1823,6 +1843,59 @@ document.addEventListener('DOMContentLoaded', function () {
     }).then(function () { clearTimeout(timer); });
   });
 
+  // Accounts for the guest door (accounts.js): list, add, new password, remove.
+  var accountsList = $('accounts-list'), accountsReadout = $('accounts-readout');
+  function accountsCall(body) {
+    return fetch('api/accounts', body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { cache: 'no-store' })
+      .then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+          return data;
+        });
+      });
+  }
+  function renderAccounts(data) {
+    accountsList.innerHTML = '';
+    if (!data.accounts.length) { accountsList.innerHTML = '<span class="mx-empty">No accounts yet.</span>'; return; }
+    data.accounts.forEach(function (account) {
+      var row = document.createElement('div');
+      row.className = 'cn-row cn-account';
+      row.innerHTML = '<span class="cn-stream-main"><span class="cn-row-name"></span><span class="cn-stream-desc"></span></span>' +
+        '<span class="cn-account-actions"><button class="mx-btn mx-sm" type="button" data-act="password">new password</button>' +
+        '<button class="mx-btn mx-sm" type="button" data-act="remove">remove</button></span>';
+      row.querySelector('.cn-row-name').textContent = account.name;
+      row.querySelector('.cn-stream-desc').textContent = account.items + (account.items === 1 ? ' title' : ' titles') + ' in their library';
+      row.querySelector('[data-act="password"]').addEventListener('click', function () {
+        var password = prompt('New password for ' + account.name + ' (8+ characters). They will be logged out everywhere.');
+        if (!password) return;
+        accountsCall({ action: 'password', name: account.name, password: password })
+          .then(function (next) { renderAccounts(next); setReadout(accountsReadout, 'Password changed for ' + account.name + '.', false); },
+            function (err) { setReadout(accountsReadout, err.message, true); });
+      });
+      var remove = row.querySelector('[data-act="remove"]');
+      remove.addEventListener('click', function () {
+        // Two taps, like deleting a saved file.
+        if (!remove.classList.contains('cn-confirm')) { remove.classList.add('cn-confirm'); remove.textContent = 'remove ' + account.name + '?'; return; }
+        accountsCall({ action: 'remove', name: account.name })
+          .then(function (next) { renderAccounts(next); setReadout(accountsReadout, account.name + ' removed. Their downloads stay on the server.', false); },
+            function (err) { setReadout(accountsReadout, err.message, true); });
+      });
+      accountsList.appendChild(row);
+    });
+  }
+  if (!GUEST) {
+    accountsCall().then(renderAccounts, function (err) { setReadout(accountsReadout, err.message, true); });
+    $('accounts-form').addEventListener('submit', function (event) {
+      event.preventDefault();
+      var name = $('accounts-name').value.trim(), password = $('accounts-password').value;
+      accountsCall({ action: 'create', name: name, password: password }).then(function (next) {
+        renderAccounts(next);
+        $('accounts-name').value = ''; $('accounts-password').value = '';
+        setReadout(accountsReadout, 'Account ' + name.toLowerCase() + ' added.', false);
+      }, function (err) { setReadout(accountsReadout, err.message, true); });
+    });
+  }
+
   // --- sections (normal and Plus18) ---
 
   function renderSection() {
@@ -1834,6 +1907,7 @@ document.addEventListener('DOMContentLoaded', function () {
     document.querySelector('.mx-nav-brand').textContent = adult ? 'plus18' : 'stremio';
   }
   function switchSection(next) {
+    if (GUEST) return;
     if (section === next) return;
     section = next;
     ContentPolicy.setMode(section);
@@ -1871,7 +1945,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (section !== loadingSection) return;
       addonsError = null;
       addons = list;
-      catalogs = stremio.browsableCatalogs(addons);
+      catalogs = stremio.browsableCatalogs(addons).filter(function (c) { return guestAllows(c.catalog.type); });
     }, function (err) {
       if (section === loadingSection) addonsError = err instanceof Error ? err : new Error(String(err && err.message || err));
     });
@@ -1889,6 +1963,14 @@ document.addEventListener('DOMContentLoaded', function () {
     whenAddonsReady.then(function () { return stremio.syncAddons(); })
       .then(function (changed) { if (changed) reloadAddons(); }).catch(function () {});
   });
+
+  if (GUEST) {
+    $('guest-logout').addEventListener('click', function () {
+      fetch('/api/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+        .then(function () { location.href = '/login.html'; });
+    });
+    $('guest-logout').title = 'Logged in as ' + GUEST.name;
+  }
 
   renderSection();
   relay.connect();

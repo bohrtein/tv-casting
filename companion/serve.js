@@ -9,6 +9,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const createBrowseStore = require('./browse-store');
+const { createAccounts } = require('./accounts');
+const { createGuestGateway } = require('./guest-gateway');
 
 const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
@@ -24,6 +26,11 @@ const MAX_BODY_BYTES = 64 * 1024;
 // Board/Discover/Search results shared by every device (browse-store.js).
 const browseStore = createBrowseStore(path.join(DATA_DIR, 'stremio-browse-cache.json'));
 const MAX_ADDONS = 100;
+// Accounts for other people, who come in through the guest door
+// (guest-gateway.js) on its own port, on this machine only, for Tailscale
+// Funnel to put on the internet. 0 turns the door off.
+const accounts = createAccounts(path.join(DATA_DIR, 'accounts.json'));
+const GUEST_PORT = parseInt(process.env.GUEST_PORT || '8790', 10);
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -196,6 +203,27 @@ function handleAirplaySettings(req, res) {
   });
 }
 
+// Your side only: GET lists the accounts; POST { action: 'create' |
+// 'password' | 'remove', name, password } changes one.
+function handleAccounts(req, res) {
+  if (req.method === 'GET') { sendJson(res, 200, { accounts: accounts.list(), guestPort: GUEST_PORT }); return; }
+  if (req.method !== 'POST') { res.writeHead(405, { Allow: 'GET, POST' }); res.end(); return; }
+  const chunks = [];
+  let size = 0;
+  req.on('data', (chunk) => { size += chunk.length; if (size <= MAX_BODY_BYTES) chunks.push(chunk); });
+  req.on('end', () => {
+    let body;
+    try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch (_) { sendJson(res, 400, { error: 'body must be JSON' }); return; }
+    try {
+      if (body.action === 'create') accounts.create(body.name, body.password);
+      else if (body.action === 'password') accounts.setPassword(body.name, body.password);
+      else if (body.action === 'remove') accounts.remove(body.name);
+      else throw new Error('action must be create, password or remove');
+      sendJson(res, 200, { accounts: accounts.list() });
+    } catch (err) { sendJson(res, 400, { error: err.message }); }
+  });
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://internal');
   if (url.pathname === '/js/config.js' && (process.env.RELAY_URL || process.env.RESOLVER_URL)) {
@@ -213,6 +241,10 @@ const server = http.createServer((req, res) => {
   }
   if (url.pathname === '/api/airplay-settings') {
     handleAirplaySettings(req, res);
+    return;
+  }
+  if (url.pathname === '/api/accounts') {
+    handleAccounts(req, res);
     return;
   }
   if (url.pathname === '/api/stremio-browse') {
@@ -243,6 +275,19 @@ const server = http.createServer((req, res) => {
     res.end(data);
   });
 });
+
+if (GUEST_PORT) {
+  const guestServer = http.createServer(createGuestGateway({
+    accounts, root: ROOT, mime: MIME, browseStore, readStremioSettings,
+    receiverDir: path.join(ROOT, '../tv-receiver/js'),
+    resolverUrl: process.env.RESOLVER_INTERNAL_URL || 'http://127.0.0.1:8788',
+    stremioServerUrl: process.env.STREMIO_INTERNAL_URL || 'http://127.0.0.1:11470'
+  }));
+  guestServer.listen(GUEST_PORT, '127.0.0.1', () => {
+    console.log(new Date().toISOString(), `guest door on 127.0.0.1:${GUEST_PORT}`);
+  });
+  guestServer.on('error', (err) => console.log(new Date().toISOString(), `guest door unavailable: ${err.message}`));
+}
 
 server.listen(PORT, () => {
   console.log(new Date().toISOString(), `companion served on :${PORT}`);

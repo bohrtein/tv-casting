@@ -473,3 +473,45 @@
   }
   .cn-st-stream .cn-stream-badges button:first-of-type { margin-left: auto; }
 }
+
+/* Guests (guest-gateway.js): Movies and Series on their own device. No TV,
+   remote, Plus18, addons, settings or tools; a log out button instead. */
+.cn-guest-only { display: none; }
+.cn-guest .cn-guest-only { display: inline-flex; }
+.cn-guest .cn-owner-only,
+.cn-guest #plus18-toggle,
+.cn-guest #relay-chip,
+.cn-guest .tvc-target-label,
+.cn-guest #remote-sheet,
+.cn-guest #match-banner,
+.cn-guest .mx-nav-item[data-route="addons"],
+.cn-guest .mx-nav-item[data-route="settings"] { display: none !important; }
+body.cn-st.cn-guest { padding-bottom: var(--mx-space-5); }
+@media (max-width: 599px) {
+  body.cn-st.cn-guest.mx-has-nav { padding-bottom: calc(var(--mx-nav-h) + var(--mx-space-4) + env(safe-area-inset-bottom)); }
+}
+
+/* The guest's player, over the page. */
+.cn-gp {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.cn-gp[hidden] { display: none; }
+.cn-gp-bar { display: flex; align-items: center; gap: var(--mx-space-3); padding: var(--mx-space-2) var(--mx-space-3); }
+.cn-gp-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--mx-ink-hot); }
+.cn-gp-video { flex: 1 1 auto; min-height: 0; width: 100%; background: #000; }
+.cn-gp-status { margin: 0; padding: var(--mx-space-2) var(--mx-space-3); min-height: 1.5em; color: var(--mx-ink-dim); font-size: var(--mx-text-sm); }
+.cn-gp-open { overflow: hidden; }
+
+/* Settings: accounts for the guest door. */
+.cn-accounts { margin: var(--mx-space-3) 0; }
+.cn-account { cursor: default; flex-wrap: wrap; }
+.cn-account-actions { display: flex; flex-wrap: wrap; gap: var(--mx-space-2); }
+.cn-account .cn-confirm { color: var(--mx-danger); border-color: var(--mx-danger-line); background: var(--mx-danger-low); }
+.cn-accounts-form { display: flex; flex-wrap: wrap; gap: var(--mx-space-2); margin-bottom: var(--mx-space-2); }
+.cn-accounts-form .mx-input { flex: 1 1 160px; min-width: 0; font-size: max(16px, var(--mx-text-md)); }
