@@ -337,6 +337,11 @@ document.addEventListener('DOMContentLoaded', function () {
   function showView(name) {
     if (current.view && current.view !== name) current.scroll[current.view] = window.scrollY;
     var changed = current.view !== name;
+    if (current.view === 'search' && name !== 'search') {
+      cancelSearchWork();
+      ++searchState.token;
+      ++searchState.libraryToken;
+    }
     current.view = name;
     document.querySelectorAll('[data-view]').forEach(function (view) { hidden(view, view.getAttribute('data-view') !== name); });
     document.querySelectorAll('.mx-nav-item').forEach(function (item) {
@@ -806,8 +811,13 @@ document.addEventListener('DOMContentLoaded', function () {
   // no "in" at all means everything.
   var LIBRARY_INDEX = 'library';
   var searchState = { query: null, text: '', token: 0, libraryToken: 0, rows: {}, all: [], fetched: {}, done: false,
-    scope: null, mine: null, indexSignature: null };
+    scope: null, mine: null, indexSignature: null, controller: null };
   var searchTimer = null;
+
+  function cancelSearchWork() {
+    if (searchState.controller) searchState.controller.abort();
+    searchState.controller = null;
+  }
   var defaultSearchPlaceholder = el.searchInput.placeholder;
 
   function searchIndexes() {
@@ -937,30 +947,17 @@ document.addEventListener('DOMContentLoaded', function () {
       (searchState.scope ? ' in the checked indexes.' : '.'), !found);
   }
 
-  // Everything: one Core search across every searchable catalog.
-  function searchEverything(query, token, force) {
-    var requestSection = section, cacheScope = browseScope(), fromCache = false;
-    return (force ? Promise.resolve(null) : browseCache.get('search', requestSection, cacheScope, query)).then(function (cached) {
-      if (token !== searchState.token) return null;
-      if (usableCache(cached)) { fromCache = true; return cached; }
-      if (!addons.length) return [];
-      return stremio.searchRows(query, function (rows) {
-        if (token !== searchState.token) return;
-        searchState.all = ownRows(rows);
-        showSearchRows(searchState.all);
-      }, force).then(ownRows);
-    }).then(function (rows) {
-      if (!rows) return null;
-      if (!fromCache && addons.length && rows.every(settledRow)) browseCache.put('search', requestSection, cacheScope, query, rows);
-      rows.forEach(function (item) { if (item.state === 'Ready' || item.empty) searchState.fetched[rowKey(item)] = item; });
-      return rows;
-    });
+  // Everything uses the same independent per-catalog requests as a scoped
+  // search. This keeps one slow addon from delaying rows that already finished.
+  function searchEverything(query, token, force, signal) {
+    var keys = searchIndexes().map(function (index) { return index.key; });
+    return searchChecked(query, keys, token, force, signal);
   }
 
   // Checked indexes only: ask each of those catalogs itself, side by side,
   // filling its row as it answers. Answers are kept per index, so checking
   // another one later only asks that one.
-  function searchChecked(query, scope, token, force) {
+  function searchChecked(query, scope, token, force, signal) {
     var requestSection = section, queryKey = searchState.query;
     var indexes = searchIndexes().filter(function (index) { return scope.indexOf(index.key) !== -1; });
     var rows = indexes.map(function (index) {
@@ -972,27 +969,34 @@ document.addEventListener('DOMContentLoaded', function () {
     return Promise.all(indexes.map(function (index, n) {
       if (searchState.fetched[index.key]) return null;
       var cacheKey = index.key + '@' + index.version;
-      return (force ? Promise.resolve(null) : browseCache.get('search-index', requestSection, cacheKey, query)).then(function (cached) {
+      return (force ? Promise.resolve(null) : browseCache.get('search-index', requestSection, cacheKey, query, signal)).then(function (cached) {
+        if (signal && signal.aborted) return null;
         if (cached) return cached;
-        return stremio.searchCatalog(index.addonUrl, index.type, index.id, query).then(function (metas) {
+        return stremio.searchCatalog(index.addonUrl, index.type, index.id, query, signal).then(function (metas) {
           var row = Object.assign({}, rows[n], { state: 'Ready', metas: metas, empty: !metas.length });
           browseCache.put('search-index', requestSection, cacheKey, query, row);
           return row;
         }, function (err) {
+          if (err && err.name === 'AbortError') return null;
           return Object.assign({}, rows[n], { state: 'Err', error: err.message, metas: [] });
         });
       }).then(function (row) {
-        if (searchState.query !== queryKey) return;
+        if (!row || searchState.query !== queryKey || signal && signal.aborted) return;
         if (row.state === 'Ready') searchState.fetched[index.key] = row;
         if (token !== searchState.token) return;
         rows[n] = row;
         catalogRow(el.searchRows, searchState.rows, row);
       });
-    })).then(function () { return token === searchState.token ? rows : null; });
+    })).then(function () {
+      return token === searchState.token && !(signal && signal.aborted) ? rows : null;
+    });
   }
 
   function renderSearch(query, scope, force) {
     if (document.activeElement !== el.searchInput) el.searchInput.value = query;
+    cancelSearchWork();
+    searchState.controller = typeof AbortController === 'function' ? new AbortController() : null;
+    var signal = searchState.controller && searchState.controller.signal;
     searchState.scope = scope;
     renderSearchScope();
     var token = ++searchState.token;
@@ -1022,7 +1026,7 @@ document.addEventListener('DOMContentLoaded', function () {
       renderSearchScope();
       var checked = scope && scope.filter(function (key) { return key !== LIBRARY_INDEX; });
       if (checked && !checked.length) return [];
-      return checked ? searchChecked(query, checked, token, force) : searchEverything(query, token, force);
+      return checked ? searchChecked(query, checked, token, force, signal) : searchEverything(query, token, force, signal);
     }).then(function (rows) {
       if (!rows || token !== searchState.token) return;
       searchState.all = rows;
@@ -1030,9 +1034,13 @@ document.addEventListener('DOMContentLoaded', function () {
       showSearchRows(rows);
       updateSearchReadout();
     }).catch(function (err) {
+      if (err && err.name === 'AbortError') return;
       if (token === searchState.token) { searchState.query = null; setReadout(el.searchReadout, err.message, true); }
     }).then(function () {
-      if (token === searchState.token) $('search-refresh').disabled = false;
+      if (token === searchState.token && !(signal && signal.aborted)) {
+        searchState.controller = null;
+        $('search-refresh').disabled = false;
+      }
     });
   }
 

@@ -324,21 +324,39 @@ function createStremioCoreClient(config) {
   // One catalog's search, asked of its addon directly (the addon protocol's
   // /catalog/type/id/search=....json), so a narrowed search only reaches the
   // catalogs it names instead of every searchable one Core knows.
-  function searchCatalog(addonUrl, type, id, query) {
+  function searchCatalog(addonUrl, type, id, query, externalSignal) {
     var base = String(addonUrl).replace(/\/manifest\.json(\?.*)?$/, '');
     var url = base + '/catalog/' + encodeURIComponent(type) + '/' + encodeURIComponent(id) +
       '/search=' + encodeURIComponent(query) + '.json';
     var controller = typeof AbortController === 'function' ? new AbortController() : null;
-    var timer = setTimeout(function () { if (controller) controller.abort(); }, 30000);
-    return fetch(url, { signal: controller && controller.signal }).then(function (response) {
+    var timedOut = false;
+    function abortFromOutside() { if (controller) controller.abort(); }
+    if (externalSignal && controller) {
+      if (externalSignal.aborted) controller.abort();
+      else externalSignal.addEventListener('abort', abortFromOutside, { once: true });
+    }
+    var timer = setTimeout(function () {
+      timedOut = true;
+      if (controller) controller.abort();
+    }, 30000);
+    function cleanup() {
+      clearTimeout(timer);
+      if (externalSignal && controller) externalSignal.removeEventListener('abort', abortFromOutside);
+    }
+    return fetch(url, { signal: controller ? controller.signal : externalSignal }).then(function (response) {
       if (!response.ok) throw new Error('The addon answered ' + response.status + '.');
       return response.json();
     }).then(function (body) {
-      clearTimeout(timer);
+      cleanup();
       return (body && Array.isArray(body.metas) ? body.metas : []).filter(function (meta) { return meta && meta.id; });
     }, function (error) {
-      clearTimeout(timer);
-      throw error && error.name === 'AbortError' ? new Error('The addon took too long to answer.') : error;
+      cleanup();
+      if (externalSignal && externalSignal.aborted) {
+        var cancelled = new Error('Search cancelled.');
+        cancelled.name = 'AbortError';
+        throw cancelled;
+      }
+      throw timedOut && error && error.name === 'AbortError' ? new Error('The addon took too long to answer.') : error;
     });
   }
 

@@ -9,17 +9,19 @@ function createStremioBrowseCache(fetchImpl, endpoint) {
   function key(kind, section, addons, query) {
     return JSON.stringify([kind, section, addons, query]);
   }
-  function call(body) {
+  function call(body, signal) {
     return Promise.resolve().then(function () {
-      return fetchImpl(endpoint, {
+      var options = {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
-      });
+      };
+      if (signal) options.signal = signal;
+      return fetchImpl(endpoint, options);
     }).then(function (response) { return response.ok ? response.json() : null; })
       .catch(function () { return null; });
   }
   return {
-    get: function (kind, section, addons, query) {
-      return call({ action: 'get', key: key(kind, section, addons, query) })
+    get: function (kind, section, addons, query, signal) {
+      return call({ action: 'get', key: key(kind, section, addons, query) }, signal)
         .then(function (body) { return body && body.data || null; });
     },
     put: function (kind, section, addons, query, data) {
