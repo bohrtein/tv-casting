@@ -17,7 +17,9 @@ document.addEventListener('DOMContentLoaded', function () {
   var matchKey = pageParams.get('matchKey');
   var CATALOG_KEY = 'tvc.stremio.catalog';
   var LIBRARY_KEY = 'tvc.stremio.library';
-  var browseCache = createStremioBrowseCache(localStorage);
+  var browseCache = createStremioBrowseCache(window.fetch.bind(window));
+  // Results used to be cached per browser; the server holds them now.
+  try { localStorage.removeItem('tvc.stremio.browse.v1'); } catch (e) {}
   var WIDE = window.matchMedia('(min-width: 1024px)');
 
   var addons = [];
@@ -42,6 +44,8 @@ document.addEventListener('DOMContentLoaded', function () {
     libraryYoutube: $('library-youtube'), libraryYoutubeTitle: $('library-youtube-title'), libraryYtGrid: $('library-yt-grid'),
     calendarTitle: $('calendar-title'), calendarGrid: $('calendar-grid'), calendarReadout: $('calendar-readout'),
     searchRows: $('search-rows'), searchReadout: $('search-readout'),
+    searchScope: $('search-scope'), searchScopeLabel: $('search-scope-label'),
+    searchScopeFilter: $('search-scope-filter'), searchScopeList: $('search-scope-list'),
     detailBg: $('detail-bg'), detailLogo: $('detail-logo'), detailTitle: $('detail-title'), detailInfo: $('detail-info'),
     detailFacts: $('detail-facts'), detailDesc: $('detail-desc'), detailInLib: $('detail-inlib'),
     detailPosterBtn: $('detail-poster-btn'), detailBackdropBtn: $('detail-backdrop-btn'),
@@ -322,6 +326,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     if (name !== 'detail') { ++subtitleToken; MX.sheet.close('subtitles-sheet'); }
     if (name !== 'search' && document.activeElement !== el.searchInput) el.searchInput.value = '';
+    if (name !== 'search' && name !== 'discover') el.searchInput.placeholder = defaultSearchPlaceholder;
     if (changed) window.scrollTo(0, name === 'detail' || name === 'search' ? 0 : current.scroll[name] || 0);
   }
 
@@ -332,7 +337,7 @@ document.addEventListener('DOMContentLoaded', function () {
     else if (route.name === 'discover') renderDiscover(route);
     else if (route.name === 'library') renderLibrary(route);
     else if (route.name === 'calendar') renderCalendar();
-    else if (route.name === 'search') renderSearch(route.params.get('q') || '');
+    else if (route.name === 'search') renderSearch(route.params.get('q') || '', routeSearchScope(route.params));
     else if (route.name === 'detail') renderDetail(route);
     else if (route.name === 'addons') renderAddons();
   }
@@ -378,7 +383,9 @@ document.addEventListener('DOMContentLoaded', function () {
       if (token !== board.token) return null;
       if (addonsError) throw addonsError;
       scope = browseScope();
-      var cached = browseCache.get('board', requestSection, scope, '');
+      return fresh ? null : browseCache.get('board', requestSection, scope, '');
+    }).then(function (cached) {
+      if (token !== board.token) return null;
       if (cached) { fromCache = true; return cached; }
       return stremio.getBoard(function (rows) {
         if (token === board.token) rows.forEach(function (item) { catalogRow(el.boardRows, board.rows, item); });
@@ -399,7 +406,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
   $('board-refresh').addEventListener('click', function () {
-    browseCache.remove('board', section, browseScope(), '');
     board.key = null;
     renderBoard(true);
   });
@@ -446,15 +452,25 @@ document.addEventListener('DOMContentLoaded', function () {
       });
       store(CATALOG_KEY, entry.addon.url + '|' + entry.catalog.type + '|' + entry.catalog.id);
       renderDiscoverSelects(entry);
+      var searchIn = catalogSearchScope(entry);
+      el.searchInput.placeholder = !searchIn ? defaultSearchPlaceholder : 'Search ' + (searchIn.length === 1
+        ? entry.catalog.name || entry.catalog.id : entry.addon.manifest.name || 'this addon') + '…';
       var key = section + '|' + discoverHash(entry, extra);
       if (key === discover.key) return; // back from a title: keep the grid and scroll
       discover.key = key;
       discover.entry = entry;
       discover.extra = extra;
       discover.scope = browseScope();
-      var cached = browseCache.get('discover', section, discover.scope, key);
-      if (cached) { restoreDiscover(cached); return; }
-      loadDiscoverPage(true);
+      var token = ++discover.token;
+      discover.loading = true;
+      el.discoverGrid.innerHTML = '';
+      hidden(el.discoverPreview, true);
+      hidden(el.discoverMore, true);
+      setReadout(el.discoverReadout, 'loading…', false);
+      browseCache.get('discover', section, discover.scope, key).then(function (cached) {
+        if (token !== discover.token) return;
+        if (cached) restoreDiscover(cached); else loadDiscoverPage(true);
+      });
     });
   }
 
@@ -575,7 +591,6 @@ document.addEventListener('DOMContentLoaded', function () {
   el.discoverMore.addEventListener('click', function () { loadDiscoverPage(false); });
   $('discover-refresh').addEventListener('click', function () {
     if (!discover.key) return;
-    browseCache.remove('discover', section, discover.scope, discover.key);
     loadDiscoverPage(true, true);
   });
 
@@ -757,14 +772,59 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // --- Search ---
 
-  var searchState = { query: null, token: 0, rows: {} };
+  // A search runs in every addon catalog that takes one ("indexes"), plus
+  // your library. The #/search?in=... params narrow it to a checked few;
+  // no "in" at all means everything.
+  var LIBRARY_INDEX = 'library';
+  var searchState = { query: null, text: '', token: 0, rows: {}, all: [], done: false, scope: null, mine: null, indexSignature: null };
   var searchTimer = null;
-  function searchHash(q) { return '#/search?' + new URLSearchParams({ q: q }).toString(); }
+  var defaultSearchPlaceholder = el.searchInput.placeholder;
+
+  function searchIndexes() {
+    var list = [];
+    addons.forEach(function (addon) {
+      var manifest = addon.manifest || {};
+      (manifest.catalogs || []).forEach(function (catalog) {
+        var searchable = (catalog.extra || []).some(function (item) { return item.name === 'search'; }) ||
+          (catalog.extraSupported || []).indexOf('search') !== -1;
+        if (!searchable) return;
+        list.push({ key: addon.url + '|' + catalog.type + '|' + catalog.id, addonUrl: addon.url, type: catalog.type,
+          name: (catalog.name || catalog.id) + ' · ' + typeLabel(catalog.type), addonName: manifest.name || '' });
+      });
+    });
+    return list;
+  }
+  // Searching from a catalog's "see all": that catalog if it can search,
+  // otherwise its addon's search catalogs (many addons keep search separate).
+  function catalogSearchScope(entry) {
+    var indexes = searchIndexes();
+    var key = entry.addon.url + '|' + entry.catalog.type + '|' + entry.catalog.id;
+    if (indexes.some(function (index) { return index.key === key; })) return [key];
+    var sameAddon = indexes.filter(function (index) { return index.addonUrl === entry.addon.url; });
+    var sameType = sameAddon.filter(function (index) { return index.type === entry.catalog.type; });
+    var picked = sameType.length ? sameType : sameAddon;
+    return picked.length ? picked.map(function (index) { return index.key; }) : null;
+  }
+  function routeSearchScope(params) { return params.has('in') ? params.getAll('in').filter(Boolean) : null; }
+  function inSearchScope(key) { return !searchState.scope || searchState.scope.indexOf(key) !== -1; }
+  function rowKey(item) { return item.addonUrl + '|' + item.type + '|' + item.id; }
+
+  function searchHash(q, scope) {
+    var params = new URLSearchParams({ q: q });
+    if (scope && scope.length) scope.forEach(function (key) { params.append('in', key); });
+    else if (scope) params.set('in', '');
+    return '#/search?' + params.toString();
+  }
+  function nextSearchScope() {
+    if (current.view === 'search') return routeSearchScope(parseRoute().params);
+    if (current.view === 'discover' && discover.entry) return catalogSearchScope(discover.entry);
+    return null;
+  }
   el.searchForm.addEventListener('submit', function (event) {
     event.preventDefault();
     clearTimeout(searchTimer);
     var q = el.searchInput.value.trim();
-    if (q) location.hash = searchHash(q);
+    if (q) location.hash = searchHash(q, nextSearchScope());
   });
   el.searchInput.addEventListener('input', function () {
     clearTimeout(searchTimer);
@@ -773,17 +833,106 @@ document.addEventListener('DOMContentLoaded', function () {
       if (q.length < 2) return;
       // Typing refines one search instead of adding a history entry per letter.
       current.cameFromApp = true;
-      if (current.view === 'search') history.replaceState(null, '', location.pathname + location.search + searchHash(q));
-      else history.pushState(null, '', location.pathname + location.search + searchHash(q));
+      var hash = searchHash(q, nextSearchScope());
+      if (current.view === 'search') history.replaceState(null, '', location.pathname + location.search + hash);
+      else history.pushState(null, '', location.pathname + location.search + hash);
       render();
     }, 500);
   });
 
-  function renderSearch(query, force) {
-    if (document.activeElement !== el.searchInput) el.searchInput.value = query;
-    if (!force && searchState.query === section + '|' + query) return;
-    searchState.query = section + '|' + query;
+  // The "in:" dropdown: a filterable checklist of your library and every index.
+  function renderSearchScope() {
+    var all = [{ key: LIBRARY_INDEX, name: 'Your library', addonName: '' }].concat(searchIndexes());
+    var signature = JSON.stringify(all.map(function (index) { return index.key; }));
+    if (signature !== searchState.indexSignature) {
+      searchState.indexSignature = signature;
+      el.searchScopeList.innerHTML = '';
+      all.forEach(function (index) {
+        var label = document.createElement('label');
+        label.className = 'mx-check cn-st-scope-item';
+        label.innerHTML = '<input type="checkbox"><span class="cn-st-scope-name"></span><span class="cn-st-scope-addon"></span>';
+        label.firstChild.value = index.key;
+        label.querySelector('.cn-st-scope-name').textContent = index.name;
+        label.querySelector('.cn-st-scope-addon').textContent = index.addonName;
+        label.setAttribute('data-find', (index.name + ' ' + index.addonName).toLowerCase());
+        el.searchScopeList.appendChild(label);
+      });
+      filterSearchScope();
+    }
+    el.searchScopeList.querySelectorAll('input').forEach(function (box) { box.checked = inSearchScope(box.value); });
+    var scope = searchState.scope;
+    var named = scope && scope.length === 1 && all.find(function (index) { return index.key === scope[0]; });
+    el.searchScopeLabel.textContent = 'in: ' + (!scope ? 'everything' : !scope.length ? 'nothing'
+      : named ? named.name : scope.length + ' indexes');
+    el.searchInput.placeholder = named ? 'Search ' + named.name + '…' : defaultSearchPlaceholder;
+  }
+  function filterSearchScope() {
+    var text = el.searchScopeFilter.value.trim().toLowerCase();
+    el.searchScopeList.querySelectorAll('label').forEach(function (label) {
+      label.hidden = !!text && label.getAttribute('data-find').indexOf(text) === -1;
+    });
+  }
+  function setSearchScope(scope) {
+    var keys = [];
+    el.searchScopeList.querySelectorAll('input').forEach(function (box) { keys.push(box.value); });
+    // Everything checked is the same as no narrowing at all.
+    if (scope && keys.every(function (key) { return scope.indexOf(key) !== -1; })) scope = null;
+    history.replaceState(null, '', location.pathname + location.search + searchHash(parseRoute().params.get('q') || '', scope));
+    render();
+  }
+  el.searchScopeFilter.addEventListener('input', filterSearchScope);
+  el.searchScopeList.addEventListener('change', function () {
+    var scope = [];
+    el.searchScopeList.querySelectorAll('input').forEach(function (box) { if (box.checked) scope.push(box.value); });
+    setSearchScope(scope);
+  });
+  $('search-scope-all').addEventListener('click', function () { setSearchScope(null); });
+  $('search-scope-none').addEventListener('click', function () { setSearchScope([]); });
+  document.addEventListener('click', function (event) {
+    if (el.searchScope.open && !el.searchScope.contains(event.target)) el.searchScope.open = false;
+  });
+  el.searchScope.addEventListener('keydown', function (event) {
+    if (event.key !== 'Escape' || !el.searchScope.open) return;
+    el.searchScope.open = false;
+    el.searchScope.querySelector('summary').focus();
+  });
+  // Straight to the filter on a computer; on a phone that would pop the keyboard.
+  el.searchScope.addEventListener('toggle', function () {
+    if (el.searchScope.open && window.matchMedia('(hover: hover)').matches) el.searchScopeFilter.focus();
+  });
+
+  function showSearchRows(rows) {
+    rows.forEach(function (item) { if (inSearchScope(rowKey(item))) catalogRow(el.searchRows, searchState.rows, item); });
+  }
+  // Only the checklist changed: re-filter what was already found.
+  function applySearchScope() {
+    Object.keys(searchState.rows).forEach(function (key) { searchState.rows[key].row.remove(); });
     searchState.rows = {};
+    showSearchRows(searchState.all);
+    if (searchState.mine) searchState.mine.row.hidden = !searchState.mine.strip.children.length || !inSearchScope(LIBRARY_INDEX);
+    if (searchState.done) updateSearchReadout();
+  }
+  function updateSearchReadout() {
+    var rows = searchState.all.filter(function (item) { return inSearchScope(rowKey(item)); });
+    var found = rows.some(function (item) { return item.metas.some(function (meta) { return !blocked(meta); }); }) ||
+      !!searchState.mine && !searchState.mine.row.hidden;
+    if (searchState.scope && !searchState.scope.length) setReadout(el.searchReadout, 'Check at least one index to search in.', false);
+    else if (!searchState.all.length && !found) setReadout(el.searchReadout, 'None of your addons can search. Cinemeta can.', true);
+    else setReadout(el.searchReadout, found ? '' : 'Nothing found for "' + searchState.text + '"' +
+      (searchState.scope ? ' in the checked indexes.' : '.'), !found);
+  }
+
+  function renderSearch(query, scope, force) {
+    if (document.activeElement !== el.searchInput) el.searchInput.value = query;
+    searchState.scope = scope;
+    renderSearchScope();
+    if (!force && searchState.query === section + '|' + query) { applySearchScope(); return; }
+    searchState.query = section + '|' + query;
+    searchState.text = query;
+    searchState.rows = {};
+    searchState.all = [];
+    searchState.done = false;
+    searchState.mine = null;
     var token = ++searchState.token;
     el.searchRows.innerHTML = '';
     $('search-refresh').disabled = !query;
@@ -791,35 +940,41 @@ document.addEventListener('DOMContentLoaded', function () {
     setReadout(el.searchReadout, 'searching…', false);
     $('search-refresh').disabled = true;
     var requestSection = section;
-    var mine = makeRow(el.searchRows, 'Your library', null);
+    var mine = searchState.mine = makeRow(el.searchRows, 'Your library', null);
     mine.row.hidden = true;
     libraryReady().then(function () {
       if (token !== searchState.token || !library.items) return;
       var hits = LibraryModel.filter(library.items, { text: query, sort: 'az' });
-      mine.row.hidden = !hits.length;
       hits.forEach(function (item) {
         mine.strip.appendChild(posterTile({ name: item.name, poster: item.poster, meta: LibraryModel.TYPE_LABELS[item.type],
           onClick: function () { location.hash = item.kind === 'title' ? detailHref(item.type, item.metadata.id) : detailHref('local', item.key); } }));
       });
+      mine.row.hidden = !hits.length || !inSearchScope(LIBRARY_INDEX);
+      if (searchState.done) updateSearchReadout();
     });
-    var scope, fromCache = false;
+    var cacheScope, fromCache = false;
     whenAddonsReady.then(function () {
       if (token !== searchState.token) return null;
       if (addonsError) throw addonsError;
-      scope = browseScope();
-      var cached = browseCache.get('search', requestSection, scope, query);
+      renderSearchScope();
+      cacheScope = browseScope();
+      return force ? null : browseCache.get('search', requestSection, cacheScope, query);
+    }).then(function (cached) {
+      if (token !== searchState.token) return null;
       if (cached) { fromCache = true; return cached; }
       return stremio.searchRows(query, function (rows) {
-        if (token === searchState.token) rows.forEach(function (item) { catalogRow(el.searchRows, searchState.rows, item); });
+        if (token !== searchState.token) return;
+        searchState.all = rows;
+        showSearchRows(rows);
       }, force);
     }).then(function (rows) {
       if (!rows) return;
-      if (!fromCache && rows.every(settledRow)) browseCache.put('search', requestSection, scope, query, rows);
+      if (!fromCache && rows.every(settledRow)) browseCache.put('search', requestSection, cacheScope, query, rows);
       if (token !== searchState.token) return;
-      rows.forEach(function (item) { catalogRow(el.searchRows, searchState.rows, item); });
-      var found = rows.some(function (item) { return item.metas.some(function (meta) { return !blocked(meta); }); }) || !mine.row.hidden;
-      setReadout(el.searchReadout, rows.length ? (found ? '' : 'Nothing found for "' + query + '".')
-        : 'None of your addons can search. Cinemeta can.', !found);
+      searchState.all = rows;
+      searchState.done = true;
+      showSearchRows(rows);
+      updateSearchReadout();
     }).catch(function (err) {
       if (token === searchState.token) { searchState.query = null; setReadout(el.searchReadout, err.message, true); }
     }).then(function () {
@@ -827,10 +982,10 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
   $('search-refresh').addEventListener('click', function () {
-    var query = parseRoute().params.get('q') || '';
+    var route = parseRoute();
+    var query = route.params.get('q') || '';
     if (!query) return;
-    browseCache.remove('search', section, browseScope(), query);
-    renderSearch(query, true);
+    renderSearch(query, routeSearchScope(route.params), true);
   });
 
   // --- Details ---

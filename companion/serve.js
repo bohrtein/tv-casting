@@ -8,6 +8,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const createBrowseStore = require('./browse-store');
 
 const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
@@ -19,6 +20,8 @@ const ROOT = __dirname;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', '.companion-data');
 const STREMIO_SETTINGS_FILE = path.join(DATA_DIR, 'stremio-settings.json');
 const MAX_BODY_BYTES = 64 * 1024;
+// Board/Discover/Search results shared by every device (browse-store.js).
+const browseStore = createBrowseStore(path.join(DATA_DIR, 'stremio-browse-cache.json'));
 const MAX_ADDONS = 100;
 
 const MIME = {
@@ -165,6 +168,10 @@ const server = http.createServer((req, res) => {
   }
   if (url.pathname === '/api/stremio-settings') {
     handleStremioSettings(req, res);
+    return;
+  }
+  if (url.pathname === '/api/stremio-browse') {
+    browseStore.handle(req, res);
     return;
   }
   if (url.pathname === '/sw.js') {

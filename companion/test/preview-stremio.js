@@ -5,6 +5,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const browseStore = require('../browse-store')(null);
 
 const PORT = Number(process.env.PORT) || 18080;
 const ROOT = path.join(__dirname, '..');
@@ -105,6 +106,7 @@ http.createServer((req, res) => {
     if (req.method === 'POST') { let body = ''; req.on('data', (c) => { body += c; }); req.on('end', () => { settings = JSON.parse(body); send(200, JSON.stringify(settings)); }); return; }
     return send(200, JSON.stringify(settings));
   }
+  if (url.pathname === '/api/stremio-browse') return browseStore.handle(req, res);
   if (url.pathname.startsWith('/art/')) return send(200, art(url.searchParams), 'image/svg+xml');
   if (url.pathname === '/resolver/cache') return send(200, JSON.stringify(library()));
   if (url.pathname === '/resolver/jobs') return send(200, '{"jobs":[]}');
