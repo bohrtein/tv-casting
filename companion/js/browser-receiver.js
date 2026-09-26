@@ -257,24 +257,10 @@
   unmuteButton.addEventListener('click', function () { video.muted = false; unmuteButton.hidden = true; });
   video.addEventListener('volumechange', function () { if (!video.muted) unmuteButton.hidden = true; });
 
-  // Safari/WebKit's AirPlay target picker is more reliable when the video is
-  // not permanently owned by the native controls chrome. Keep the native
-  // controls for ordinary browsers, but use our page controls on AirPlay
-  // capable WebKit and only lend the video native controls in fullscreen.
+  // Keep the browser's normal video UI visible. AirPlay remains available
+  // through Safari's native controls as well as the separate AirPlay button.
   var hasWebKitAirPlay = !!(window.WebKitPlaybackTargetAvailabilityEvent && video.webkitShowPlaybackTargetPicker);
-  function syncNativeControls() {
-    if (!hasWebKitAirPlay) { video.controls = true; return; }
-    video.controls = (document.fullscreenElement || document.webkitFullscreenElement) === video || !!video.webkitDisplayingFullscreen;
-  }
-  syncNativeControls();
-  document.addEventListener('fullscreenchange', syncNativeControls);
-  document.addEventListener('webkitfullscreenchange', syncNativeControls);
-  video.addEventListener('webkitbeginfullscreen', function () { video.controls = true; });
-  video.addEventListener('webkitendfullscreen', syncNativeControls);
-  video.addEventListener('click', function () {
-    if (!hasWebKitAirPlay || !loadedUrl || video.controls) return;
-    if (video.paused) resume(); else video.pause();
-  });
+  video.controls = true;
 
   fullscreenButton.addEventListener('click', function () {
     if (video.requestFullscreen) video.requestFullscreen().catch(function () {});

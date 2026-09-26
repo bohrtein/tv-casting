@@ -817,6 +817,9 @@ document.addEventListener('DOMContentLoaded', function () {
   function cancelSearchWork() {
     if (searchState.controller) searchState.controller.abort();
     searchState.controller = null;
+    searchRenderQueue = [];
+    if (searchRenderFrame) cancelAnimationFrame(searchRenderFrame);
+    searchRenderFrame = 0;
   }
   var defaultSearchPlaceholder = el.searchInput.placeholder;
 
@@ -934,8 +937,35 @@ document.addEventListener('DOMContentLoaded', function () {
     render();
   }
 
-  function showSearchRows(rows) {
-    rows.forEach(function (item) { if (inSearchScope(rowKey(item))) catalogRow(el.searchRows, searchState.rows, item); });
+  var searchRenderQueue = [];
+  var searchRenderFrame = 0;
+
+  function flushSearchRenderQueue() {
+    searchRenderFrame = 0;
+    var painted = 0;
+    while (searchRenderQueue.length && painted < 2) {
+      var job = searchRenderQueue.shift();
+      if (job.token === searchState.token && inSearchScope(rowKey(job.item))) {
+        catalogRow(el.searchRows, searchState.rows, job.item);
+        painted++;
+      }
+    }
+    if (searchRenderQueue.length) searchRenderFrame = requestAnimationFrame(flushSearchRenderQueue);
+  }
+
+  function queueSearchRow(item, token) {
+    var key = rowKey(item);
+    searchRenderQueue = searchRenderQueue.filter(function (job) {
+      return job.token !== token || rowKey(job.item) !== key;
+    });
+    var job = { item: item, token: token };
+    if (item.state === 'Loading') searchRenderQueue.push(job);
+    else searchRenderQueue.unshift(job);
+    if (!searchRenderFrame) searchRenderFrame = requestAnimationFrame(flushSearchRenderQueue);
+  }
+
+  function showSearchRows(rows, token) {
+    rows.forEach(function (item) { queueSearchRow(item, token); });
   }
   function updateSearchReadout() {
     var rows = searchState.all.filter(function (item) { return inSearchScope(rowKey(item)); });
@@ -965,7 +995,7 @@ document.addEventListener('DOMContentLoaded', function () {
         addonName: index.addonName, addonUrl: index.addonUrl, state: 'Loading', metas: [] };
     });
     searchState.all = rows;
-    showSearchRows(rows);
+    showSearchRows(rows, token);
     return Promise.all(indexes.map(function (index, n) {
       if (searchState.fetched[index.key]) return null;
       var cacheKey = index.key + '@' + index.version;
@@ -985,7 +1015,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (row.state === 'Ready') searchState.fetched[index.key] = row;
         if (token !== searchState.token) return;
         rows[n] = row;
-        catalogRow(el.searchRows, searchState.rows, row);
+        queueSearchRow(row, token);
       });
     })).then(function () {
       return token === searchState.token && !(signal && signal.aborted) ? rows : null;
@@ -1031,7 +1061,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!rows || token !== searchState.token) return;
       searchState.all = rows;
       searchState.done = true;
-      showSearchRows(rows);
+      showSearchRows(rows, token);
       updateSearchReadout();
     }).catch(function (err) {
       if (err && err.name === 'AbortError') return;
