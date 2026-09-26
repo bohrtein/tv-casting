@@ -211,7 +211,7 @@
           <div class="mx-field-head"><label class="mx-label" for="settings-airplay">public address</label></div>
           <input class="mx-input" type="url" id="settings-airplay" placeholder="https://yourserver.ts.net:8443" autocomplete="off">
         </div>
-        <p class="cn-st-note">For AirPlay to a TV that isn't on your home Wi-Fi, like a friend's or a hotel's. The server's public address (Tailscale Funnel, see resolver/README.md). While AirPlay is on, the receiver page opened over https:// sends that TV a link that plays only that video and stops working after 8 hours. Leave empty to turn this off.</p>
+        <p class="cn-st-note">For AirPlay to a TV that isn't on your home Wi-Fi, like a friend's or a hotel's. The server's public address (Tailscale Funnel, see resolver/README.md). While AirPlay is on, the receiver page opened over https:// sends that TV a link with a key that opens only your saved videos and stops working after 3 hours (a new one takes over during a long film). Leave empty to turn this off.</p>
         <div class="cn-np-buttons">
           <button id="settings-airplay-save" class="mx-btn mx-primary" type="button">save</button>
           <button id="settings-airplay-check" class="mx-btn" type="button">check</button>

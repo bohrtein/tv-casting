@@ -178,10 +178,9 @@ the download to get there.
   human-readable message from yt-dlp).
 - `GET /media/:id.mp4` — the resolved file, with HTTP Range support so
   AVPlay can seek.
-- `POST /share` `{ "url": "<a saved video's streamUrl>" }` →
-  `{ "path": "/s/<expiry>/<signature>/media/...", "expiresAt": <ms> }`, a
-  signed link for the AirPlay listener (see "AirPlay away from home").
-  Anything that isn't a saved video → `400`.
+- `POST /share` → `{ "prefix": "/s/<expiry>/<signature>", "expiresAt": <ms>, "expiresIn": <ms> }`,
+  a key for the AirPlay listener: a saved video's `/media/...` path after
+  the prefix is its link (see "AirPlay away from home").
 - `POST /torrent` `{ "url": "<stremio server>/<infoHash>/<fileIdx>", "title": "..." }`
   → same job shape as `/resolve` (see "Torrents"). Once `ready`,
   `streamUrl` is `http://<this-host>/media/torrents/<key>/index.m3u8`,
@@ -232,6 +231,7 @@ the download to get there.
 |---|---|---|
 | `PORT` | `8788` | HTTP port |
 | `AIRPLAY_PORT` | `8789` | the signed-links listener for AirPlay away from home, on `127.0.0.1` only (see below); `0` turns it off |
+| `AIRPLAY_KEY_HOURS` | `3` | how long each AirPlay key opens saved videos for |
 | `MEDIA_DIR` | `./media` | where downloaded MP4s land |
 | `MAX_HEIGHT` | `1080` | caps the requested format so a cast doesn't pull an 8K master onto a home LAN |
 | `MAX_FILESIZE` | `2G` | hard stop passed to yt-dlp's `--max-filesize`, protects disk from a runaway download |
@@ -253,13 +253,14 @@ fetches the video itself. A TV that isn't on the home Wi-Fi (a friend's, a
 hotel's) can't reach this server's private addresses, so it gets nothing.
 
 For that, the resolver keeps a second listener on `127.0.0.1:8789` that
-answers only **signed links** (`src/share.js`): `/s/<expiry>/<signature>/media/...`.
-A link plays one saved video (a saved torrent's playlist and its segments
-count as one) and stops working after 8 hours. It can't be pointed at
-another file, can't start a download, and never reaches the Stremio server
-or any other part of the resolver: everything else answers `403`. The
-secret behind the signatures lives only in the running process, so
-restarting the resolver ends every link.
+answers only links with a **key** (`src/share.js`): `/s/<expiry>/<signature>/media/...`.
+A key opens any saved video (not a list of them: saved videos have random
+names that nothing public shows) and stops working 3 hours after it was
+made. It can't start a download and never reaches the Stremio server or
+any other part of the resolver: everything else answers `403`. The secret
+behind the keys lives only in the running process, so restarting the
+resolver ends every key. The receiver asks for a new key a few minutes
+before its current one runs out, so a long film keeps playing.
 
 Put that listener on the internet with [Tailscale Funnel](https://tailscale.com/kb/1223/funnel),
 on the server:
@@ -275,8 +276,8 @@ Check from a phone with Wi-Fi and Tailscale off: `https://<that name>:8443/`
 should answer **403** (reachable, and closed without a signed link). Then
 put `https://<that name>:8443` in the companion under **Settings → AirPlay
 away from home**. The receiver page (`receiver.html`, opened in Safari over
-`https://`) asks `POST /share` for a signed link to what it's playing and
-switches to it while AirPlay is on. To turn it all off:
+`https://`) asks `POST /share` for a key and switches what it's playing to
+the public link while AirPlay is on. To turn it all off:
 `sudo tailscale funnel --https=8443 off`.
 
 ## Personal use

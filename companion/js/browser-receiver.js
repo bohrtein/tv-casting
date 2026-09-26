@@ -120,26 +120,48 @@
   }
   // AirPlay to a TV outside the home. That TV can't reach this server's
   // private addresses, so on a page opened over HTTPS (away from the home
-  // Wi-Fi), while AirPlay is on, the video plays from a signed public link
-  // to the same saved file instead: one video, for 8 hours (resolver
-  // share.js), behind the public address set in the companion's Settings.
-  var away = { base: '', forUrl: '', link: null };
-  function prepareAwayLink() {
-    var url = loadedUrl;
-    if (!away.base || !url || hls || away.forUrl === url) return;
-    away.forUrl = url; away.link = null;
-    fetch(APP_CONFIG.RESOLVER_URL + '/share', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url })
-    }).then(function (res) { return res.ok ? res.json() : null; }).then(function (body) {
-      if (!body || away.forUrl !== url) return;
-      away.link = away.base + body.path;
-      if (wireless) useAwayLink(true);
-    }).catch(function () {});
+  // Wi-Fi), while AirPlay is on, a saved video plays from the public address
+  // set in the companion's Settings behind a key that opens any saved video
+  // for 3 hours (resolver share.js). One key serves every video until a few
+  // minutes before it runs out; then a new one takes over mid-video.
+  var RENEW_BEFORE_MS = 10 * 60 * 1000;
+  var away = { base: '', key: null, asking: null, renewTimer: 0 };
+  function savedVideoPath(url) {
+    var path;
+    try { path = new URL(url).pathname; } catch (_) { return null; }
+    var at = path.indexOf('/media/');
+    return at === -1 ? null : path.slice(at);
   }
-  // Swap the source in place, keeping the position and play/pause.
+  function awayKey() {
+    if (away.key && away.key.until - Date.now() > away.key.renewBefore) return Promise.resolve(away.key);
+    if (!away.asking) {
+      away.asking = fetch(APP_CONFIG.RESOLVER_URL + '/share', { method: 'POST' }).then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      }).then(function (key) {
+        // Timed on this device's clock, whatever the server's says.
+        // Renew 10 minutes early, or halfway through a key shorter than that.
+        var renewBefore = Math.min(RENEW_BEFORE_MS, key.expiresIn / 2);
+        away.key = { prefix: key.prefix, until: Date.now() + key.expiresIn, renewBefore: renewBefore };
+        away.asking = null;
+        clearTimeout(away.renewTimer);
+        away.renewTimer = setTimeout(function () { if (wireless) useAwayLink(true); }, key.expiresIn - renewBefore + 1000);
+        return away.key;
+      }, function (err) { away.asking = null; throw err; });
+    }
+    return away.asking;
+  }
   function useAwayLink(on) {
     if (!loadedUrl || hls) return;
-    var want = on && away.link ? away.link : loadedUrl;
+    var path = savedVideoPath(loadedUrl);
+    if (!on || !away.base || !path) { swapSource(loadedUrl); return; }
+    var url = loadedUrl;
+    awayKey().then(function (key) {
+      if (loadedUrl === url && wireless) swapSource(away.base + key.prefix + path);
+    }, function () {});
+  }
+  // Swap the source in place, keeping the position and play/pause.
+  function swapSource(want) {
     if (video.getAttribute('src') === want) return;
     // Not started yet: begin()'s own start (position, autoplay) still applies.
     if (video.readyState < 1) { video.src = want; return; }
@@ -154,12 +176,11 @@
   if (location.protocol === 'https:') {
     fetch('api/airplay-settings', { cache: 'no-store' }).then(function (res) { return res.ok ? res.json() : {}; }).then(function (saved) {
       away.base = String(saved.publicUrl || '').replace(/\/+$/, '');
-      prepareAwayLink();
+      if (away.base && loadedUrl) awayKey().catch(function () {});
     }).catch(function () {});
   }
 
   function unload() {
-    away.forUrl = ''; away.link = null;
     generation++; loadedUrl = ''; video.pause();
     if (hls) { hls.destroy(); hls = null; }
     video.removeAttribute('src'); video.load(); tap.hidden = true;
@@ -181,7 +202,12 @@
       if (typeof Hls === 'undefined' || !Hls.isSupported()) { fail('HLS playback is unavailable in this browser.'); return; }
       hls = new Hls(); hls.loadSource(payload.url); hls.attachMedia(video);
       hls.on(Hls.Events.ERROR, function (_, data) { if (data.fatal && token === generation) fail('HLS playback failed: ' + data.details); });
-    } else { video.src = payload.url; prepareAwayLink(); }
+    } else {
+      video.src = payload.url;
+      // Have a key ready, so switching when AirPlay comes on is immediate.
+      if (away.base) awayKey().catch(function () {});
+      if (wireless) useAwayLink(true);
+    }
   }
   function play(payload) { playback.start(payload, begin, unload); }
   function stop() { playback.stop(); unload(); report('stopped'); }

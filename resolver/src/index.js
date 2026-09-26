@@ -11,7 +11,7 @@ const torrent = require('./torrent');
 const { createThumbs } = require('./thumbs');
 const { fullLengthPlaylist } = require('./hls');
 const subtitles = require('./subtitles');
-const { createShares, mediaPathOf } = require('./share');
+const { createShares } = require('./share');
 const { log } = require('./logger');
 
 const PORT = process.env.PORT || 8788;
@@ -33,7 +33,9 @@ const TORRENT_SERVER_URL = (process.env.TORRENT_SERVER_URL || '').replace(/\/+$/
 // serves nothing but signed links to saved videos (share.js). Something
 // like Tailscale Funnel puts it on the internet; see README.md. 0 turns it off.
 const AIRPLAY_PORT = parseInt(process.env.AIRPLAY_PORT || '8789', 10);
-const shares = createShares();
+// How long each key opens saved videos for (share.js).
+const AIRPLAY_KEY_HOURS = parseFloat(process.env.AIRPLAY_KEY_HOURS || '3');
+const shares = createShares({ ttlMs: AIRPLAY_KEY_HOURS * 60 * 60 * 1000 });
 
 fs.mkdirSync(TORRENT_DIR, { recursive: true });
 
@@ -680,14 +682,10 @@ function handleRequest(req, res) {
     return;
   }
 
-  // A link to a saved video for a TV outside the home (share.js); the
-  // companion puts it after its public address.
+  // A key for a TV outside the home (share.js); the companion puts it,
+  // then a saved video's /media/... path, after its public address.
   if (req.method === 'POST' && url.pathname === '/share') {
-    readJsonBody(req, 4096).then((body) => {
-      const link = typeof body.url === 'string' ? shares.sign(mediaPathOf(body.url)) : null;
-      if (!link) throw new Error('Only saved videos can be shared.');
-      sendJson(res, 200, link);
-    }).catch((error) => sendJson(res, 400, { error: error.message }));
+    sendJson(res, 200, shares.issue());
     return;
   }
 
