@@ -7,12 +7,22 @@ function createPlaybackHistory(handlers) {
   var generation = 0;
   var lastSaved = 0;
   var queue = Promise.resolve();
+  function mediaBase(url) {
+    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return null;
+    var marker = url.indexOf('/media/');
+    return marker === -1 ? null : url.slice(0, marker);
+  }
+  function rebaseMediaUrl(url, base) {
+    if (typeof url !== 'string' || !base) return url;
+    var marker = url.indexOf('/media/');
+    return marker === -1 ? url : base + url.slice(marker);
+  }
   function request(item, event) {
     return new Promise(function (resolve) {
-      var match = /^(https?:\/\/[^/]+)\/media\//.exec(item.url);
-      if (!match || typeof XMLHttpRequest === 'undefined') { resolve(null); return; }
+      var base = mediaBase(item.url);
+      if (!base || typeof XMLHttpRequest === 'undefined') { resolve(null); return; }
       var xhr = new XMLHttpRequest();
-      xhr.open('POST', match[1] + '/playback');
+      xhr.open('POST', base + '/playback');
       xhr.timeout = event === 'completed' ? 60000 : 5000;
       xhr.setRequestHeader('Content-Type', 'application/json');
       xhr.onload = function () {
@@ -37,7 +47,7 @@ function createPlaybackHistory(handlers) {
       var token = ++generation;
       current = { url: payload.url, positionSec: 0, durationSec: 0, started: false, loading: true };
       lastSaved = Date.now();
-      if (!/^https?:\/\/[^/]+\/media\//.test(payload.url)) { current.loading = false; play(payload); return; }
+      if (!mediaBase(payload.url)) { current.loading = false; play(payload); return; }
       send(current, 'start').then(function (result) {
         if (token !== generation) return;
         var position = typeof payload.startPositionSec === 'number' ? payload.startPositionSec : (result && result.startPositionSec) || 0;
@@ -59,10 +69,14 @@ function createPlaybackHistory(handlers) {
       if (handlers.onWaiting) handlers.onWaiting();
       send(ended, 'completed').then(function (result) {
         if (token !== generation) return;
-        if (result && result.next) { playNext(result.next); return; }
+        if (result && result.next) {
+          result.next.url = rebaseMediaUrl(result.next.url, mediaBase(ended.url));
+          playNext(result.next);
+          return;
+        }
         if (result && result.autoplayError) { if (handlers.onError) handlers.onError(result.autoplayError); return; }
         if (!result || !result.nextJob) { if (handlers.onIdle) handlers.onIdle(); return; }
-        var origin = /^(https?:\/\/[^/]+)/.exec(ended.url)[1];
+        var origin = mediaBase(ended.url);
         var attempts = 0;
         function poll() {
           if (token !== generation) return;
@@ -74,7 +88,7 @@ function createPlaybackHistory(handlers) {
             try {
               if (xhr.status !== 200) throw new Error('Next episode lookup failed.');
               var job = JSON.parse(xhr.responseText);
-              if (job.status === 'ready') playNext({ url: job.streamUrl, title: result.nextJob.title });
+              if (job.status === 'ready') playNext({ url: rebaseMediaUrl(job.streamUrl, origin), title: result.nextJob.title });
               else if (job.status === 'error' || job.status === 'cancelled') fail(job.error || 'Next episode unavailable.');
               else if (++attempts > 200) fail('Next episode timed out. Check Downloads.');
               else setTimeout(poll, 1500);

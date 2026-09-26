@@ -4,6 +4,33 @@
 function createResolverClient(config) {
   var POLL_MS = 1500;
 
+  // When the companion is reached through HTTPS/Caddy, the resolver still
+  // reports its saved media as plain http://HOST/media/... because it runs
+  // as an HTTP service behind the proxy. Rebase those URLs through the
+  // browser-facing resolver prefix so receiver playback stays HTTPS.
+  function browserMediaUrl(url) {
+    if (typeof url !== 'string' || !config.RESOLVER_URL) return url;
+    try {
+      var media = new URL(url);
+      var base = new URL(config.RESOLVER_URL, typeof location !== 'undefined' ? location.href : undefined);
+      if (base.protocol !== 'https:' || media.hostname !== base.hostname) return url;
+      var prefix = base.pathname.replace(/\/+$/, '');
+      if (media.protocol === 'https:' && media.pathname.indexOf(prefix + '/') === 0) return url;
+      return base.origin + prefix + media.pathname + media.search + media.hash;
+    } catch (_) { return url; }
+  }
+
+  function normalizeCache(body) {
+    ['entries', 'torrents'].forEach(function (key) {
+      (body[key] || []).forEach(function (item) {
+        if (item.streamUrl) item.streamUrl = browserMediaUrl(item.streamUrl);
+        if (item.originalUrl) item.originalUrl = browserMediaUrl(item.originalUrl);
+        if (item.thumbUrl) item.thumbUrl = browserMediaUrl(item.thumbUrl);
+      });
+    });
+    return body;
+  }
+
   function isDirectMediaUrl(url) {
     // If it's already a link straight to a media file/manifest, skip
     // the resolver entirely -- it works today (and still works if the
@@ -30,7 +57,10 @@ function createResolverClient(config) {
   function pollJob(id) {
     return fetch(config.RESOLVER_URL + '/resolve/' + id).then(function (res) {
       if (!res.ok) throw new Error('Lost track of the resolve job (HTTP ' + res.status + ')');
-      return res.json();
+      return res.json().then(function (job) {
+        if (job.streamUrl) job.streamUrl = browserMediaUrl(job.streamUrl);
+        return job;
+      });
     });
   }
 
@@ -88,7 +118,7 @@ function createResolverClient(config) {
   function getCache() {
     return fetch(config.RESOLVER_URL + '/cache').then(function (res) {
       if (!res.ok) throw new Error('Could not reach the resolver (HTTP ' + res.status + ')');
-      return res.json();
+      return res.json().then(normalizeCache);
     });
   }
 
@@ -156,7 +186,7 @@ function createResolverClient(config) {
     isDirectMediaUrl: isDirectMediaUrl,
     resolve: resolve,
     resolveTorrent: resolveTorrent,
-    resolveSubtitle: function (url) { return startJob('/subtitle', { url: url }).then(function (body) { return body.url; }); },
+    resolveSubtitle: function (url) { return startJob('/subtitle', { url: url }).then(function (body) { return browserMediaUrl(body.url); }); },
     listJobs: listJobs,
     getCache: getCache,
     listCache: listCache,

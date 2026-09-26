@@ -141,10 +141,26 @@ function createRelayClient(config, handlers) {
     }
   }
 
-  // Off the Wi-Fi (Tailscale) the resolver hands back URLs on the host this
-  // page reached it through, which the TV can't; it only knows the LAN IP.
+  // Browser-facing HTTPS proxy URLs must be converted back to direct LAN
+  // service URLs before they are sent to the TV, which only reaches the
+  // home server on its LAN ports.
+  function directServiceUrl(url, browserBase, port) {
+    try {
+      var parsed = new URL(url);
+      var base = new URL(browserBase);
+      var prefix = base.pathname.replace(/\/+$/, '');
+      if (parsed.origin !== base.origin || (prefix && parsed.pathname.indexOf(prefix + '/') !== 0)) return null;
+      var path = prefix ? parsed.pathname.slice(prefix.length) : parsed.pathname;
+      return 'http://' + config.LAN_HOST + ':' + port + path + parsed.search + parsed.hash;
+    } catch (_) { return null; }
+  }
   function forTv(url) {
-    if (typeof url !== 'string' || !config.LAN_HOST || !config.SERVER_HOST || config.SERVER_HOST === config.LAN_HOST) return url;
+    if (typeof url !== 'string' || !config.LAN_HOST) return url;
+    var direct = config.RESOLVER_URL && directServiceUrl(url, config.RESOLVER_URL, 8788);
+    if (direct) return direct;
+    direct = config.STREMIO_SERVER_URL && directServiceUrl(url, config.STREMIO_SERVER_URL, 11470);
+    if (direct) return direct;
+    if (!config.SERVER_HOST || config.SERVER_HOST === config.LAN_HOST) return url;
     try {
       var parsed = new URL(url);
       if (parsed.hostname !== config.SERVER_HOST) return url;
