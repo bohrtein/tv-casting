@@ -3,10 +3,16 @@
 // WebSocket client for the relay (see relay/PROTOCOL.md), companion
 // side. No pairing: the companion joins as soon as it connects, and
 // stays joined to whatever TV the relay currently has.
+//
+// handlers.localTarget, if given ({ id, name, sendCommand }), is a player
+// on this page itself: always first under "Play on", the choice when the
+// saved one is gone, and its commands never leave the page. Guests have
+// one (guest-player.js) instead of the TV.
 function createRelayClient(config, handlers) {
   var socket = null;
-  var targetId = 'tv', targets = [];
-  try { targetId = localStorage.getItem('tvc.target') || 'tv'; } catch (_) {}
+  var local = handlers.localTarget || null;
+  var targetId = local ? local.id : 'tv', targets = [];
+  try { targetId = localStorage.getItem('tvc.target') || targetId; } catch (_) {}
   var select = document.createElement('select');
   select.className = 'mx-input'; select.setAttribute('aria-label', 'Playback target');
   var holder = document.querySelector('[data-relay-targets]') || document.querySelector('.mx-topbar-nav') || document.querySelector('.mx-topbar');
@@ -15,7 +21,7 @@ function createRelayClient(config, handlers) {
   }
   function renderTargets() {
     select.innerHTML = '';
-    var list = targets.slice();
+    var list = (local ? [{ id: local.id, name: local.name, online: true }] : []).concat(targets);
     if (!list.some(function (t) { return t.id === targetId; })) list.push({ id: targetId, name: targetId === 'tv' ? 'TV' : 'Selected receiver', online: false });
     list.forEach(function (t) { var o = document.createElement('option'); o.value = t.id; o.textContent = t.name + (t.online ? '' : ' (offline)'); select.appendChild(o); });
     select.value = targetId;
@@ -25,7 +31,7 @@ function createRelayClient(config, handlers) {
     renderTargets();
     handlers.onStatus({ state: 'idle', title: '', positionSec: 0, durationSec: 0 });
     try { localStorage.setItem('tvc.target', targetId); } catch (_) {}
-    send({ type: 'select-target', targetId: targetId });
+    if (!local || id !== local.id) send({ type: 'select-target', targetId: targetId });
   }
   select.addEventListener('change', function () {
     selectTarget(select.value);
@@ -43,6 +49,7 @@ function createRelayClient(config, handlers) {
   // here. Call from a click handler, or the browser blocks the new tab;
   // that, or no BroadcastChannel, throws right away.
   function openLocalReceiver() {
+    if (local) { selectTarget(local.id); return Promise.resolve(local.id); }
     if (!receiverChannel) throw new Error('This browser cannot hand video to a receiver tab.');
     // Reuse an open receiver tab as it is (reloading it would cut off
     // whatever it's playing); only a brand-new tab gets the page.
@@ -95,7 +102,7 @@ function createRelayClient(config, handlers) {
     if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
       return;
     }
-    socket = new WebSocket(config.RELAY_URL);
+    socket = new (config.RELAY_SOCKET || WebSocket)(config.RELAY_URL);
 
     socket.onopen = function () {
       reconnectAttempts = 0;
@@ -131,6 +138,7 @@ function createRelayClient(config, handlers) {
         handlers.onJoined();
         break;
       case 'status':
+        if (local && targetId === local.id) break;
         if (!msg.targetId || msg.targetId === targetId) handlers.onStatus(msg);
         break;
       case 'error':
@@ -196,6 +204,7 @@ function createRelayClient(config, handlers) {
   }
 
   function sendCommand(action, payload) {
+    if (local && targetId === local.id) return local.sendCommand(action, payload);
     var message = { type: 'command', action: action };
     if (payload && action === 'play') {
       payload = Object.assign({}, payload);
@@ -219,6 +228,7 @@ function createRelayClient(config, handlers) {
   return {
     connect: connect,
     sendCommand: sendCommand,
-    openLocalReceiver: openLocalReceiver
+    openLocalReceiver: openLocalReceiver,
+    isLocal: function () { return !!local && targetId === local.id; }
   };
 }

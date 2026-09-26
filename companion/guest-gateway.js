@@ -6,7 +6,8 @@
 // one, and is narrowed to what a guest may do:
 //
 // - Board, Discover, Search and Library for Movies and Series only: no
-//   Plus18, no addons or settings changes, no tools, no TV, no relay.
+//   Plus18, no addons or settings changes, no tools, and never your TV or
+//   relay. They cast only to their own receiver pages (guest-cast.js).
 // - Their own library. Saving downloads onto the server as usual (or
 //   reuses the file if it's already there) and adds it to their list;
 //   removing only takes it off their list, the file stays.
@@ -22,6 +23,7 @@ const path = require('path');
 const http = require('http');
 const dns = require('dns').promises;
 const net = require('net');
+const { createGuestCast } = require('./guest-cast');
 
 const COOKIE = 'tvc_guest';
 const MAX_BODY = 4 * 1024 * 1024;
@@ -33,7 +35,7 @@ const GUEST_TYPES = ['movie', 'series'];
 // companion folder (tools, the receiver, the server's own code) is not
 // served here at all.
 const OPEN_FILES = /^\/(login\.html|icon-(192|512)\.png|manifest\.webmanifest|css\/[\w.-]+\.css|matrix\/[\w./-]+\.(css|js|ttf|txt|json))$/;
-const PAGE_FILES = /^\/(stremio\.html|js\/[\w.-]+\.js|vendor\/[\w./-]+\.(js|wasm))$/;
+const PAGE_FILES = /^\/(stremio\.html|receiver\.html|js\/[\w.-]+\.js|vendor\/[\w./-]+\.(js|wasm))$/;
 
 function createGuestGateway(opts) {
   const { accounts, root, mime, browseStore, readStremioSettings } = opts;
@@ -41,6 +43,7 @@ function createGuestGateway(opts) {
   const stremioServer = String(opts.stremioServerUrl || 'http://127.0.0.1:11470').replace(/\/+$/, '');
   const receiverDir = opts.receiverDir;
   const following = new Map();
+  const cast = createGuestCast();
 
   // --- small helpers -------------------------------------------------
 
@@ -379,6 +382,12 @@ function createGuestGateway(opts) {
       return sendJson(res, 200, { ok: true }, { 'Set-Cookie': `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0` });
     }
     if (pathname === '/api/me') return sendJson(res, 200, { name });
+    // Casting between this account's own pages (guest-cast.js).
+    if (pathname === '/api/cast/stream' && req.method === 'GET') return cast.stream(req, res, name);
+    if (pathname === '/api/cast/send' && req.method === 'POST') {
+      const result = cast.receive(name, await readBody(req, 32 * 1024));
+      return sendJson(res, result.status, result.error ? { error: result.error } : { ok: true });
+    }
     if (pathname === '/api/stremio-settings') {
       if (req.method !== 'GET') return sendJson(res, 403, { error: 'Only the owner changes addons.' });
       return sendJson(res, 200, { addons: readStremioSettings().addons || [], plus18: [] });
@@ -407,7 +416,7 @@ function createGuestGateway(opts) {
         'APP_CONFIG.GUEST = ' + JSON.stringify({ name }) + ';\n' +
         "APP_CONFIG.RESOLVER_URL = location.origin + '/resolver';\n" +
         "APP_CONFIG.STREMIO_SERVER_URL = location.origin + '/stremio';\n" +
-        "APP_CONFIG.RELAY_URL = '';\n");
+        "APP_CONFIG.RELAY_URL = 'guest';\n");
     }
     if (pathname === '/js/playback-history.js' && receiverDir) {
       return fs.readFile(path.join(receiverDir, 'playback-history.js'), (err, data) => {

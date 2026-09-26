@@ -219,15 +219,26 @@ document.addEventListener('DOMContentLoaded', function () {
     el.relayChip.setAttribute('data-mx-state', state);
     el.relayChipLabel.textContent = label;
   }
-  var relay = GUEST ? createGuestPlayer({ onStopped: function () { refreshLibrary(); } }) : createRelayClient(APP_CONFIG, {
+  // Guests: "This device" plays in the page (guest-player.js); their own
+  // receiver pages are reached through the guest door, never the TV.
+  var localTarget = GUEST ? { id: 'here', name: 'This device' } : null;
+  if (localTarget) {
+    var guestPlayer = createGuestPlayer({
+      onStopped: function () { refreshLibrary(); },
+      onStatus: function (msg) { if (relay.isLocal()) renderStatus(msg); }
+    });
+    localTarget.sendCommand = guestPlayer.sendCommand;
+  }
+  var relay = createRelayClient(APP_CONFIG, {
+    localTarget: localTarget,
     onConnected: function () { setRelayChip('busy', 'connected'); },
     onDisconnected: function () { setRelayChip('err', 'reconnecting…'); },
     onJoined: function () { setRelayChip('ok', 'connected'); },
     onStatus: renderStatus,
     onError: function (msg) {
       if (msg.code !== 'TV_NOT_FOUND') return;
-      setRelayChip('err', 'no tv');
-      MX.toast(false, 'No TV is connected right now.');
+      setRelayChip('err', GUEST ? 'offline' : 'no tv');
+      MX.toast(false, GUEST ? msg.message : 'No TV is connected right now.');
     }
   });
 
@@ -239,7 +250,7 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
     nowCasting.set(url, title);
-    if (GUEST) return;
+    if (relay.isLocal()) return;
     MX.toast(true, 'Casting: ' + title);
     remoteSheet.open();
   }

@@ -1,9 +1,9 @@
 'use strict';
 
-// For guests (guest-gateway.js), who play on their own device: a player
-// over the page, in place of the relay. It answers the same calls as
-// relay-client.js (connect, sendCommand, openLocalReceiver), so the page's
-// "play" and "play on this device" both end up here. Progress goes to the
+// For guests (guest-gateway.js): "This device" under Play on, a player
+// over the page. relay-client.js sends it the commands meant for this
+// device (its localTarget), and it reports status like a receiver does, so
+// the remote at the bottom works for it too. Progress goes to the
 // guest door like the receiver's does (playback-history.js), so each
 // person resumes where they stopped and moves on to the next saved episode.
 function createGuestPlayer(handlers) {
@@ -33,6 +33,13 @@ function createGuestPlayer(handlers) {
   });
 
   function say(text) { statusEl.textContent = text || ''; }
+  var lastReport = 0;
+  function report(state) {
+    lastReport = Date.now();
+    if (handlers.onStatus) handlers.onStatus({ type: 'status', state: state, title: titleEl.textContent,
+      positionSec: Number.isFinite(video.currentTime) ? video.currentTime : 0,
+      durationSec: Number.isFinite(video.duration) ? video.duration : 0 });
+  }
   function loadHls() {
     if (typeof Hls !== 'undefined') return Promise.resolve();
     if (!hlsScript) {
@@ -90,6 +97,7 @@ function createGuestPlayer(handlers) {
     root.hidden = true;
     document.body.classList.remove('cn-gp-open');
     say('');
+    report('stopped');
     if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(function () {});
     if (handlers.onStopped) handlers.onStopped();
   }
@@ -97,11 +105,14 @@ function createGuestPlayer(handlers) {
   root.querySelector('.cn-gp-close').addEventListener('click', close);
   document.addEventListener('keydown', function (event) { if (event.key === 'Escape' && !root.hidden) close(); });
   video.addEventListener('timeupdate', function () {
-    if (loadedUrl) playback.time(video.currentTime, Number.isFinite(video.duration) ? video.duration : 0);
+    if (!loadedUrl) return;
+    playback.time(video.currentTime, Number.isFinite(video.duration) ? video.duration : 0);
+    if (Date.now() - lastReport > 1000) report(video.paused ? 'paused' : 'playing');
   });
-  video.addEventListener('pause', function () { if (loadedUrl && !video.ended) playback.flush(); });
-  video.addEventListener('waiting', function () { if (loadedUrl) say('Loading…'); });
-  video.addEventListener('playing', function () { say(''); });
+  video.addEventListener('pause', function () { if (loadedUrl && !video.ended) { playback.flush(); report('paused'); } });
+  video.addEventListener('waiting', function () { if (loadedUrl) { say('Loading…'); report('buffering'); } });
+  video.addEventListener('playing', function () { say(''); report('playing'); });
+  video.addEventListener('seeked', function () { if (loadedUrl) report(video.paused ? 'paused' : 'playing'); });
   video.addEventListener('ended', function () {
     if (!loadedUrl) return;
     loadedUrl = '';
@@ -111,8 +122,6 @@ function createGuestPlayer(handlers) {
   window.addEventListener('pagehide', function () { playback.flush(); });
 
   return {
-    connect: function () {},
-    openLocalReceiver: function () { return Promise.resolve(); },
     sendCommand: function (action, payload) {
       if (action === 'play' && payload) play(payload);
       else if (action === 'pause') video.pause();

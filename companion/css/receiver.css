@@ -129,3 +129,6 @@ html, body { min-height: 100%; }
    draggable sheet: no grip, nothing to drag. */
 .rc-remote { margin-top: 12px; padding: 12px 14px; }
 .rc-remote .cn-remote-head { touch-action: auto; cursor: auto; user-select: auto; }
+
+/* Guest door (guest-gateway.js): no owner-only links. */
+.cn-guest .cn-owner-only { display: none !important; }

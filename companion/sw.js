@@ -23,6 +23,7 @@ var SHELL_FILES = [
   'js/resolver-client.js',
   'js/downloads-view.js',
   'js/now-casting.js',
+  'js/guest-socket.js',
   'js/relay-client.js',
   'js/stremio-cast-adapter.js',
   'js/stremio-stream-presentation.js',

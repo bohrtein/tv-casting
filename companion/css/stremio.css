@@ -474,22 +474,16 @@
   .cn-st-stream .cn-stream-badges button:first-of-type { margin-left: auto; }
 }
 
-/* Guests (guest-gateway.js): Movies and Series on their own device. No TV,
-   remote, Plus18, addons, settings or tools; a log out button instead. */
+/* Guests (guest-gateway.js): Movies and Series, played on this device or
+   cast to their own receivers. No Plus18, addons, settings or tools; a
+   log out button instead. */
 .cn-guest-only { display: none; }
 .cn-guest .cn-guest-only { display: inline-flex; }
 .cn-guest .cn-owner-only,
 .cn-guest #plus18-toggle,
-.cn-guest #relay-chip,
-.cn-guest .tvc-target-label,
-.cn-guest #remote-sheet,
 .cn-guest #match-banner,
 .cn-guest .mx-nav-item[data-route="addons"],
 .cn-guest .mx-nav-item[data-route="settings"] { display: none !important; }
-body.cn-st.cn-guest { padding-bottom: var(--mx-space-5); }
-@media (max-width: 599px) {
-  body.cn-st.cn-guest.mx-has-nav { padding-bottom: calc(var(--mx-nav-h) + var(--mx-space-4) + env(safe-area-inset-bottom)); }
-}
 
 /* The guest's player, over the page. */
 .cn-gp {

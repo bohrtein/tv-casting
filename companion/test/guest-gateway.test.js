@@ -104,7 +104,7 @@ test('guests never get the owner pages or the server code', async () => {
     assert.strictEqual((await g.call('/api/accounts')).status, 404);
     const config = await g.call('/js/config.js');
     assert.match(config.text, /APP_CONFIG.GUEST = {"name":"guest"}/);
-    assert.match(config.text, /RELAY_URL = ''/);
+    assert.match(config.text, /RELAY_URL = 'guest'/);
   } finally { g.close(); }
 });
 

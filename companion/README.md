@@ -75,8 +75,15 @@ also runs a **guest door** on `127.0.0.1:8790` (`GUEST_PORT`, `0` turns it
 off; `guest-gateway.js`) where everything needs an account:
 
 - They see Board, Discover, Search, Calendar and Library for **Movies and
-  Series only**: no Plus18, no addons or settings, no tools, and no TV,
-  relay or remote. Videos play in the page on their own device.
+  Series only**: no Plus18, no addons or settings, no tools, and never
+  your TV or relay.
+- They play on **their own devices**. Under **Play on**, "This device"
+  plays in the page; and a receiver page (`receiver.html`) they open and
+  turn on in another browser where they're logged in with the same
+  account (a laptop, a TV's browser) shows up there too, with the remote
+  at the bottom working as it does for you. Each account has its own
+  small relay inside the guest door (`guest-cast.js`, over server-sent
+  events): nobody sees anyone else's receivers.
 - Each account has **its own library and watch progress**. Saving
   downloads onto the server like yours does, or reuses the file if it's
   already there, and adds it to their list only. Removing it from their
@@ -106,5 +113,4 @@ Port 10000 keeps it apart from your own `https://` address and the AirPlay
 links (8443); Funnel also allows 443 if nothing else uses it. To close the
 door: `sudo tailscale funnel --https=10000 off`.
 
-Not for guests yet: AirPlay from the page (the TV can't log in) and
-subtitles.
+Not for guests yet: AirPlay (the TV can't log in) and subtitles.

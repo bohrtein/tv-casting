@@ -240,7 +240,7 @@
     clearTimeout(retry);
     if (!enabled || socket && socket.readyState < 2) return;
     setChip('busy', 'connecting'); status.textContent = 'Connecting to the relay…';
-    try { socket = new WebSocket(APP_CONFIG.RELAY_URL); }
+    try { socket = new (APP_CONFIG.RELAY_SOCKET || WebSocket)(APP_CONFIG.RELAY_URL); }
     catch (err) { status.textContent = 'Could not connect to the relay: ' + err.message; retry = setTimeout(connect, 2000); return; }
     var own = socket;
     socket.onopen = function () {
