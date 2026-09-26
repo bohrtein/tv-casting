@@ -1,0 +1,223 @@
+/* stremio.html on a phone (under 600px, where the nav is a bottom bar).
+   Loaded last, so it only tightens what stremio.css and remote.css lay out
+   for bigger screens: one short header row plus search, compact controls,
+   three posters across, filter dropdowns as bottom sheets, and a slimmer
+   remote peek. Colours are Matrix tokens, as everywhere else. */
+
+@media (max-width: 599px) {
+  /* Matrix makes every small control a full 46px tap target on touch
+     screens; 40px is still easy to hit and stops the page feeling crowded. */
+  body.cn-st { --cn-m-h: 40px; }
+
+  /* --- header: [status] [play on ▾] [18+] [tools], then search ----------- */
+  .cn-st-top {
+    flex-wrap: wrap;
+    gap: var(--mx-space-2);
+    padding-top: calc(var(--mx-space-2) + env(safe-area-inset-top));
+    padding-bottom: var(--mx-space-2);
+  }
+  .cn-st-top-actions {
+    order: 1;
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+  .cn-st-search { order: 2; flex-basis: 100%; }
+  .cn-st-search .mx-input { min-height: 44px; border-radius: 999px; padding-left: 18px; }
+  .cn-st-top-actions > .mx-btn { --mx-z-h: var(--cn-m-h); --mx-z-px: 12px; flex: 0 0 auto; }
+  /* The connection chip shrinks to its light; the word stays for screen readers. */
+  #relay-chip { order: -2; min-height: var(--cn-m-h); width: var(--cn-m-h); padding: 0; justify-content: center; }
+  #relay-chip-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  /* "Play on" is obvious from the TV name; the picker takes the spare width. */
+  .cn-st-top-actions .tvc-target-label { order: -1; flex: 1 1 auto; min-width: 0; font-size: 0; }
+  .cn-st-top-actions .tvc-target-label .mx-input {
+    width: 100%;
+    max-width: none;
+    min-height: var(--cn-m-h);
+    font-size: 16px; /* under 16px iOS zooms the page on focus */
+  }
+
+  /* --- shared spacing -------------------------------------------------- */
+  .cn-st-view { padding-bottom: var(--mx-space-4); }
+  .cn-st-view > .mx-panel, .cn-st-view > section > .mx-panel { padding: var(--mx-space-4); }
+  .cn-section-title { margin: 0; font-size: 11px; letter-spacing: .1em; }
+  .cn-st-note { font-size: var(--mx-text-sm); line-height: 1.55; }
+
+  /* --- Board: rows with a quiet "see all", refresh at the very end ------- */
+  #view-board:not(.cn-hidden) { display: flex; flex-direction: column; }
+  #view-board .cn-st-refresh { order: 3; justify-content: center; margin: var(--mx-space-2) 0 0; }
+  #view-board .cn-st-refresh .mx-btn { --mx-z-h: var(--cn-m-h); }
+  #board-rows { order: 1; }
+  #board-readout { order: 2; }
+  .cn-st-row { margin-bottom: var(--mx-space-4); }
+  .cn-st-row-head { min-height: 32px; }
+  .cn-st-row-head > .mx-btn {
+    --mx-z-h: 32px;
+    --mx-z-px: 4px;
+    background: none;
+    border-color: transparent;
+    box-shadow: none;
+    color: var(--mx-accent);
+    font-size: 11px;
+  }
+  .cn-st-strip { gap: 10px; padding: var(--mx-space-2) 0 var(--mx-space-2); margin: 0 calc(-1 * var(--mx-gutter)); padding-inline: var(--mx-gutter); scroll-padding-inline: var(--mx-gutter); }
+  .cn-st-strip > * { flex-basis: clamp(104px, 29vw, 140px); }
+
+  /* --- posters: three across, lighter captions and badges ------------- */
+  .cn-st .cn-posters { --mx-card-min: 100px; gap: 10px; }
+  .cn-st-plus18 .cn-posters { --mx-card-min: 160px; }
+  .cn-poster { border-radius: var(--mx-r-sm); }
+  .cn-poster > .mx-slot-main { padding: 7px 8px 9px; gap: 1px; }
+  .cn-poster .mx-slot-title { font-size: 12px; }
+  .cn-poster .mx-slot-meta { font-size: 10px; }
+  .cn-poster-blank { font-size: var(--mx-text-xl); }
+  .cn-st-badge,
+  #view-library .cn-st-badge {
+    top: 6px;
+    left: 6px;
+    padding: 2px 6px;
+    font-size: 9px;
+    letter-spacing: .04em;
+  }
+  .cn-st-badge-saved::before, #view-library .cn-st-badge-saved::before { margin-right: 3px; }
+
+  /* --- filter bars: one row that scrolls sideways ---------------------- */
+  .cn-st-selects {
+    flex-wrap: nowrap;
+    gap: var(--mx-space-2);
+    margin: 0 calc(-1 * var(--mx-gutter)) var(--mx-space-3);
+    padding: 2px var(--mx-gutter);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .cn-st-selects::-webkit-scrollbar { display: none; }
+  .cn-st-selects > .cn-picker, .cn-st-selects > .cn-st-selects > .cn-picker { flex: 0 0 auto; max-width: 70vw; }
+  .cn-st-selects .mx-btn { --mx-z-h: var(--cn-m-h); --mx-z-px: 14px; flex: 0 0 auto; }
+  .cn-picker-button {
+    min-height: var(--cn-m-h);
+    padding: 0 32px 0 14px;
+    border-radius: 999px;
+    font-size: 14px;
+    background-position: calc(100% - 17px) 50%, calc(100% - 12px) 50%;
+  }
+  /* Library and Addons: text boxes share the row instead of stacking. */
+  .cn-st-selects .mx-input { flex: 1 1 0; min-width: 120px; min-height: var(--cn-m-h); font-size: 16px; }
+  #view-library .cn-st-selects, #view-addons .cn-st-selects { overflow: visible; margin-inline: 0; padding-inline: 0; }
+  #library-sort { flex: 0 1 50%; }
+  #addons-filter { min-width: 0; }
+  .cn-st-search-tools { align-items: center; margin-bottom: var(--mx-space-3); }
+  .cn-st-search-tools > .cn-picker { flex: 1 1 auto; }
+  .cn-st-search-tools > .mx-btn { --mx-z-h: var(--cn-m-h); flex: 0 0 auto; }
+
+  /* A dropdown opens as a sheet from the bottom of the screen, above the
+     nav bar and the remote, instead of a small box that can hang off the
+     edge. The page behind is dimmed; tapping it closes the sheet. */
+  .mx-shell:has(.cn-picker-open) { z-index: 35; }
+  .cn-picker-panel {
+    position: fixed;
+    top: auto;
+    /* stremio-picker.js nudges the floating box in from the right edge with
+       inline left/right; a sheet always spans the screen. */
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0;
+    width: auto;
+    max-width: none;
+    max-height: 75vh;
+    max-height: 75dvh;
+    padding: var(--mx-space-3) var(--mx-space-4) calc(var(--mx-space-4) + env(safe-area-inset-bottom));
+    border-radius: var(--mx-r-lg) var(--mx-r-lg) 0 0;
+    border-bottom: 0;
+    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .6), var(--mx-shadow);
+  }
+  .cn-picker-panel::before {
+    content: "";
+    align-self: center;
+    flex: 0 0 auto;
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--mx-border);
+  }
+  .cn-picker .cn-picker-panel .cn-picker-filter { font-size: 16px; }
+  .cn-picker-list { max-height: none; flex: 1 1 auto; }
+  .cn-picker-option { min-height: 46px; font-size: var(--mx-text-base); }
+
+  /* --- Library tabs: slim pills ---------------------------------------- */
+  .cn-st-libtabs { margin: 0 calc(-1 * var(--mx-gutter)) var(--mx-space-3); padding: 2px var(--mx-gutter); }
+  .cn-st-libtab { min-height: 36px; padding: 0 14px; border-radius: 999px; letter-spacing: .1em; }
+  .cn-yt-grid { gap: var(--mx-space-4); }
+  .cn-st-libyt > .cn-section-title { margin-bottom: var(--mx-space-2); }
+
+  /* --- Details --------------------------------------------------------- */
+  #detail-back { min-height: 36px; margin-top: var(--mx-space-1); }
+  .cn-st-detail { gap: var(--mx-space-4); margin-top: 0; }
+  .cn-st-detail-main { padding-top: var(--mx-space-2); }
+  .cn-st-detail-main .mx-title { font-size: var(--mx-text-xl); line-height: 1.2; }
+  .cn-st-logo { max-height: 84px; max-width: 70%; }
+  .cn-st-info { font-size: var(--mx-text-sm); margin: var(--mx-space-1) 0; }
+  .cn-st-desc {
+    margin: var(--mx-space-2) 0 var(--mx-space-3);
+    font-size: var(--mx-text-md);
+    line-height: 1.55;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 6;
+    overflow: hidden;
+  }
+  .cn-facts { margin-top: var(--mx-space-2); font-size: 12px; }
+  .cn-st-actions { gap: 6px; }
+  .cn-st-actions .mx-btn { --mx-z-h: 34px; --mx-z-px: 12px; font-size: 11px; }
+  .cn-st-side { padding: var(--mx-space-3); }
+  .cn-st-season .mx-btn { --mx-z-h: var(--cn-m-h); --mx-z-px: 12px; }
+  .cn-st-season .mx-input { min-height: var(--cn-m-h); }
+  .cn-st-episode { grid-template-columns: 96px minmax(0, 1fr); gap: 10px; padding: 6px; }
+  .cn-st-episode .cn-st-badge { top: 4px; left: 4px; padding: 1px 5px; font-size: 8px; }
+  .cn-st-episode-body { font-size: var(--mx-text-md); }
+  .cn-st-stream-play { padding: 10px 0 8px 12px; }
+  .cn-st-stream .cn-stream-badges { padding: 0 12px 10px; }
+  .cn-st-stream .cn-stream-badges .mx-btn { --mx-z-h: 34px; }
+
+  /* --- Calendar --------------------------------------------------------- */
+  .cn-st-cal-head .mx-btn { --mx-z-h: var(--cn-m-h); }
+  .cn-st-cal { gap: var(--mx-space-2); }
+  .cn-st-cal-day { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; padding: 10px 12px; }
+  .cn-st-cal-num { flex: 0 0 100%; font-size: 11px; }
+  .cn-st-cal-ep { padding: 6px 10px; font-size: var(--mx-text-sm); }
+
+  /* --- Addons ---------------------------------------------------------- */
+  #view-addons .cn-st-selects .mx-btn { --mx-z-px: 12px; }
+  .cn-st-addons { gap: var(--mx-space-2); }
+  .cn-st-addon { padding: var(--mx-space-3); gap: var(--mx-space-3); }
+  .cn-st-addon-logo { flex-basis: 44px; height: 44px; font-size: var(--mx-text-base); }
+  .cn-st-addon-body p { font-size: var(--mx-text-sm); }
+  .cn-st-addon-actions .mx-btn { --mx-z-h: 34px; --mx-z-px: 10px; }
+
+  /* --- Settings -------------------------------------------------------- */
+  #view-settings .cn-np-buttons .mx-btn { flex: 1 1 0; }
+
+  /* --- downloads on the server ------------------------------------------ */
+  .cn-saving { padding: var(--mx-space-3); }
+
+  /* --- the remote: a slim bar until it's pulled up --------------------- */
+  body.cn-st.mx-has-nav { padding-bottom: calc(var(--mx-nav-h) + 76px + env(safe-area-inset-bottom)); }
+  .cn-remote { padding-inline: var(--mx-space-3); }
+  .cn-remote-head { gap: 0 var(--mx-space-3); padding-bottom: var(--mx-space-2); }
+  .cn-remote-grip { height: 16px; }
+  .cn-remote-grip > span { width: 36px; height: 4px; }
+  .cn-remote-head > .mx-readout {
+    min-height: var(--cn-m-h);
+    padding: 0 var(--mx-space-1);
+    background: none;
+    border: 0;
+    font-size: var(--mx-text-md);
+  }
+  .cn-remote-head > .mx-btn { --mx-z-h: var(--cn-m-h); min-width: 72px; }
+  .cn-remote-body { gap: var(--mx-space-2); }
+  .cn-remote-buttons .mx-btn { --mx-z-h: 44px; }
+  body.mx-has-nav .mx-toasts { bottom: calc(var(--mx-nav-h) + 72px + env(safe-area-inset-bottom)); }
+
+  /* Nav labels are tiny caps under the icons; give the icons the room. */
+  .mx-nav-item { gap: 3px; letter-spacing: .06em; }
+}

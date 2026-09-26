@@ -18,6 +18,7 @@ var SHELL_FILES = [
   'css/app.css',
   'css/remote.css',
   'css/stremio.css',
+  'css/mobile.css',
   'js/content-policy.js',
   'js/resolver-client.js',
   'js/downloads-view.js',
