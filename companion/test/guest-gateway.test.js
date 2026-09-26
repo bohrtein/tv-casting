@@ -26,11 +26,13 @@ function fakeResolver() {
       if (req.url === '/cache') {
         return json({
           entries: [
-            { fileName: MINE, title: 'Mine', sourceUrl: 'http://secret', progress: { positionSec: 999 }, metadata: { type: 'movie', id: 'tt1' } },
-            { fileName: YOURS, title: 'Owner only', metadata: { type: 'movie', id: 'tt2' } }
+            { fileName: MINE, key: MINE, title: 'Mine', sourceUrl: 'http://secret', progress: { positionSec: 999 }, metadata: { type: 'movie', id: 'tt1' } },
+            { fileName: YOURS, key: YOURS, title: 'Owner only', metadata: { type: 'movie', id: 'tt2' } }
           ],
-          torrents: [{ fileName: HASH + '-0', title: 'Adult', category: 'plus18', metadata: { type: 'movie', id: 'x' } }],
-          titles: [{ type: 'movie', id: 'tt1', videos: [] }, { type: 'movie', id: 'tt2', videos: [] }]
+          // As the real resolver sends them: torrents are named by key only.
+          torrents: [{ key: HASH + '-0', title: 'Adult', category: 'plus18', metadata: { type: 'movie', id: 'x' } },
+            { key: HASH + '-1', title: 'Saved film', metadata: { type: 'movie', id: 'tt3' } }],
+          titles: [{ type: 'movie', id: 'tt1', videos: [] }, { type: 'movie', id: 'tt2', videos: [] }, { type: 'movie', id: 'tt3', videos: [] }]
         });
       }
       if (req.url === '/share') return json({ prefix: '/s/key/' + 'k'.repeat(43), expiresIn: 1000, asked: body });
@@ -157,6 +159,9 @@ test('saving a torrent always uses your own streaming server and lands in their 
     assert.strictEqual(sent.metadata.streamingServer, 'http://127.0.0.1:11470');
     await new Promise((r) => setTimeout(r, 200));
     assert.ok(g.accounts.has('guest', `torrents:${HASH}-1`), 'added once it can play');
+    const lib = (await g.call('/resolver/cache')).json;
+    assert.deepStrictEqual(lib.torrents.map((e) => e.key), [HASH + '-1'], 'and shows in their library');
+    assert.deepStrictEqual(lib.titles.map((t) => t.id).sort(), ['tt1', 'tt3']);
   } finally { g.close(); }
 });
 

@@ -289,10 +289,15 @@ if (GUEST_PORT) {
     resolverUrl: process.env.RESOLVER_INTERNAL_URL || 'http://127.0.0.1:8788',
     stremioServerUrl: process.env.STREMIO_INTERNAL_URL || 'http://127.0.0.1:11470'
   }));
-  guestServer.listen(GUEST_PORT, '127.0.0.1', () => {
-    console.log(new Date().toISOString(), `guest door on 127.0.0.1:${GUEST_PORT}`);
+  const openDoor = () => guestServer.listen(GUEST_PORT, '127.0.0.1');
+  guestServer.on('listening', () => console.log(new Date().toISOString(), `guest door on 127.0.0.1:${GUEST_PORT}`));
+  // Another copy may still hold the port (App Hub's, started before it ran
+  // with GUEST_PORT=0): keep trying, so the door opens once it lets go.
+  guestServer.on('error', (err) => {
+    console.log(new Date().toISOString(), `guest door unavailable: ${err.message}`);
+    if (err.code === 'EADDRINUSE') setTimeout(openDoor, 30 * 1000).unref();
   });
-  guestServer.on('error', (err) => console.log(new Date().toISOString(), `guest door unavailable: ${err.message}`));
+  openDoor();
 }
 
 server.listen(PORT, HOST, () => {

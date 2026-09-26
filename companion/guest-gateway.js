@@ -195,13 +195,16 @@ function createGuestGateway(opts) {
       (!entry.metadata || GUEST_TYPES.indexOf(entry.metadata.type) !== -1);
   }
   function titleKey(m) { return JSON.stringify([m.type, m.addon || '', m.id]); }
+  // The resolver's /cache names every saved file by "key"; its torrents
+  // have no fileName at all.
+  function fileOf(entry) { return entry.key || entry.fileName; }
 
   // The resolver's library, cut down to this person's items, with their
   // own progress in place of yours.
   function guestLibrary(name, snapshot) {
-    const own = (kind, entry) => accounts.has(name, kind + ':' + entry.fileName) && allowedEntry(entry);
+    const own = (kind, entry) => accounts.has(name, kind + ':' + fileOf(entry)) && allowedEntry(entry);
     const clean = (kind) => (entry) => {
-      const item = kind + ':' + entry.fileName;
+      const item = kind + ':' + fileOf(entry);
       const copy = Object.assign({}, entry, { progress: accounts.progress(name, item) });
       delete copy.sourceUrl;
       return copy;
@@ -223,7 +226,7 @@ function createGuestGateway(opts) {
   // The next saved episode in this person's library, if any.
   function nextEpisode(name, item, snapshot) {
     const lib = guestLibrary(name, snapshot);
-    const all = lib.entries.map((e) => ['media:' + e.fileName, e]).concat(lib.torrents.map((e) => ['torrents:' + e.fileName, e]));
+    const all = lib.entries.map((e) => ['media:' + fileOf(e), e]).concat(lib.torrents.map((e) => ['torrents:' + fileOf(e), e]));
     const current = all.find(([key]) => key === item);
     const m = current && current[1].metadata;
     if (!m || m.type !== 'series' || !m.season) return null;
@@ -232,7 +235,7 @@ function createGuestGateway(opts) {
       .sort((a, b) => a[1].metadata.season - b[1].metadata.season || a[1].metadata.episode - b[1].metadata.episode);
     if (!after.length) return null;
     const [key, e] = after[0];
-    const mediaPath = key.startsWith('media:') ? '/media/' + e.fileName : '/media/torrents/' + e.fileName + '/index.m3u8';
+    const mediaPath = key.startsWith('media:') ? '/media/' + fileOf(e) : '/media/torrents/' + fileOf(e) + '/index.m3u8';
     return { url: 'http://guest' + mediaPath, title: e.title || m.name };
   }
 
