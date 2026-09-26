@@ -178,6 +178,10 @@ the download to get there.
   human-readable message from yt-dlp).
 - `GET /media/:id.mp4` — the resolved file, with HTTP Range support so
   AVPlay can seek.
+- `POST /share` `{ "url": "<a saved video's streamUrl>" }` →
+  `{ "path": "/s/<expiry>/<signature>/media/...", "expiresAt": <ms> }`, a
+  signed link for the AirPlay listener (see "AirPlay away from home").
+  Anything that isn't a saved video → `400`.
 - `POST /torrent` `{ "url": "<stremio server>/<infoHash>/<fileIdx>", "title": "..." }`
   → same job shape as `/resolve` (see "Torrents"). Once `ready`,
   `streamUrl` is `http://<this-host>/media/torrents/<key>/index.m3u8`,
@@ -227,6 +231,7 @@ the download to get there.
 | var | default | meaning |
 |---|---|---|
 | `PORT` | `8788` | HTTP port |
+| `AIRPLAY_PORT` | `8789` | the signed-links listener for AirPlay away from home, on `127.0.0.1` only (see below); `0` turns it off |
 | `MEDIA_DIR` | `./media` | where downloaded MP4s land |
 | `MAX_HEIGHT` | `1080` | caps the requested format so a cast doesn't pull an 8K master onto a home LAN |
 | `MAX_FILESIZE` | `2G` | hard stop passed to yt-dlp's `--max-filesize`, protects disk from a runaway download |
@@ -240,6 +245,39 @@ the download to get there.
 | `TORRENT_X264_PRESET` | `superfast` | libx264 speed for CPU conversions; on a slow CPU a 4K conversion can run slower than the film plays |
 | `TORRENT_START_TIMEOUT_MS` | `180000` | how long to wait for a torrent to start sending data before giving up |
 | `YTDLP_BIN` | `yt-dlp` | override if it's not on `PATH` for the service user |
+
+## AirPlay away from home
+
+AirPlay doesn't send the picture: the phone hands the TV a link and the TV
+fetches the video itself. A TV that isn't on the home Wi-Fi (a friend's, a
+hotel's) can't reach this server's private addresses, so it gets nothing.
+
+For that, the resolver keeps a second listener on `127.0.0.1:8789` that
+answers only **signed links** (`src/share.js`): `/s/<expiry>/<signature>/media/...`.
+A link plays one saved video (a saved torrent's playlist and its segments
+count as one) and stops working after 8 hours. It can't be pointed at
+another file, can't start a download, and never reaches the Stremio server
+or any other part of the resolver: everything else answers `403`. The
+secret behind the signatures lives only in the running process, so
+restarting the resolver ends every link.
+
+Put that listener on the internet with [Tailscale Funnel](https://tailscale.com/kb/1223/funnel),
+on the server:
+
+```bash
+# once: turn on MagicDNS and HTTPS certificates in the Tailscale admin
+# console; the first funnel command prints a link to allow Funnel here.
+sudo tailscale funnel --bg --https=8443 http://127.0.0.1:8789
+tailscale status --json | grep -m1 DNSName     # e.g. myserver.tail1234.ts.net.
+```
+
+Check from a phone with Wi-Fi and Tailscale off: `https://<that name>:8443/`
+should answer **403** (reachable, and closed without a signed link). Then
+put `https://<that name>:8443` in the companion under **Settings → AirPlay
+away from home**. The receiver page (`receiver.html`, opened in Safari over
+`https://`) asks `POST /share` for a signed link to what it's playing and
+switches to it while AirPlay is on. To turn it all off:
+`sudo tailscale funnel --https=8443 off`.
 
 ## Personal use
 

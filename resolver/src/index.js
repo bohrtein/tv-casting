@@ -11,6 +11,7 @@ const torrent = require('./torrent');
 const { createThumbs } = require('./thumbs');
 const { fullLengthPlaylist } = require('./hls');
 const subtitles = require('./subtitles');
+const { createShares, mediaPathOf } = require('./share');
 const { log } = require('./logger');
 
 const PORT = process.env.PORT || 8788;
@@ -28,6 +29,11 @@ const TORRENT_DIR = path.join(MEDIA_DIR, 'torrents');
 // URLs; when this is set, the same path goes to our own torrent server
 // instead (torrent-server/, which takes incoming peers through the VPN).
 const TORRENT_SERVER_URL = (process.env.TORRENT_SERVER_URL || '').replace(/\/+$/, '');
+// AirPlay away from home: a second listener, on this machine only, that
+// serves nothing but signed links to saved videos (share.js). Something
+// like Tailscale Funnel puts it on the internet; see README.md. 0 turns it off.
+const AIRPLAY_PORT = parseInt(process.env.AIRPLAY_PORT || '8789', 10);
+const shares = createShares();
 
 fs.mkdirSync(TORRENT_DIR, { recursive: true });
 
@@ -649,7 +655,7 @@ function serveMedia(req, res, fileName, contentType = 'video/mp4') {
   });
 }
 
-const server = http.createServer((req, res) => {
+function handleRequest(req, res) {
   // The companion is served from a different origin/port (:8080) than
   // this resolver (:8788), so every request here is cross-origin --
   // without these headers the browser silently blocks the response
@@ -671,6 +677,17 @@ const server = http.createServer((req, res) => {
 
   if (req.method === 'GET' && url.pathname === '/healthz') {
     sendJson(res, 200, { status: 'ok', jobs: jobs.jobs.size });
+    return;
+  }
+
+  // A link to a saved video for a TV outside the home (share.js); the
+  // companion puts it after its public address.
+  if (req.method === 'POST' && url.pathname === '/share') {
+    readJsonBody(req, 4096).then((body) => {
+      const link = typeof body.url === 'string' ? shares.sign(mediaPathOf(body.url)) : null;
+      if (!link) throw new Error('Only saved videos can be shared.');
+      sendJson(res, 200, link);
+    }).catch((error) => sendJson(res, 400, { error: error.message }));
     return;
   }
 
@@ -1107,7 +1124,22 @@ const server = http.createServer((req, res) => {
 
   res.writeHead(404);
   res.end();
-});
+}
+const server = http.createServer(handleRequest);
+
+// The public side: a signed link is read as the saved video it names,
+// through the same code as on the home network; everything else is refused.
+const airplayServer = AIRPLAY_PORT ? http.createServer((req, res) => {
+  let mediaPath = null;
+  try { mediaPath = (req.method === 'GET' || req.method === 'HEAD') && shares.open(new URL(req.url, 'http://internal').pathname); }
+  catch (_) { mediaPath = null; }
+  if (!mediaPath) { res.writeHead(403); res.end(); return; }
+  req.url = mediaPath;
+  // The media routes answer GET; a HEAD still gets headers only, since the
+  // response already knows it was asked for HEAD.
+  req.method = 'GET';
+  handleRequest(req, res);
+}) : null;
 
 // Only orphaned partial/error files expire; indexed videos and artwork remain.
 setInterval(() => {
@@ -1127,6 +1159,11 @@ setInterval(() => {
 
 measureSavedFilms();
 enrichSavedYoutube();
+
+if (airplayServer) {
+  airplayServer.listen(AIRPLAY_PORT, '127.0.0.1', () => log(`signed AirPlay links on 127.0.0.1:${AIRPLAY_PORT} (GET /s/...)`));
+  airplayServer.on('error', (error) => log(`AirPlay links unavailable: ${error.message}`));
+}
 
 server.listen(PORT, () => {
   log(`resolver listening on :${PORT} (POST /resolve, POST /torrent, GET /resolve/:id, GET /jobs, GET /cache, GET /thumb/:kind/:name.jpg, POST /cache/:kind/:name/delete, POST /cache/torrents/:key/optimize, POST /cache/torrents/:key/resume, GET /media/:file, GET /healthz)`);

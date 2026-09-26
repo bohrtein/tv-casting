@@ -118,7 +118,48 @@
       });
     });
   }
+  // AirPlay to a TV outside the home. That TV can't reach this server's
+  // private addresses, so on a page opened over HTTPS (away from the home
+  // Wi-Fi), while AirPlay is on, the video plays from a signed public link
+  // to the same saved file instead: one video, for 8 hours (resolver
+  // share.js), behind the public address set in the companion's Settings.
+  var away = { base: '', forUrl: '', link: null };
+  function prepareAwayLink() {
+    var url = loadedUrl;
+    if (!away.base || !url || hls || away.forUrl === url) return;
+    away.forUrl = url; away.link = null;
+    fetch(APP_CONFIG.RESOLVER_URL + '/share', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url })
+    }).then(function (res) { return res.ok ? res.json() : null; }).then(function (body) {
+      if (!body || away.forUrl !== url) return;
+      away.link = away.base + body.path;
+      if (wireless) useAwayLink(true);
+    }).catch(function () {});
+  }
+  // Swap the source in place, keeping the position and play/pause.
+  function useAwayLink(on) {
+    if (!loadedUrl || hls) return;
+    var want = on && away.link ? away.link : loadedUrl;
+    if (video.getAttribute('src') === want) return;
+    // Not started yet: begin()'s own start (position, autoplay) still applies.
+    if (video.readyState < 1) { video.src = want; return; }
+    var at = video.currentTime, playing = !video.paused, token = generation;
+    video.onloadedmetadata = function () {
+      if (token !== generation) return;
+      if (at) video.currentTime = at;
+      if (playing) resume();
+    };
+    video.src = want;
+  }
+  if (location.protocol === 'https:') {
+    fetch('api/airplay-settings', { cache: 'no-store' }).then(function (res) { return res.ok ? res.json() : {}; }).then(function (saved) {
+      away.base = String(saved.publicUrl || '').replace(/\/+$/, '');
+      prepareAwayLink();
+    }).catch(function () {});
+  }
+
   function unload() {
+    away.forUrl = ''; away.link = null;
     generation++; loadedUrl = ''; video.pause();
     if (hls) { hls.destroy(); hls = null; }
     video.removeAttribute('src'); video.load(); tap.hidden = true;
@@ -140,7 +181,7 @@
       if (typeof Hls === 'undefined' || !Hls.isSupported()) { fail('HLS playback is unavailable in this browser.'); return; }
       hls = new Hls(); hls.loadSource(payload.url); hls.attachMedia(video);
       hls.on(Hls.Events.ERROR, function (_, data) { if (data.fatal && token === generation) fail('HLS playback failed: ' + data.details); });
-    } else video.src = payload.url;
+    } else { video.src = payload.url; prepareAwayLink(); }
   }
   function play(payload) { playback.start(payload, begin, unload); }
   function stop() { playback.stop(); unload(); report('stopped'); }
@@ -276,6 +317,7 @@
     video.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', function () {
       wireless = !!video.webkitCurrentPlaybackTargetIsWireless;
       airplayButton.textContent = wireless ? 'AirPlay · on' : 'AirPlay';
+      useAwayLink(wireless);
       if (loadedUrl) report(state);
     });
     airplayButton.addEventListener('click', function () { video.webkitShowPlaybackTargetPicker(); });

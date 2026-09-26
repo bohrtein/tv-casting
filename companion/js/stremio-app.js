@@ -1793,6 +1793,36 @@ document.addEventListener('DOMContentLoaded', function () {
       function (err) { setReadout(el.settingsReadout, err.message, true); });
   });
 
+  // AirPlay away from home: the public address in front of the resolver's
+  // signed links, kept on the companion server for every receiver page.
+  var airplayInput = $('settings-airplay'), airplayReadout = $('settings-airplay-readout');
+  fetch('api/airplay-settings', { cache: 'no-store' }).then(function (res) { return res.ok ? res.json() : {}; })
+    .then(function (saved) { if (!airplayInput.value) airplayInput.value = saved.publicUrl || ''; }, function () {});
+  $('settings-airplay-save').addEventListener('click', function () {
+    fetch('api/airplay-settings', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ publicUrl: airplayInput.value }) }).then(function (res) {
+      return res.json().then(function (body) {
+        if (!res.ok) throw new Error(body.error || 'HTTP ' + res.status);
+        airplayInput.value = body.publicUrl;
+        setReadout(airplayReadout, body.publicUrl ? 'Saved. Reload any open receiver page to use it.' : 'AirPlay away from home is off.', false);
+      });
+    }).catch(function (err) { setReadout(airplayReadout, err.message, true); });
+  });
+  // Reachable is all a page can tell: the address answers only signed links,
+  // and its "forbidden" answer carries no CORS headers to read.
+  $('settings-airplay-check').addEventListener('click', function () {
+    var base = airplayInput.value.trim().replace(/\/+$/, '');
+    if (!/^https:\/\//i.test(base)) { setReadout(airplayReadout, 'The public address starts with https://', true); return; }
+    setReadout(airplayReadout, 'checking…', false);
+    var controller = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = setTimeout(function () { if (controller) controller.abort(); }, 8000);
+    fetch(base + '/', { mode: 'no-cors', cache: 'no-store', signal: controller ? controller.signal : undefined }).then(function () {
+      setReadout(airplayReadout, 'The public address answered.', false);
+    }, function () {
+      setReadout(airplayReadout, "Couldn't reach the public address. Is Funnel on (resolver/README.md)?", true);
+    }).then(function () { clearTimeout(timer); });
+  });
+
   // --- sections (normal and Plus18) ---
 
   function renderSection() {

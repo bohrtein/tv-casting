@@ -19,6 +19,7 @@ const ROOT = __dirname;
 // it by path.
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', '.companion-data');
 const STREMIO_SETTINGS_FILE = path.join(DATA_DIR, 'stremio-settings.json');
+const AIRPLAY_SETTINGS_FILE = path.join(DATA_DIR, 'airplay-settings.json');
 const MAX_BODY_BYTES = 64 * 1024;
 // Board/Discover/Search results shared by every device (browse-store.js).
 const browseStore = createBrowseStore(path.join(DATA_DIR, 'stremio-browse-cache.json'));
@@ -155,6 +156,46 @@ function handleStremioSettings(req, res) {
   });
 }
 
+// AirPlay away from home: the public address in front of the resolver's
+// signed links (resolver/src/share.js). GET returns { publicUrl };
+// POST { publicUrl } replaces it ('' clears it).
+function handleAirplaySettings(req, res) {
+  if (req.method === 'GET') {
+    let saved = {};
+    try { saved = JSON.parse(fs.readFileSync(AIRPLAY_SETTINGS_FILE, 'utf8')); } catch (_) {}
+    sendJson(res, 200, { publicUrl: typeof saved.publicUrl === 'string' ? saved.publicUrl : '' });
+    return;
+  }
+  if (req.method !== 'POST') {
+    res.writeHead(405, { Allow: 'GET, POST' });
+    res.end();
+    return;
+  }
+  const chunks = [];
+  let size = 0;
+  req.on('data', (chunk) => { size += chunk.length; if (size <= MAX_BODY_BYTES) chunks.push(chunk); });
+  req.on('end', () => {
+    let publicUrl;
+    try { publicUrl = String(JSON.parse(Buffer.concat(chunks).toString('utf8')).publicUrl || '').trim().replace(/\/+$/, ''); }
+    catch (_) { sendJson(res, 400, { error: 'body must be JSON' }); return; }
+    if (size > MAX_BODY_BYTES || publicUrl && (!/^https:\/\/[^\s/?#]+(\/[^\s?#]*)?$/i.test(publicUrl) || publicUrl.length > 500)) {
+      sendJson(res, 400, { error: 'The public address starts with https:// and has nothing after the name and port.' });
+      return;
+    }
+    const tmp = AIRPLAY_SETTINGS_FILE + '.tmp';
+    fs.mkdir(DATA_DIR, { recursive: true }, (mkErr) => {
+      if (mkErr) return sendJson(res, 500, { error: mkErr.message });
+      fs.writeFile(tmp, JSON.stringify({ publicUrl }, null, 2), (wErr) => {
+        if (wErr) return sendJson(res, 500, { error: wErr.message });
+        fs.rename(tmp, AIRPLAY_SETTINGS_FILE, (rErr) => {
+          if (rErr) return sendJson(res, 500, { error: rErr.message });
+          sendJson(res, 200, { publicUrl });
+        });
+      });
+    });
+  });
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://internal');
   if (url.pathname === '/js/config.js' && (process.env.RELAY_URL || process.env.RESOLVER_URL)) {
@@ -168,6 +209,10 @@ const server = http.createServer((req, res) => {
   }
   if (url.pathname === '/api/stremio-settings') {
     handleStremioSettings(req, res);
+    return;
+  }
+  if (url.pathname === '/api/airplay-settings') {
+    handleAirplaySettings(req, res);
     return;
   }
   if (url.pathname === '/api/stremio-browse') {

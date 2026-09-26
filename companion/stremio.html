@@ -206,6 +206,19 @@
         <div id="settings-readout" class="mx-readout" style="display:none"></div>
       </section>
       <section class="mx-panel">
+        <h2 class="mx-panel-title">AirPlay away from home</h2>
+        <div class="mx-field">
+          <div class="mx-field-head"><label class="mx-label" for="settings-airplay">public address</label></div>
+          <input class="mx-input" type="url" id="settings-airplay" placeholder="https://yourserver.ts.net:8443" autocomplete="off">
+        </div>
+        <p class="cn-st-note">For AirPlay to a TV that isn't on your home Wi-Fi, like a friend's or a hotel's. The server's public address (Tailscale Funnel, see resolver/README.md). While AirPlay is on, the receiver page opened over https:// sends that TV a link that plays only that video and stops working after 8 hours. Leave empty to turn this off.</p>
+        <div class="cn-np-buttons">
+          <button id="settings-airplay-save" class="mx-btn mx-primary" type="button">save</button>
+          <button id="settings-airplay-check" class="mx-btn" type="button">check</button>
+        </div>
+        <div id="settings-airplay-readout" class="mx-readout" style="display:none"></div>
+      </section>
+      <section class="mx-panel">
         <h2 class="mx-panel-title">Plus18</h2>
         <p class="cn-st-note">Plus18 has its own addons, catalogs and library. Normal mode hides 18+ titles everywhere, including search results and your library. Switch with the 18+ button at the top.</p>
       </section>
