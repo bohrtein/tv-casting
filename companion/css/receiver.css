@@ -124,3 +124,8 @@ html, body { min-height: 100%; }
   .rc-actions .mx-btn { flex: 1 1 auto; min-height: var(--mx-tap, 44px); }
   .mx-topbar-nav .mx-btn { padding-left: 10px; padding-right: 10px; }
 }
+
+/* The companion remote's controls, inline under the video instead of a
+   draggable sheet: no grip, nothing to drag. */
+.rc-remote { margin-top: 12px; padding: 12px 14px; }
+.rc-remote .cn-remote-head { touch-action: auto; cursor: auto; user-select: auto; }

@@ -5,7 +5,6 @@
   var status = $('receiver-status');
   var title = $('receiver-title');
   var tap = $('receiver-play');
-  var stopButton = $('receiver-stop');
   var unmuteButton = $('receiver-unmute');
   var airplayButton = $('receiver-airplay');
   var remoteButton = $('receiver-remote');
@@ -41,7 +40,7 @@
 
   var state = 'idle';
   var playback = createPlaybackHistory({
-    onWaiting: function () { report('buffering', 'Looking up the next episode…'); stopButton.hidden = false; },
+    onWaiting: function () { report('buffering', 'Looking up the next episode…'); },
     onIdle: function () { report('stopped'); showIdle(); },
     onError: fail
   });
@@ -62,7 +61,6 @@
 
   function showIdle() {
     idle.hidden = !!loadedUrl;
-    stopButton.hidden = !loadedUrl;
     fullscreenButton.hidden = !loadedUrl;
     unmuteButton.hidden = !loadedUrl || !video.muted;
     if (!loadedUrl) title.textContent = '';
@@ -74,12 +72,14 @@
     var text = message || describe(state);
     if (wireless && (state === 'playing' || state === 'paused')) text += ' · on AirPlay';
     status.textContent = text;
-    if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({
+    var msg = {
       type: 'status', state: state, title: title.textContent,
       positionSec: Number.isFinite(video.currentTime) ? video.currentTime : 0,
       durationSec: Number.isFinite(video.duration) ? video.duration : 0,
       error: error ? { code: 'BROWSER_PLAYBACK_FAILED', message: error } : undefined
-    }));
+    };
+    controls.render(msg);
+    if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(msg));
   }
   function describe(s) {
     return { idle: 'Waiting for something to play.', buffering: 'Loading…', playing: 'Playing.',
@@ -148,6 +148,13 @@
       }
     } catch (err) { fail(err.message); }
   }
+
+  // The companion remote's controls, pointed at this page's video: the same
+  // commands the relay would deliver go straight to command().
+  var controls = createRemoteControls(
+    { sendCommand: function (action, payload) { command({ action: action, payload: payload }); } },
+    { clear: function () {} }
+  );
 
   function announce() {
     if (channel && targetId) channel.postMessage({ type: 'select-receiver', targetId: targetId, name: activeName, local: window.name === LOCAL_TAB });
@@ -232,9 +239,21 @@
   });
 
   tap.addEventListener('click', resume);
-  stopButton.addEventListener('click', stop);
+  video.addEventListener('click', function () {
+    if (!loadedUrl || video.controls) return;
+    if (video.paused) resume(); else video.pause();
+  });
   unmuteButton.addEventListener('click', function () { video.muted = false; unmuteButton.hidden = true; });
   video.addEventListener('volumechange', function () { if (!video.muted) unmuteButton.hidden = true; });
+  // The page's own controls sit under the video; fullscreen hides them, so
+  // lend the video the browser's controls while it's fullscreen.
+  function syncNativeControls() {
+    video.controls = (document.fullscreenElement || document.webkitFullscreenElement) === video || !!video.webkitDisplayingFullscreen;
+  }
+  document.addEventListener('fullscreenchange', syncNativeControls);
+  document.addEventListener('webkitfullscreenchange', syncNativeControls);
+  video.addEventListener('webkitbeginfullscreen', function () { video.controls = true; });
+  video.addEventListener('webkitendfullscreen', function () { video.controls = false; });
   fullscreenButton.addEventListener('click', function () {
     if (video.requestFullscreen) video.requestFullscreen().catch(function () {});
     else if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
@@ -291,5 +310,6 @@
   var auto = params.get('auto') === '1';
   if (auto) history.replaceState(null, '', location.pathname);
   showIdle();
+  report('idle', 'Receiver is off.');
   setEnabled(auto || storage('sessionStorage', 'tvc.receiverEnabled') === '1');
 })();
