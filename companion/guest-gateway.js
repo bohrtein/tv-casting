@@ -39,6 +39,7 @@ const PAGE_FILES = /^\/(stremio\.html|receiver\.html|js\/[\w.-]+\.js|vendor\/[\w
 
 function createGuestGateway(opts) {
   const { accounts, root, mime, browseStore, readStremioSettings } = opts;
+  const readAirplaySettings = opts.readAirplaySettings || (() => ({ publicUrl: '' }));
   const resolver = new URL(opts.resolverUrl || 'http://127.0.0.1:8788');
   const stremioServer = String(opts.stremioServerUrl || 'http://127.0.0.1:11470').replace(/\/+$/, '');
   const receiverDir = opts.receiverDir;
@@ -302,6 +303,16 @@ function createGuestGateway(opts) {
       return sendJson(res, status, json || {});
     }
 
+    // AirPlay: a key for one video in this person's library, for the TV
+    // (which can't log in) to fetch it through the public AirPlay address.
+    if (method === 'POST' && pathname === '/share') {
+      const body = await readBody(req, 4096);
+      const item = itemOf(body.url);
+      if (!item || !accounts.has(name, item)) return sendJson(res, 404, { error: 'Not in your library.' });
+      const { status, json } = await toResolver(req, 'POST', '/share', { url: new URL(body.url, 'http://x').pathname });
+      return sendJson(res, status, json || { error: 'The server did not answer.' });
+    }
+
     if (method === 'POST' && pathname === '/playback') {
       const body = await readBody(req, 16384);
       const item = itemOf(body.url);
@@ -392,7 +403,10 @@ function createGuestGateway(opts) {
       if (req.method !== 'GET') return sendJson(res, 403, { error: 'Only the owner changes addons.' });
       return sendJson(res, 200, { addons: readStremioSettings().addons || [], plus18: [] });
     }
-    if (pathname === '/api/airplay-settings') return sendJson(res, 200, { publicUrl: '' });
+    if (pathname === '/api/airplay-settings') {
+      if (req.method !== 'GET') return sendJson(res, 403, { error: 'Only the owner changes this.' });
+      return sendJson(res, 200, { publicUrl: readAirplaySettings().publicUrl || '' });
+    }
     if (pathname === '/api/stremio-browse') {
       // Guests read the shared catalog cache but don't write to it.
       const body = await readBody(req, 64 * 1024).catch(() => ({}));

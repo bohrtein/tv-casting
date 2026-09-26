@@ -113,4 +113,10 @@ Port 10000 keeps it apart from your own `https://` address and the AirPlay
 links (8443); Funnel also allows 443 if nothing else uses it. To close the
 door: `sudo tailscale funnel --https=10000 off`.
 
-Not for guests yet: AirPlay (the TV can't log in) and subtitles.
+**AirPlay** works for guests too, when you've set up AirPlay away from home
+(`resolver/README.md`): the TV can't log in, so while AirPlay is on the
+video plays from the public AirPlay address behind a key that opens only
+that one video, for 3 hours, and only for a video in that person's
+library (`js/away-links.js`).
+
+Not for guests yet: subtitles.

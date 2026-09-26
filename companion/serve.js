@@ -166,11 +166,14 @@ function handleStremioSettings(req, res) {
 // AirPlay away from home: the public address in front of the resolver's
 // signed links (resolver/src/share.js). GET returns { publicUrl };
 // POST { publicUrl } replaces it ('' clears it).
+function readAirplaySettings() {
+  let saved = {};
+  try { saved = JSON.parse(fs.readFileSync(AIRPLAY_SETTINGS_FILE, 'utf8')); } catch (_) {}
+  return { publicUrl: typeof saved.publicUrl === 'string' ? saved.publicUrl : '' };
+}
 function handleAirplaySettings(req, res) {
   if (req.method === 'GET') {
-    let saved = {};
-    try { saved = JSON.parse(fs.readFileSync(AIRPLAY_SETTINGS_FILE, 'utf8')); } catch (_) {}
-    sendJson(res, 200, { publicUrl: typeof saved.publicUrl === 'string' ? saved.publicUrl : '' });
+    sendJson(res, 200, readAirplaySettings());
     return;
   }
   if (req.method !== 'POST') {
@@ -278,7 +281,7 @@ const server = http.createServer((req, res) => {
 
 if (GUEST_PORT) {
   const guestServer = http.createServer(createGuestGateway({
-    accounts, root: ROOT, mime: MIME, browseStore, readStremioSettings,
+    accounts, root: ROOT, mime: MIME, browseStore, readStremioSettings, readAirplaySettings,
     receiverDir: path.join(ROOT, '../tv-receiver/js'),
     resolverUrl: process.env.RESOLVER_INTERNAL_URL || 'http://127.0.0.1:8788',
     stremioServerUrl: process.env.STREMIO_INTERNAL_URL || 'http://127.0.0.1:11470'

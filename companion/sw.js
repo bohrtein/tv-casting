@@ -39,6 +39,7 @@ var SHELL_FILES = [
   'vendor/stremio-core/worker.js',
   'vendor/stremio-core/stremio_core_web_bg.wasm',
   'js/playback-history.js',
+  'js/away-links.js',
   'js/guest-player.js',
   'js/stremio-app.js',
   'js/app.js',

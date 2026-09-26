@@ -18,13 +18,25 @@ function createGuestPlayer(handlers) {
       '<span class="cn-gp-title"></span>' +
       '<button type="button" class="mx-btn mx-sm cn-gp-close">close</button>' +
     '</div>' +
-    '<video class="cn-gp-video" controls playsinline preload="metadata"></video>' +
+    '<video class="cn-gp-video" controls playsinline preload="metadata" x-webkit-airplay="allow"></video>' +
     '<p class="cn-gp-status" role="status" aria-live="polite"></p>';
   document.body.appendChild(root);
   var video = root.querySelector('video');
   var titleEl = root.querySelector('.cn-gp-title');
   var statusEl = root.querySelector('.cn-gp-status');
   var hls = null, loadedUrl = '', generation = 0, hlsScript = null;
+
+  // AirPlay (Safari's button on the video): the TV can't log in, so while
+  // it's on the video plays from a public link that opens only this video
+  // for 3 hours (away-links.js).
+  var away = createAwayLinks({
+    video: video, resolverUrl: APP_CONFIG.RESOLVER_URL, perVideo: true,
+    loadedUrl: function () { return loadedUrl; }, usable: function () { return !hls; },
+    resume: function () { video.play().catch(function () {}); }, generation: function () { return generation; }
+  });
+  video.addEventListener('webkitcurrentplaybacktargetiswirelesschanged', function () {
+    away.setWireless(!!video.webkitCurrentPlaybackTargetIsWireless);
+  });
 
   var playback = createPlaybackHistory({
     onWaiting: function () { say('Looking up the next episode…'); },
@@ -84,6 +96,7 @@ function createGuestPlayer(handlers) {
       }, function (err) { say(err.message); });
     } else {
       video.src = payload.url;
+      away.loaded();
     }
   }
   function play(payload) {

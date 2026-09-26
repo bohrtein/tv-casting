@@ -11,7 +11,7 @@ const torrent = require('./torrent');
 const { createThumbs } = require('./thumbs');
 const { fullLengthPlaylist } = require('./hls');
 const subtitles = require('./subtitles');
-const { createShares } = require('./share');
+const { createShares, mediaPathOf } = require('./share');
 const { log } = require('./logger');
 
 const PORT = process.env.PORT || 8788;
@@ -684,8 +684,13 @@ function handleRequest(req, res) {
 
   // A key for a TV outside the home (share.js); the companion puts it,
   // then a saved video's /media/... path, after its public address.
+  // With { url } (a saved video's URL): a key for that video only.
   if (req.method === 'POST' && url.pathname === '/share') {
-    sendJson(res, 200, shares.issue());
+    readJsonBody(req, 4096).then((body) => {
+      const key = typeof body.url === 'string' ? shares.issue(mediaPathOf(body.url) || '') : shares.issue();
+      if (!key) throw new Error('Only saved videos can be shared.');
+      sendJson(res, 200, key);
+    }).catch((error) => sendJson(res, 400, { error: error.message }));
     return;
   }
 

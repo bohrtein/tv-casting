@@ -57,3 +57,24 @@ test('a key opens nothing but saved videos', () => {
   }
   assert.strictEqual(s.open(FILE), null);
 });
+
+test('a key for one video opens only that video', () => {
+  const s = shares();
+  const { prefix } = s.issue(FILE);
+  assert.strictEqual(s.open(prefix + FILE), FILE);
+  assert.strictEqual(s.open(prefix + OTHER), null);
+  assert.strictEqual(s.open(prefix + SEGMENT), null);
+  const torrent = s.issue(`/media/torrents/${HASH}-0/index.m3u8`).prefix;
+  assert.strictEqual(s.open(torrent + SEGMENT), SEGMENT, 'its segments');
+  assert.strictEqual(s.open(torrent + `/media/torrents/${HASH}-0/original/index.m3u8`), `/media/torrents/${HASH}-0/original/index.m3u8`);
+  assert.strictEqual(s.open(torrent + `/media/torrents/${HASH}-1/seg00001.ts`), null, 'not another file of the torrent');
+  assert.strictEqual(s.open(torrent + FILE), null);
+  s.advance(3 * HOURS);
+  assert.strictEqual(s.open(prefix + FILE), null, 'and it expires too');
+});
+
+test('a one-video key is only made for saved videos', () => {
+  const s = shares();
+  assert.strictEqual(s.issue('/media/library-state.json'), null);
+  assert.strictEqual(s.issue(''), null);
+});

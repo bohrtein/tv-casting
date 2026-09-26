@@ -181,6 +181,8 @@ the download to get there.
 - `POST /share` → `{ "prefix": "/s/<expiry>/<signature>", "expiresAt": <ms>, "expiresIn": <ms> }`,
   a key for the AirPlay listener: a saved video's `/media/...` path after
   the prefix is its link (see "AirPlay away from home").
+  With `{ "url": "<a saved video's URL>" }`, the key opens only that video
+  (what the companion's guest door asks for, for guests' AirPlay).
 - `POST /torrent` `{ "url": "<stremio server>/<infoHash>/<fileIdx>", "title": "..." }`
   → same job shape as `/resolve` (see "Torrents"). Once `ready`,
   `streamUrl` is `http://<this-host>/media/torrents/<key>/index.m3u8`,

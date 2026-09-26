@@ -33,6 +33,7 @@ function fakeResolver() {
           titles: [{ type: 'movie', id: 'tt1', videos: [] }, { type: 'movie', id: 'tt2', videos: [] }]
         });
       }
+      if (req.url === '/share') return json({ prefix: '/s/key/' + 'k'.repeat(43), expiresIn: 1000, asked: body });
       if (req.url === '/torrent' || req.url === '/resolve') return json({ id: '0123456789abcdef', status: 'starting' });
       if (req.url === '/resolve/0123456789abcdef') return json({ id: '0123456789abcdef', status: 'ready', streamUrl: `http://${req.headers.host}/media/torrents/${HASH}-1/index.m3u8` });
       if (req.url.startsWith('/media/')) { res.writeHead(200, { 'Content-Type': 'video/mp4' }); return res.end('VIDEO'); }
@@ -58,7 +59,7 @@ async function setup() {
   fs.writeFileSync(path.join(root, 'js', 'config.js'), 'var APP_CONFIG = {};');
   const gateway = http.createServer(createGuestGateway({
     accounts, root, mime: {}, readStremioSettings: () => ({ addons: ['https://addon/manifest.json'], plus18: ['https://adult/manifest.json'] }),
-    browseStore: { get: () => null }, resolverUrl: 'http://127.0.0.1:' + resolver.server.address().port,
+    browseStore: { get: () => null }, readAirplaySettings: () => ({ publicUrl: 'https://door.example:8443' }), resolverUrl: 'http://127.0.0.1:' + resolver.server.address().port,
     stremioServerUrl: 'http://127.0.0.1:11470'
   }));
   await new Promise((r) => gateway.listen(0, '127.0.0.1', r));
@@ -179,7 +180,6 @@ test('other resolver routes are closed, and posts from other sites are refused',
     await g.login();
     assert.strictEqual((await g.call('/resolver/subtitle', { method: 'POST', body: '{}' })).status, 403);
     assert.strictEqual((await g.call('/resolver/cache/torrents/' + HASH + '-0/optimize', { method: 'POST', body: '{}' })).status, 403);
-    assert.strictEqual((await g.call('/resolver/share', { method: 'POST', body: '{}' })).status, 403);
     assert.strictEqual((await g.call('/resolver/resolve/0123456789abcdef')).status, 404, 'not their download');
     const cross = await g.call('/api/logout', { method: 'POST', body: '{}', headers: { origin: 'https://evil.example' } });
     assert.strictEqual(cross.status, 403);
@@ -196,5 +196,20 @@ test('watch progress is kept per person and never sent to the resolver', async (
     assert.strictEqual((await play('start')).json.startPositionSec, 42);
     assert.ok(!g.seen.some((r) => r.url === '/playback'));
     assert.strictEqual((await g.call('/resolver/playback', { method: 'POST', body: JSON.stringify({ url: 'http://x/media/' + YOURS, event: 'start' }) })).status, 404);
+  } finally { g.close(); }
+});
+
+test('AirPlay: a key only for a video in their own library, and the public address', async () => {
+  const g = await setup();
+  try {
+    await g.login();
+    assert.deepStrictEqual((await g.call('/api/airplay-settings')).json, { publicUrl: 'https://door.example:8443' });
+    assert.strictEqual((await g.call('/api/airplay-settings', { method: 'POST', body: '{}' })).status, 403);
+    const share = (url) => g.call('/resolver/share', { method: 'POST', body: JSON.stringify({ url }) });
+    const mine = await share('https://door.example/resolver/media/' + MINE);
+    assert.strictEqual(mine.status, 200);
+    assert.deepStrictEqual(g.seen.find((r) => r.url === '/share').body, { url: '/resolver/media/' + MINE }, 'asks for that one video');
+    assert.strictEqual((await share('https://door.example/resolver/media/' + YOURS)).status, 404);
+    assert.strictEqual((await g.call('/resolver/share', { method: 'POST', body: '{}' })).status, 404, 'never a key for everything');
   } finally { g.close(); }
 });
