@@ -255,6 +255,18 @@ document.addEventListener('DOMContentLoaded', function () {
     }, function () {});
   }
 
+  function playLocalHere(url, title) {
+    var receiver;
+    try { receiver = relay.openLocalReceiver(); }
+    catch (err) { MX.toast(false, err.message); return; }
+    MX.toast(true, 'Opening this device…');
+    receiver.then(function () {
+      castToTv(url, title);
+    }, function (err) {
+      MX.toast(false, err.message);
+    });
+  }
+
   // The remote sheet at the bottom (remote-sheet.js, remote-controls.js).
   var remoteSheet = createRemoteSheet($('remote-sheet'));
   var remote = createRemoteControls(relay, nowCasting);
@@ -1303,7 +1315,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!target || !detail.libItem) return;
     LibraryModel.filesFor(detail.libItem, video ? video.id : null, video).forEach(function (entry) {
       el.localFiles.appendChild(createLocalFileRow(resolver, entry, {
-        title: target.title, onCast: castToTv, onChanged: refreshLibrary,
+        title: target.title, onCast: castToTv, onPlayHere: playLocalHere, onChanged: refreshLibrary,
         matchHref: 'stremio.html?matchKind=' + encodeURIComponent(entry.kind) + '&matchKey=' + encodeURIComponent(entry.key)
       }));
     });
@@ -1348,7 +1360,7 @@ document.addEventListener('DOMContentLoaded', function () {
       setReadout(el.streamsReadout, '', false);
       item.files.forEach(function (entry) {
         el.localFiles.appendChild(createLocalFileRow(resolver, entry, {
-          title: item.name, label: LibraryModel.TYPE_LABELS[item.type], onCast: castToTv, onChanged: refreshLibrary,
+          title: item.name, label: LibraryModel.TYPE_LABELS[item.type], onCast: castToTv, onPlayHere: playLocalHere, onChanged: refreshLibrary,
           matchHref: 'stremio.html?matchKind=' + encodeURIComponent(entry.kind) + '&matchKey=' + encodeURIComponent(entry.key)
         }));
       });

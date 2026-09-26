@@ -71,6 +71,17 @@ function createLocalFileRow(resolver, entry, opts) {
   });
   actions.appendChild(play);
 
+  if (opts.onPlayHere) {
+    var playHere = button('play on this device');
+    playHere.addEventListener('click', function () {
+      // Browser receivers are not limited by the TV's 1080p compatibility
+      // copy. Hand the saved stream straight to this browser and let its
+      // native/HLS player decide which codecs it supports.
+      opts.onPlayHere(entry.originalUrl || entry.streamUrl, title);
+    });
+    actions.appendChild(playHere);
+  }
+
   if (entry.canResume) {
     var resume = button('continue download', true);
     resume.addEventListener('click', function () {
