@@ -250,21 +250,11 @@
   });
 
   tap.addEventListener('click', resume);
-  video.addEventListener('click', function () {
-    if (!loadedUrl || video.controls) return;
-    if (video.paused) resume(); else video.pause();
-  });
   unmuteButton.addEventListener('click', function () { video.muted = false; unmuteButton.hidden = true; });
   video.addEventListener('volumechange', function () { if (!video.muted) unmuteButton.hidden = true; });
-  // The page's own controls sit under the video; fullscreen hides them, so
-  // lend the video the browser's controls while it's fullscreen.
-  function syncNativeControls() {
-    video.controls = (document.fullscreenElement || document.webkitFullscreenElement) === video || !!video.webkitDisplayingFullscreen;
-  }
-  document.addEventListener('fullscreenchange', syncNativeControls);
-  document.addEventListener('webkitfullscreenchange', syncNativeControls);
-  video.addEventListener('webkitbeginfullscreen', function () { video.controls = true; });
-  video.addEventListener('webkitendfullscreen', function () { video.controls = false; });
+  // Keep the browser's native video controls available at all times so the
+  // receiver can be controlled directly from the video as well as from the
+  // companion-style controls below it.
   fullscreenButton.addEventListener('click', function () {
     if (video.requestFullscreen) video.requestFullscreen().catch(function () {});
     else if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
