@@ -157,6 +157,7 @@ document.addEventListener('DOMContentLoaded', function () {
       var detail;
       if (job.status === 'error') detail = 'failed — ' + job.error;
       else if (job.status === 'cancelled') detail = 'cancelled';
+      else if (job.kind === 'live') detail = job.complete ? 'live stream — ended' : 'live stream — playing';
       else if (job.kind === 'torrent' && !job.complete) detail = 'torrent — playing, still saving on the server';
       else if (job.kind === 'torrent') detail = job.fromCache ? 'torrent — already saved, cast instantly' : 'torrent — saved on the server';
       else if (job.status === 'ready') detail = job.fromCache ? 'already had it — cast instantly' : 'downloaded fresh';

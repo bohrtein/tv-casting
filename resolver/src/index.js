@@ -8,6 +8,7 @@ const { MediaCache } = require('./cache');
 const { libraryFields: validateLibraryFields, classify, saveThumbnail } = require('./library');
 const ytdlp = require('./ytdlp');
 const torrent = require('./torrent');
+const live = require('./live');
 const { createThumbs } = require('./thumbs');
 const { fullLengthPlaylist } = require('./hls');
 const subtitles = require('./subtitles');
@@ -38,6 +39,18 @@ const AIRPLAY_KEY_HOURS = parseFloat(process.env.AIRPLAY_KEY_HOURS || '3');
 const shares = createShares({ ttlMs: AIRPLAY_KEY_HOURS * 60 * 60 * 1000 });
 
 fs.mkdirSync(TORRENT_DIR, { recursive: true });
+
+// Live streams play from a rolling window of segments here while they
+// run (live.js). Nothing in it outlives its job, so whatever a restart
+// left behind goes.
+const LIVE_DIR = path.join(MEDIA_DIR, 'live');
+// A live stream nobody has fetched from for this long is stopped, so a
+// TV switched off mid-stream doesn't leave it pulling forever.
+const LIVE_IDLE_MS = parseInt(process.env.LIVE_IDLE_MS || String(3 * 60 * 1000), 10);
+// How long a stream's segments stay after it ends, for the TV to play out.
+const LIVE_KEEP_MS = 5 * 60 * 1000;
+fs.rmSync(LIVE_DIR, { recursive: true, force: true });
+fs.mkdirSync(LIVE_DIR, { recursive: true });
 
 const { LibraryState } = require('./library-state');
 const libraryState = new LibraryState(MEDIA_DIR);
@@ -338,12 +351,15 @@ function jobPublicShape(job, req) {
       converting: job.converting || null
     });
   }
-  if (job.status === 'error' || job.status === 'cancelled') shape.error = job.error;
+  if (job.live) Object.assign(shape, { kind: 'live', streamedSec: job.streamedSec || 0 });
+  if (job.status === 'error' || job.status === 'cancelled' || (job.live && job.error)) shape.error = job.error;
   if (job.status === 'ready') {
     const host = req.headers.host; // same host companion used to reach us -- reachable by the TV on the same LAN
     shape.streamUrl = job.torrentKey
       ? `http://${host}/media/torrents/${job.torrentKey}/index.m3u8`
-      : `http://${host}/media/${job.fileName}`;
+      : job.live
+        ? `http://${host}/media/live/${job.id}/index.m3u8`
+        : `http://${host}/media/${job.fileName}`;
   }
   return shape;
 }
@@ -411,6 +427,10 @@ async function runJob(job, url) {
     const detected = classify(url, info);
     if (['porn', 'plus18'].includes(detected)) job.libraryFields = { ...job.libraryFields, category: detected };
     jobs.update(job.id, { title: info.title, status: 'downloading' });
+    if (info.isLive) {
+      await runLiveJob(job, downloadUrl, headerOpts);
+      return;
+    }
 
     const outPathNoExt = path.join(MEDIA_DIR, job.id);
     await ytdlp.download(downloadUrl, outPathNoExt, {
@@ -448,6 +468,49 @@ async function runJob(job, url) {
     }
     jobs.update(job.id, { status: 'error', error: err.message, finishedAt: Date.now() });
     log('resolve failed', job.id, err.message);
+  }
+}
+
+// A stream that's on air: played as it comes in, never saved to the
+// library. Goes "ready" once the first segments exist and stays running
+// (complete: false) until the stream ends, it's stopped, or nobody has
+// watched it for LIVE_IDLE_MS. Its folder is deleted a little after.
+async function runLiveJob(job, url, headerOpts) {
+  const { signal } = job.controller;
+  const outDir = path.join(LIVE_DIR, job.id);
+  job.live = true;
+  jobs.update(job.id, { complete: false, streamedSec: 0 });
+  log('live stream start', job.id, job.title);
+  const idleTimer = setInterval(() => {
+    if (job.status === 'ready' && Date.now() - job.lastFetch > LIVE_IDLE_MS) {
+      job.stopReason = 'Stopped: nobody was watching.';
+      job.controller.abort();
+    }
+  }, 15000);
+  try {
+    await live.start(url, outDir, {
+      maxHeight: MAX_HEIGHT,
+      ...headerOpts,
+      signal,
+      onReady: () => {
+        job.lastFetch = Date.now();
+        jobs.update(job.id, { status: 'ready' });
+        log('live stream playable', job.id, job.title);
+      },
+      onProgress: ({ streamedSec }) => jobs.update(job.id, { streamedSec })
+    });
+    jobs.update(job.id, { status: 'ready', complete: true, finishedAt: Date.now() });
+    log('live stream ended', job.id, job.title);
+  } catch (err) {
+    if (signal.aborted) {
+      finishCancelled(job, job.stopReason || 'Stopped.');
+    } else {
+      jobs.update(job.id, { status: 'error', error: err.message, complete: true, finishedAt: Date.now() });
+      log('live stream failed', job.id, err.message);
+    }
+  } finally {
+    clearInterval(idleTimer);
+    setTimeout(() => fs.rm(outDir, { recursive: true, force: true }, () => {}), LIVE_KEEP_MS);
   }
 }
 
@@ -711,7 +774,7 @@ function handleRequest(req, res) {
         return;
       }
       const fields = libraryFields(body);
-      const active = Array.from(jobs.jobs.values()).find((j) => !j.torrentKey && ['starting', 'downloading'].includes(j.status) && MediaCache.normalize(j.sourceUrl) === MediaCache.normalize(target));
+      const active = Array.from(jobs.jobs.values()).find((j) => !j.torrentKey && (['starting', 'downloading'].includes(j.status) || (j.live && !j.complete)) && MediaCache.normalize(j.sourceUrl) === MediaCache.normalize(target));
       if (active) {
         active.libraryFields = { ...active.libraryFields, ...fields };
         sendJson(res, 202, { id: active.id, status: active.status }); return;
@@ -1051,7 +1114,7 @@ function handleRequest(req, res) {
       return;
     }
     const running = job.controller && !job.controller.signal.aborted &&
-      (job.status === 'starting' || job.status === 'downloading' || (job.torrentKey && job.complete === false));
+      (job.status === 'starting' || job.status === 'downloading' || ((job.torrentKey || job.live) && job.complete === false));
     if (!running) {
       sendJson(res, 409, { error: 'That download already finished.' });
       return;
@@ -1095,6 +1158,26 @@ function handleRequest(req, res) {
     const [, key, name] = originalMatch;
     const rel = path.join('torrents', key, torrent.ORIGINAL_DIR, name);
     serveMedia(req, res, rel, name === 'index.m3u8' ? 'application/vnd.apple.mpegurl' : 'video/mp2t');
+    return;
+  }
+
+  // A live stream's rolling playlist and segments. Every fetch counts as
+  // someone watching (see LIVE_IDLE_MS).
+  const liveMatch = /^\/media\/live\/([0-9a-f]{16})\/(index\.m3u8|seg\d{5}\.ts)$/.exec(url.pathname);
+  if (req.method === 'GET' && liveMatch) {
+    const [, id, name] = liveMatch;
+    const job = jobs.get(id);
+    if (job) job.lastFetch = Date.now();
+    const rel = path.join('live', id, name);
+    if (name !== 'index.m3u8') {
+      serveMedia(req, res, rel, 'video/mp2t');
+      return;
+    }
+    fs.readFile(path.join(MEDIA_DIR, rel), (err, body) => {
+      if (err) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'Content-Type': 'application/vnd.apple.mpegurl', 'Content-Length': body.length, 'Cache-Control': 'no-store' });
+      res.end(body);
+    });
     return;
   }
 
@@ -1151,7 +1234,7 @@ setInterval(() => {
     if (err) return;
     const cutoff = Date.now() - MEDIA_TTL_MS;
     files.forEach((file) => {
-      if (file === 'library-state.json' || file === 'library-art' || file === 'cache-index.json' || file === 'torrents' || file === 'thumbs' || mediaCache.has(file) || mediaCache.entries.some((e) => e.thumbnail === file)) return;
+      if (file === 'library-state.json' || file === 'library-art' || file === 'cache-index.json' || file === 'torrents' || file === 'live' || file === 'thumbs' || mediaCache.has(file) || mediaCache.entries.some((e) => e.thumbnail === file)) return;
       const filePath = path.join(MEDIA_DIR, file);
       fs.stat(filePath, (statErr, stat) => {
         if (!statErr && stat.mtimeMs < cutoff) fs.unlink(filePath, () => {});

@@ -42,10 +42,17 @@ function createDownloadsView(resolver, panel, list, opts) {
   }
 
   // Still has a yt-dlp/ffmpeg running on the server (so it can be
-  // cancelled). A torrent is "ready" while it keeps downloading.
+  // cancelled). A torrent is "ready" while it keeps downloading, and a
+  // live stream while it's on air.
   function isRunning(job) {
     if (job.status === 'starting' || job.status === 'downloading') return true;
-    return job.kind === 'torrent' && job.status === 'ready' && !job.complete;
+    return (job.kind === 'torrent' || job.kind === 'live') && job.status === 'ready' && !job.complete;
+  }
+
+  function liveDetail(job) {
+    if (job.status === 'downloading') return 'live — connecting…';
+    if (job.complete) return 'live — stream ended';
+    return 'live — playing · ' + formatClock(job.streamedSec) + ' streamed';
   }
 
   function torrentDetail(job) {
@@ -73,6 +80,7 @@ function createDownloadsView(resolver, panel, list, opts) {
     if (job.status === 'cancelled') return job.error && job.error !== 'Cancelled.' ? job.error.replace(/\.$/, '') : 'cancelled';
     if (job.status === 'error') return 'failed: ' + (job.error || 'unknown error');
     if (job.kind === 'torrent') return torrentDetail(job);
+    if (job.kind === 'live') return liveDetail(job);
     if (job.status === 'starting') return 'looking up that video…';
     if (job.status === 'downloading') {
       return 'downloading' + (typeof job.progress === 'number' ? ' ' + Math.floor(job.progress) + '%' : '…');
@@ -84,6 +92,7 @@ function createDownloadsView(resolver, panel, list, opts) {
   // striped bar then, not a made-up percentage).
   function percent(job) {
     if (!isRunning(job)) return 100;
+    if (job.kind === 'live') return null;
     if (job.kind === 'torrent') {
       return job.phase === 'saving' && typeof job.progress === 'number' && job.durationSec ? job.progress : null;
     }
@@ -121,14 +130,15 @@ function createDownloadsView(resolver, panel, list, opts) {
     row.cancel.addEventListener('click', function () {
       var job = row.job;
       var torrent = job.kind === 'torrent';
+      var stopWord = torrent || job.kind === 'live';
       row.cancel.disabled = true;
-      row.cancel.textContent = torrent ? 'stopping…' : 'cancelling…';
+      row.cancel.textContent = stopWord ? 'stopping…' : 'cancelling…';
       resolver.cancel(job.id).then(function () {
-        MX.toast(true, (torrent ? 'Stopped, kept in saved: ' : 'Cancelled: ') + (job.title || 'download'));
+        MX.toast(true, (torrent ? 'Stopped, kept in saved: ' : stopWord ? 'Stopped: ' : 'Cancelled: ') + (job.title || 'download'));
         refreshSoon();
       }).catch(function (err) {
         row.cancel.disabled = false;
-        row.cancel.textContent = torrent ? 'stop' : 'cancel';
+        row.cancel.textContent = stopWord ? 'stop' : 'cancel';
         MX.toast(false, err.message);
       });
     });
@@ -152,7 +162,7 @@ function createDownloadsView(resolver, panel, list, opts) {
     row.cast.hidden = !onCast || job.status !== 'ready' || !job.streamUrl;
     if (running && !/…$/.test(row.cancel.textContent)) {
       row.cancel.disabled = false;
-      row.cancel.textContent = job.kind === 'torrent' ? 'stop' : 'cancel';
+      row.cancel.textContent = job.kind === 'torrent' || job.kind === 'live' ? 'stop' : 'cancel';
     }
   }
 

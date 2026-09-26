@@ -46,6 +46,21 @@ always does the same thing: yt-dlp downloads (and ffmpeg muxes, if
 needed) to a local MP4, and the resolver serves that file directly.
 Slower, but it means "cast this link" behaves the same way everywhere.
 
+## Live streams
+
+A stream that's on air (yt-dlp reports `is_live`) never finishes
+downloading, so it can't go through the MP4 path above. Instead
+`live.js` pipes yt-dlp's output into ffmpeg, which writes a rolling HLS
+playlist into `media/live/<job id>/`: the job goes `ready` as soon as
+the first two segments exist (a few seconds), and the TV plays it as
+live TV, starting at the live edge. Only the last ~minute of segments
+is kept on disk, and nothing goes into the library.
+
+It runs until the stream ends, it's stopped (`POST /resolve/:id/cancel`,
+the "stop" button in downloads), or nobody has fetched from it for
+`LIVE_IDLE_MS` (the TV was switched off). The folder is deleted a few
+minutes after, and on restart.
+
 ## Permanent library
 
 `src/cache.js` keeps completed downloads in `MEDIA_DIR/cache-index.json` and torrent
@@ -188,7 +203,10 @@ the download to get there.
   `streamUrl` is `http://<this-host>/media/torrents/<key>/index.m3u8`,
   and `complete` says whether the download is still running.
 - `POST /resolve/:id/cancel` — stops a download that's still running
-  (yt-dlp, or a torrent's ffmpeg); the job's `status` becomes `cancelled`.
+  (yt-dlp, a torrent's ffmpeg, or a live stream); the job's `status` becomes `cancelled`.
+  A live stream's job has `kind: "live"`, `streamedSec`, and a
+  `streamUrl` of `http://<this-host>/media/live/<id>/index.m3u8`; it's
+  `ready` with `complete: false` while on air (see "Live streams").
   A link download's file is deleted. A torrent keeps what it saved, as a
   partial film in `GET /cache` (see "Torrents"), unless that's nothing.
   `409` if it already finished. A torrent the TV is playing stops playing
@@ -246,6 +264,7 @@ the download to get there.
 | `TORRENT_ENCODER` | `auto` | `nvenc`: convert on an NVIDIA GPU (h264_nvenc, with CUDA decoding); `x264`: on the CPU; `auto`: nvenc if a test encode works at the first conversion, else x264. The log says which (`video conversions: …`) |
 | `TORRENT_X264_PRESET` | `superfast` | libx264 speed for CPU conversions; on a slow CPU a 4K conversion can run slower than the film plays |
 | `TORRENT_START_TIMEOUT_MS` | `180000` | how long to wait for a torrent to start sending data before giving up |
+| `LIVE_IDLE_MS` | `180000` | a live stream nobody has fetched from for this long is stopped (see "Live streams") |
 | `YTDLP_BIN` | `yt-dlp` | override if it's not on `PATH` for the service user |
 
 ## AirPlay away from home

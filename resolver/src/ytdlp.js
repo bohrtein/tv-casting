@@ -47,8 +47,20 @@ async function getInfo(url, opts) {
   const { stdout } = await run(args);
   const firstLine = stdout.split('\n').find((l) => l.trim().startsWith('{'));
   if (!firstLine) throw new Error('yt-dlp returned no video info for that url.');
-  const info = JSON.parse(firstLine);
-  return { title: info.title || url, duration: info.duration || null, thumbnail: info.thumbnail || null, extractor: info.extractor_key || info.extractor || '', categories: info.categories || [] };
+  return parseInfo(JSON.parse(firstLine), url);
+}
+
+// isLive: a stream that's on air now. Those never finish downloading,
+// so index.js plays them through live.js instead of download().
+function parseInfo(info, url) {
+  return {
+    title: info.title || url,
+    duration: info.duration || null,
+    thumbnail: info.thumbnail || null,
+    extractor: info.extractor_key || info.extractor || '',
+    categories: info.categories || [],
+    isLive: info.is_live === true || info.live_status === 'is_live'
+  };
 }
 
 const PROGRESS_RE = /\[download\]\s+([\d.]+)%/;
@@ -132,4 +144,4 @@ function download(url, outPathNoExt, { maxHeight = 1080, maxFilesize = '2G', ref
   });
 }
 
-module.exports = { getInfo, download };
+module.exports = { getInfo, parseInfo, download };
