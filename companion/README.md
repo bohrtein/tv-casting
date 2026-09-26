@@ -70,9 +70,15 @@ receiver to enable progress and continuation. No relay update is needed.
 
 ## Accounts (the guest door)
 
-You use the companion as always, with no login. For other people, `serve.js`
-also runs a **guest door** on `127.0.0.1:8790` (`GUEST_PORT`, `0` turns it
-off; `guest-gateway.js`) where everything needs an account:
+You use the companion as always, with no login. For other people there's a
+**guest door** on `127.0.0.1:8790` (`guest-gateway.js`) where everything
+needs an account. It runs as its own always-on service,
+[`systemd/tv-casting-guests.service`](systemd/tv-casting-guests.service)
+(`serve.js` with `GUEST_PORT=8790`), because App Hub stops the app it
+starts after a while without traffic through the hub, and guests come in
+through Funnel instead; App Hub's copy runs with `GUEST_PORT=0` (`app.toml`).
+Both use the same `.companion-data`, so accounts you add under Settings
+reach the door at once. In the door:
 
 - They see Board, Discover, Search, Calendar and Library for **Movies and
   Series only**: no Plus18, no addons or settings, no tools, and never

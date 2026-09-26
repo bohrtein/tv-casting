@@ -13,6 +13,9 @@ const { createAccounts } = require('./accounts');
 const { createGuestGateway } = require('./guest-gateway');
 
 const PORT = process.env.PORT || 8080;
+// Which address your listener takes (all of them unless set); the always-on
+// guest door service sets 127.0.0.1, since it only runs this for the door.
+const HOST = process.env.HOST || undefined;
 const ROOT = __dirname;
 
 // stremio.html's addon list, kept here instead of only in each browser's
@@ -292,6 +295,6 @@ if (GUEST_PORT) {
   guestServer.on('error', (err) => console.log(new Date().toISOString(), `guest door unavailable: ${err.message}`));
 }
 
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   console.log(new Date().toISOString(), `companion served on :${PORT}`);
 });

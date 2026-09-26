@@ -8,7 +8,9 @@
 // here is only a list of which saved files this person added.
 //
 // Everything lives in one small JSON file in DATA_DIR, written whole and
-// renamed into place so a crash can't leave half a file.
+// renamed into place so a crash can't leave half a file. Two processes use
+// it (the app you open, where you manage accounts, and the always-on guest
+// door), so each reads it again whenever the other has written it.
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -28,14 +30,24 @@ function digest(token) { return crypto.createHash('sha256').update(String(token)
 
 function createAccounts(file, { now = Date.now } = {}) {
   let data = { users: {}, sessions: {} };
-  try { Object.assign(data, JSON.parse(fs.readFileSync(file, 'utf8'))); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+  let seen = null; // the file's modification time when last read or written
   const failures = new Map(); // "ip|name" -> [times]
 
+  function stamp() { try { return fs.statSync(file).mtimeMs; } catch (e) { if (e.code === 'ENOENT') return null; throw e; } }
+  function load() {
+    const now = stamp();
+    if (now === seen) return;
+    data = { users: {}, sessions: {} };
+    try { Object.assign(data, JSON.parse(fs.readFileSync(file, 'utf8'))); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+    seen = now;
+  }
   function save() {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file + '.tmp', JSON.stringify(data, null, 2), { mode: 0o600 });
     fs.renameSync(file + '.tmp', file);
+    seen = stamp();
   }
+  load();
   function user(name) {
     const u = data.users[String(name || '').toLowerCase()];
     if (!u) throw new Error('No such account.');
@@ -53,7 +65,7 @@ function createAccounts(file, { now = Date.now } = {}) {
     Object.keys(data.sessions).forEach((id) => { if (data.sessions[id].user === name) delete data.sessions[id]; });
   }
 
-  return {
+  const api = {
     list() {
       return Object.keys(data.users).sort().map((name) => ({
         name, createdAt: data.users[name].createdAt, items: Object.keys(data.users[name].library).length
@@ -146,6 +158,12 @@ function createAccounts(file, { now = Date.now } = {}) {
     jobs(name) { return Object.keys(user(name).jobs); },
     dropJob(name, id) { const u = user(name); if (u.jobs[id]) { delete u.jobs[id]; save(); } }
   };
+  // Every call starts from the file as it is now.
+  Object.keys(api).forEach((key) => {
+    const call = api[key];
+    api[key] = (...args) => { load(); return call(...args); };
+  });
+  return api;
 }
 
 module.exports = { createAccounts, ITEM };

@@ -82,3 +82,16 @@ test('each account has its own library and progress', () => {
   accounts.drop('one', film);
   assert.deepStrictEqual(accounts.items('one'), []);
 });
+
+test('two processes sharing the file see each other\'s changes', () => {
+  const { accounts, reopen, file } = fresh();
+  const door = reopen(); // the guest door, running alongside the app
+  accounts.create('newcomer', 'a good password');
+  const token = door.login('newcomer', 'a good password', 'ip');
+  assert.strictEqual(accounts.session(token), 'newcomer');
+  door.add('newcomer', 'media:0123456789abcdef.mp4');
+  assert.deepStrictEqual(accounts.list().map((u) => u.items), [1]);
+  accounts.setPassword('newcomer', 'another password');
+  assert.strictEqual(door.session(token), null, 'a new password logs them out at the door too');
+  assert.ok(fs.existsSync(file));
+});

@@ -1,0 +1,30 @@
+# The guest door (companion/guest-gateway.js): login-only access for the
+# accounts you make under Settings, put on the internet with Tailscale
+# Funnel on port 10000 (companion/README.md, "Accounts"). Always on, unlike
+# the app App Hub starts and stops (app.toml, which runs it with no door).
+# It runs serve.js from the same folder, so it shares the app's saved data
+# (.companion-data: accounts, addons, AirPlay address); its own page
+# listener stays on this machine only, on a port nothing uses.
+#
+# Paths match this server (the repo as App Hub imported it, node from nvm,
+# like the other tv-casting services). Install:
+#   sudo cp companion/systemd/tv-casting-guests.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now tv-casting-guests
+[Unit]
+Description=TV Casting guest door - login-only access for accounts (companion/guest-gateway.js)
+After=network.target tv-casting-resolver.service
+
+[Service]
+Type=simple
+User=bortein
+WorkingDirectory=/home/bortein/Desktop/github/apphub/apps/tv-casting/companion
+Environment=HOST=127.0.0.1
+Environment=PORT=8791
+Environment=GUEST_PORT=8790
+ExecStart=/home/bortein/.nvm/versions/node/v24.21.0/bin/node serve.js
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

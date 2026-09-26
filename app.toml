@@ -19,7 +19,11 @@ icon = "\U0001F4FA"
 # relay/resolver systemd units under systemd/ call node by full path
 # instead of relying on PATH. Update this if the node version changes
 # (`nvm which <version>` on the host to get the current path).
-command = ["/home/bortein/.nvm/versions/node/v24.21.0/bin/node", "serve.js"]
+# GUEST_PORT=0: the guest door (companion/guest-gateway.js) runs as its own
+# always-on service instead (companion/systemd/tv-casting-guests.service),
+# since guests come in through Funnel, not the hub, and the hub would stop
+# this process after idle_timeout_minutes without its own traffic.
+command = ["/usr/bin/env", "GUEST_PORT=0", "/home/bortein/.nvm/versions/node/v24.21.0/bin/node", "serve.js"]
 cwd = "companion"
 
 # serve.js has no dedicated /healthz -- GET / returns index.html with a
