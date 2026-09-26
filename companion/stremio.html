@@ -82,9 +82,11 @@
     <!-- Discover: type, catalog and filters over a poster grid, with a preview on wide screens. -->
     <section id="view-discover" class="cn-st-view cn-hidden" data-view="discover">
       <div class="cn-st-selects">
-        <select class="mx-input mx-select" id="discover-type" aria-label="Type"></select>
-        <select class="mx-input mx-select" id="discover-catalog" aria-label="Catalog"></select>
+        <span id="discover-type"></span>
+        <span id="discover-catalog"></span>
         <span id="discover-extra" class="cn-st-selects"></span>
+        <!-- What the search bar searches while you're here. -->
+        <span id="discover-search-in"></span>
         <button id="discover-refresh" class="mx-btn mx-sm" type="button">refresh</button>
       </div>
       <div id="discover-readout" class="mx-readout" style="display:none"></div>
@@ -128,17 +130,7 @@
     <section id="view-search" class="cn-st-view cn-hidden" data-view="search">
       <div class="cn-st-search-tools">
         <!-- Which indexes (addon search catalogs, plus your library) to search in. -->
-        <details id="search-scope" class="cn-st-scope">
-          <summary class="mx-btn mx-sm" id="search-scope-label">in: everything</summary>
-          <div class="mx-panel cn-st-scope-panel">
-            <input class="mx-input" type="search" id="search-scope-filter" placeholder="find an index" aria-label="Find an index" autocomplete="off">
-            <div class="cn-st-scope-actions">
-              <button id="search-scope-all" class="mx-btn mx-sm" type="button">all</button>
-              <button id="search-scope-none" class="mx-btn mx-sm" type="button">none</button>
-            </div>
-            <div id="search-scope-list" class="cn-st-scope-list"></div>
-          </div>
-        </details>
+        <span id="search-scope"></span>
         <button id="search-refresh" class="mx-btn mx-sm" type="button">refresh results</button>
       </div>
       <div id="search-rows"></div>
@@ -324,6 +316,7 @@
 <script src="js/stremio-core-client.js" defer></script>
 <script src="js/stremio-local-files.js" defer></script>
 <script src="js/stremio-browse-cache.js" defer></script>
+<script src="js/stremio-picker.js" defer></script>
 <script src="js/stremio-app.js" defer></script>
 <script>
   if ('serviceWorker' in navigator) {

@@ -35,30 +35,102 @@
 .cn-st-view > .mx-panel { margin-bottom: var(--mx-space-4); }
 .cn-st-refresh { display: flex; justify-content: flex-end; margin-bottom: var(--mx-space-2); }
 
-/* Search: the "in:" checklist of indexes, as a dropdown beside refresh. */
+/* Search: the "in:" checklist beside refresh. */
 .cn-st-search-tools { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--mx-space-2); margin-bottom: var(--mx-space-2); }
-.cn-st-scope { position: relative; min-width: 0; }
-.cn-st-scope > summary { list-style: none; max-width: min(60vw, 360px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
-.cn-st-scope > summary::-webkit-details-marker { display: none; }
-.cn-st-scope > summary::after { content: ' \25BE'; }
-.cn-st-scope-panel {
+.cn-st-search-tools > .cn-picker { flex: 0 1 300px; }
+
+/* Dropdowns (stremio-picker.js): a field-like button, then a floating
+   panel with a filter box and ticked rows. */
+.cn-picker { position: relative; min-width: 0; }
+.cn-st-selects > .cn-picker, .cn-st-selects > .cn-st-selects > .cn-picker { flex: 0 1 220px; }
+@media (max-width: 600px) {
+  .cn-st-selects > .cn-picker, .cn-st-selects > .cn-st-selects > .cn-picker { flex: 1 1 140px; }
+}
+.cn-picker-button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: var(--mx-h-md);
+  padding: 0 38px 0 13px;
+  background-color: var(--mx-surface-sunken);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--mx-ink-dim) 50%),
+    linear-gradient(135deg, var(--mx-ink-dim) 50%, transparent 50%);
+  background-position: calc(100% - 20px) 50%, calc(100% - 15px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  border: 1px solid var(--mx-border);
+  border-radius: var(--mx-r-sm);
+  color: var(--mx-ink-hot);
+  font: inherit;
+  font-size: max(16px, var(--mx-text-md));
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--mx-dur-fast), box-shadow var(--mx-dur-fast);
+}
+.cn-picker-compact .cn-picker-button { min-height: var(--mx-h-sm); font-size: var(--mx-text-md); }
+.cn-picker-button:hover { border-color: var(--mx-border-strong); }
+.cn-picker-button:focus-visible, .cn-picker-open > .cn-picker-button { outline: none; border-color: var(--mx-accent); box-shadow: var(--mx-ring); }
+.cn-picker-button:disabled { opacity: .5; cursor: default; }
+.cn-picker-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cn-picker-panel {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
-  z-index: 20;
-  width: min(380px, calc(100vw - 32px));
+  z-index: 30;
+  width: max(100%, min(340px, calc(100vw - 32px)));
+  max-width: calc(100vw - 32px);
   display: flex;
   flex-direction: column;
   gap: var(--mx-space-2);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, .6);
+  padding: var(--mx-space-2);
+  background: var(--mx-surface);
+  border: 1px solid var(--mx-border-strong);
+  border-radius: var(--mx-r-md);
+  box-shadow: var(--mx-shadow), 0 0 24px var(--mx-accent-low);
 }
-.cn-st-scope-actions { display: flex; gap: var(--mx-space-2); }
-.cn-st-scope-list { display: flex; flex-direction: column; max-height: min(50vh, 420px); overflow-y: auto; overscroll-behavior: contain; }
-.cn-st-scope-item { text-transform: none; letter-spacing: normal; font-size: var(--mx-text-md); color: var(--mx-ink); }
-.cn-st-scope-item[hidden] { display: none; }
-.cn-st-scope-item input { flex: 0 0 auto; }
-.cn-st-scope-name { flex: 1 1 auto; min-width: 0; }
-.cn-st-scope-addon { color: var(--mx-ink-dim); font-size: var(--mx-text-xs); white-space: nowrap; }
+.cn-picker-panel[hidden] { display: none; }
+.cn-picker .cn-picker-panel .cn-picker-filter { flex: 0 0 auto; width: 100%; min-height: 40px; padding: 8px 11px; }
+.cn-picker .cn-picker-panel .cn-picker-filter[hidden] { display: none; }
+.cn-picker-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.cn-picker-list {
+  display: flex;
+  flex-direction: column;
+  max-height: min(55vh, 380px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.cn-picker-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  background: none;
+  border: 0;
+  border-radius: var(--mx-r-sm);
+  color: var(--mx-ink);
+  font: inherit;
+  font-size: var(--mx-text-md);
+  text-align: left;
+  cursor: pointer;
+}
+.cn-picker-option[hidden] { display: none; }
+.cn-picker-option:hover, .cn-picker-option:focus-visible { background: var(--mx-accent-low); color: var(--mx-ink-hot); outline: none; }
+.cn-picker-option[aria-selected="true"] { color: var(--mx-ink-hot); }
+.cn-picker-name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.cn-picker-detail { flex: 0 1 auto; max-width: 45%; color: var(--mx-ink-dim); font-size: var(--mx-text-xs); text-align: right; overflow-wrap: anywhere; }
+.cn-picker-mark { flex: 0 0 16px; width: 16px; height: 16px; display: grid; place-items: center; font-size: 13px; line-height: 1; }
+/* Pick one: a tick beside the current choice. */
+.cn-picker-option[aria-selected="true"] .cn-picker-mark::before { content: '\2713'; color: var(--mx-accent); font-weight: 700; }
+/* Checklist: boxes, filled when checked. */
+.cn-picker-list[aria-multiselectable] .cn-picker-mark { border: 1px solid var(--mx-border-strong); border-radius: 4px; }
+.cn-picker-list[aria-multiselectable] .cn-picker-option[aria-selected="true"] .cn-picker-mark { background: var(--mx-accent); border-color: var(--mx-accent); }
+.cn-picker-list[aria-multiselectable] .cn-picker-option[aria-selected="true"] .cn-picker-mark::before { color: var(--mx-on-accent); font-size: 11px; }
+.cn-picker-empty { margin: 4px 10px; color: var(--mx-ink-faint); font-size: var(--mx-text-md); }
+.cn-picker-empty[hidden] { display: none; }
 
 .cn-st-selects { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mx-space-2); margin-bottom: var(--mx-space-4); }
 .cn-st-selects .mx-input { flex: 0 1 220px; min-width: 0; width: auto; }

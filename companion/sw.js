@@ -29,6 +29,7 @@ var SHELL_FILES = [
   'js/stremio-core-transport.js',
   'js/stremio-core-client.js',
   'js/stremio-browse-cache.js',
+  'js/stremio-picker.js',
   'js/library-model.js',
   'js/stremio-local-files.js',
   'js/remote-sheet.js',

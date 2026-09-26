@@ -76,9 +76,10 @@ Update that path in `tv-casting-torrent.service` if the checkout moves.
 
 ## Deploy
 
-`deploy.bat` restarts `tv-casting-torrent` after pulling, which rebuilds
-the image from the new code. That needs the same passwordless sudo rule
-relay and resolver already have. Once, on the server:
+Deploys go through App Hub. Restarting `tv-casting-torrent` after pulling
+rebuilds the image from the new code. Restarting it without a password
+needs the same sudo rule relay and resolver already have. Once, on the
+server:
 
 ```bash
 sudo grep -rl tv-casting-resolver /etc/sudoers.d/     # the file with the existing rule

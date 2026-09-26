@@ -44,8 +44,7 @@ document.addEventListener('DOMContentLoaded', function () {
     libraryYoutube: $('library-youtube'), libraryYoutubeTitle: $('library-youtube-title'), libraryYtGrid: $('library-yt-grid'),
     calendarTitle: $('calendar-title'), calendarGrid: $('calendar-grid'), calendarReadout: $('calendar-readout'),
     searchRows: $('search-rows'), searchReadout: $('search-readout'),
-    searchScope: $('search-scope'), searchScopeLabel: $('search-scope-label'),
-    searchScopeFilter: $('search-scope-filter'), searchScopeList: $('search-scope-list'),
+    searchScope: $('search-scope'), discoverSearchIn: $('discover-search-in'),
     detailBg: $('detail-bg'), detailLogo: $('detail-logo'), detailTitle: $('detail-title'), detailInfo: $('detail-info'),
     detailFacts: $('detail-facts'), detailDesc: $('detail-desc'), detailInLib: $('detail-inlib'),
     detailPosterBtn: $('detail-poster-btn'), detailBackdropBtn: $('detail-backdrop-btn'),
@@ -426,8 +425,10 @@ document.addEventListener('DOMContentLoaded', function () {
       if (addonsError) { setReadout(el.discoverReadout, addonsError.message, true); return; }
       if (!catalogs.length) {
         el.discoverGrid.innerHTML = '';
-        el.discoverType.innerHTML = '';
-        el.discoverCatalog.innerHTML = '';
+        typePicker.setItems([]);
+        typePicker.setLabel('');
+        catalogPicker.setItems([]);
+        catalogPicker.setLabel('');
         setReadout(el.discoverReadout, section === 'plus18'
           ? 'No Plus18 catalogs yet. Install an addon under Addons.'
           : 'No catalogs yet. Install an addon under Addons (Cinemeta has them).', true);
@@ -452,9 +453,8 @@ document.addEventListener('DOMContentLoaded', function () {
       });
       store(CATALOG_KEY, entry.addon.url + '|' + entry.catalog.type + '|' + entry.catalog.id);
       renderDiscoverSelects(entry);
-      var searchIn = catalogSearchScope(entry);
-      el.searchInput.placeholder = !searchIn ? defaultSearchPlaceholder : 'Search ' + (searchIn.length === 1
-        ? entry.catalog.name || entry.catalog.id : entry.addon.manifest.name || 'this addon') + '…';
+      discover.entry = entry;
+      renderSearchScope();
       var key = section + '|' + discoverHash(entry, extra);
       if (key === discover.key) return; // back from a title: keep the grid and scroll
       discover.key = key;
@@ -474,43 +474,50 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  // Type and catalog, as the app's own dropdowns (stremio-picker.js); the
+  // catalog one has a filter box for addons with long lists.
+  var typePicker = createPicker({ name: 'Type', onPick: function (type) {
+    var entry = catalogs.find(function (c) { return c.catalog.type === type; });
+    if (entry) location.hash = discoverHash(entry, {});
+  } });
+  el.discoverType.replaceWith(typePicker.root);
+  var catalogPicker = createPicker({ name: 'Catalog', filterPlaceholder: 'find a catalog', onPick: function (value) {
+    var entry = catalogs[Number(value)];
+    if (entry) location.hash = discoverHash(entry, {});
+  } });
+  el.discoverCatalog.replaceWith(catalogPicker.root);
+
   function renderDiscoverSelects(entry) {
     var types = [];
     catalogs.forEach(function (c) { if (types.indexOf(c.catalog.type) === -1) types.push(c.catalog.type); });
-    el.discoverType.innerHTML = '';
-    types.forEach(function (type) { option(el.discoverType, type, typeLabel(type), type === entry.catalog.type); });
-    el.discoverCatalog.innerHTML = '';
+    typePicker.setItems(types.map(function (type) {
+      return { value: type, label: typeLabel(type), selected: type === entry.catalog.type };
+    }));
+    typePicker.setLabel(typeLabel(entry.catalog.type));
     var sameType = catalogs.filter(function (c) { return c.catalog.type === entry.catalog.type; });
     var multi = sameType.some(function (c) { return c.addon !== sameType[0].addon; });
-    sameType.forEach(function (c) {
-      option(el.discoverCatalog, catalogs.indexOf(c), (c.catalog.name || c.catalog.id) + (multi ? ' · ' + c.addon.manifest.name : ''), c === entry);
-    });
+    catalogPicker.setItems(sameType.map(function (c) {
+      return { value: String(catalogs.indexOf(c)), label: c.catalog.name || c.catalog.id,
+        detail: multi ? c.addon.manifest.name : '', selected: c === entry };
+    }));
+    catalogPicker.setLabel(entry.catalog.name || entry.catalog.id);
   }
-  el.discoverType.addEventListener('change', function () {
-    var entry = catalogs.find(function (c) { return c.catalog.type === el.discoverType.value; });
-    if (entry) location.hash = discoverHash(entry, {});
-  });
-  el.discoverCatalog.addEventListener('change', function () {
-    var entry = catalogs[Number(el.discoverCatalog.value)];
-    if (entry) location.hash = discoverHash(entry, {});
-  });
 
   function renderDiscoverFilters(filters) {
     el.discoverExtra.innerHTML = '';
     filters.forEach(function (filter) {
       if (!filter.options || !filter.options.length || filter.name === 'skip' || filter.name === 'search') return;
-      var select = document.createElement('select');
-      select.className = 'mx-input mx-select';
-      select.setAttribute('aria-label', filter.name);
-      filter.options.forEach(function (choice) {
-        option(select, choice.value == null ? '' : choice.value, choice.value == null ? typeLabel(filter.name) + ': all' : choice.value, !!choice.selected);
-      });
-      select.addEventListener('change', function () {
+      var picker = createPicker({ name: filter.name, filterPlaceholder: 'find a ' + filter.name, onPick: function (value) {
         var extra = Object.assign({}, discover.extra);
-        if (select.value) extra[filter.name] = select.value; else delete extra[filter.name];
+        if (value) extra[filter.name] = value; else delete extra[filter.name];
         location.hash = discoverHash(discover.entry, extra);
-      });
-      el.discoverExtra.appendChild(select);
+      } });
+      var chosen = filter.options.find(function (choice) { return choice.selected; });
+      picker.setItems(filter.options.map(function (choice) {
+        return { value: choice.value == null ? '' : choice.value, label: choice.value == null ? 'all' : choice.value, selected: !!choice.selected };
+      }));
+      picker.setLabel(typeLabel(filter.name) + ': ' + (chosen && chosen.value != null ? chosen.value : 'all'));
+      el.discoverExtra.appendChild(picker.root);
     });
   }
 
@@ -819,7 +826,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   function nextSearchScope() {
     if (current.view === 'search') return routeSearchScope(parseRoute().params);
-    if (current.view === 'discover' && discover.entry) return catalogSearchScope(discover.entry);
+    if (current.view === 'discover') return discoverSearchScope();
     return null;
   }
   el.searchForm.addEventListener('submit', function (event) {
@@ -842,66 +849,58 @@ document.addEventListener('DOMContentLoaded', function () {
     }, 500);
   });
 
-  // The "in:" dropdown: a filterable checklist of your library and every index.
-  function renderSearchScope() {
-    var all = [{ key: LIBRARY_INDEX, name: 'Your library', addonName: '' }].concat(searchIndexes());
-    var signature = JSON.stringify(all.map(function (index) { return index.key; }));
-    if (signature !== searchState.indexSignature) {
-      searchState.indexSignature = signature;
-      el.searchScopeList.innerHTML = '';
-      all.forEach(function (index) {
-        var label = document.createElement('label');
-        label.className = 'mx-check cn-st-scope-item';
-        label.innerHTML = '<input type="checkbox"><span class="cn-st-scope-name"></span><span class="cn-st-scope-addon"></span>';
-        label.firstChild.value = index.key;
-        label.querySelector('.cn-st-scope-name').textContent = index.name;
-        label.querySelector('.cn-st-scope-addon').textContent = index.addonName;
-        label.setAttribute('data-find', (index.name + ' ' + index.addonName).toLowerCase());
-        el.searchScopeList.appendChild(label);
-      });
-      filterSearchScope();
-    }
-    el.searchScopeList.querySelectorAll('input').forEach(function (box) { box.checked = inSearchScope(box.value); });
-    var scope = searchState.scope;
-    var named = scope && scope.length === 1 && all.find(function (index) { return index.key === scope[0]; });
-    el.searchScopeLabel.textContent = 'in: ' + (!scope ? 'everything' : !scope.length ? 'nothing'
-      : named ? named.name : scope.length + ' indexes');
-    el.searchInput.placeholder = named ? 'Search ' + named.name + '…' : defaultSearchPlaceholder;
+  // What to search in, picked on Discover (the "search in" checklist there)
+  // and remembered: nothing saved follows the catalog you're looking at,
+  // "all" is everything, otherwise the checked keys.
+  var SEARCH_IN_KEY = 'tvc.stremio.searchIn';
+  function savedSearchIn() {
+    try { var value = JSON.parse(stored(SEARCH_IN_KEY)); return value === 'all' || Array.isArray(value) ? value : null; }
+    catch (e) { return null; }
   }
-  function filterSearchScope() {
-    var text = el.searchScopeFilter.value.trim().toLowerCase();
-    el.searchScopeList.querySelectorAll('label').forEach(function (label) {
-      label.hidden = !!text && label.getAttribute('data-find').indexOf(text) === -1;
-    });
+  function saveSearchIn(scope) { store(SEARCH_IN_KEY, JSON.stringify(scope || 'all')); }
+  function discoverSearchScope() {
+    var saved = savedSearchIn();
+    if (saved) return saved === 'all' ? null : saved;
+    return discover.entry ? catalogSearchScope(discover.entry) : null;
+  }
+
+  function scopeChoices() {
+    return [{ key: LIBRARY_INDEX, name: 'Your library', addonName: '' }].concat(searchIndexes());
+  }
+  // Everything checked is the same as no narrowing at all.
+  function normalScope(keys) {
+    return scopeChoices().every(function (index) { return keys.indexOf(index.key) !== -1; }) ? null : keys;
+  }
+  function fillScopePicker(picker, scope, prefix) {
+    var choices = scopeChoices();
+    picker.setItems(choices.map(function (index) {
+      return { value: index.key, label: index.name, detail: index.addonName, selected: !scope || scope.indexOf(index.key) !== -1 };
+    }));
+    var named = scope && scope.length === 1 && choices.find(function (index) { return index.key === scope[0]; });
+    picker.setLabel(prefix + (!scope ? 'everything' : !scope.length ? 'nothing' : named ? named.name : scope.length + ' indexes'));
+    return !scope ? defaultSearchPlaceholder : !scope.length ? 'Nothing checked to search in'
+      : 'Search ' + (named ? named.name : scope.length + ' indexes') + '…';
+  }
+
+  var searchScopePicker = createPicker({ name: 'Search in', multi: true, filterPlaceholder: 'find an index',
+    className: 'cn-picker-compact', onChange: function (keys) { setSearchScope(normalScope(keys)); } });
+  el.searchScope.replaceWith(searchScopePicker.root);
+  var discoverScopePicker = createPicker({ name: 'Search in', multi: true, filterPlaceholder: 'find an index',
+    onChange: function (keys) { saveSearchIn(normalScope(keys)); renderSearchScope(); },
+    actions: [{ label: 'this catalog', onClick: function () { store(SEARCH_IN_KEY, ''); renderSearchScope(); } }] });
+  el.discoverSearchIn.replaceWith(discoverScopePicker.root);
+
+  function renderSearchScope() {
+    var searchHint = fillScopePicker(searchScopePicker, searchState.scope, 'in: ');
+    var discoverHint = fillScopePicker(discoverScopePicker, discoverSearchScope(), 'search in: ');
+    if (current.view === 'search') el.searchInput.placeholder = searchHint;
+    else if (current.view === 'discover') el.searchInput.placeholder = discoverHint;
   }
   function setSearchScope(scope) {
-    var keys = [];
-    el.searchScopeList.querySelectorAll('input').forEach(function (box) { keys.push(box.value); });
-    // Everything checked is the same as no narrowing at all.
-    if (scope && keys.every(function (key) { return scope.indexOf(key) !== -1; })) scope = null;
+    saveSearchIn(scope);
     history.replaceState(null, '', location.pathname + location.search + searchHash(parseRoute().params.get('q') || '', scope));
     render();
   }
-  el.searchScopeFilter.addEventListener('input', filterSearchScope);
-  el.searchScopeList.addEventListener('change', function () {
-    var scope = [];
-    el.searchScopeList.querySelectorAll('input').forEach(function (box) { if (box.checked) scope.push(box.value); });
-    setSearchScope(scope);
-  });
-  $('search-scope-all').addEventListener('click', function () { setSearchScope(null); });
-  $('search-scope-none').addEventListener('click', function () { setSearchScope([]); });
-  document.addEventListener('click', function (event) {
-    if (el.searchScope.open && !el.searchScope.contains(event.target)) el.searchScope.open = false;
-  });
-  el.searchScope.addEventListener('keydown', function (event) {
-    if (event.key !== 'Escape' || !el.searchScope.open) return;
-    el.searchScope.open = false;
-    el.searchScope.querySelector('summary').focus();
-  });
-  // Straight to the filter on a computer; on a phone that would pop the keyboard.
-  el.searchScope.addEventListener('toggle', function () {
-    if (el.searchScope.open && window.matchMedia('(hover: hover)').matches) el.searchScopeFilter.focus();
-  });
 
   function showSearchRows(rows) {
     rows.forEach(function (item) { if (inSearchScope(rowKey(item))) catalogRow(el.searchRows, searchState.rows, item); });
