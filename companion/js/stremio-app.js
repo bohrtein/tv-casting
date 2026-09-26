@@ -776,7 +776,8 @@ document.addEventListener('DOMContentLoaded', function () {
   // your library. The #/search?in=... params narrow it to a checked few;
   // no "in" at all means everything.
   var LIBRARY_INDEX = 'library';
-  var searchState = { query: null, text: '', token: 0, rows: {}, all: [], done: false, scope: null, mine: null, indexSignature: null };
+  var searchState = { query: null, text: '', token: 0, libraryToken: 0, rows: {}, all: [], fetched: {}, done: false,
+    scope: null, mine: null, indexSignature: null };
   var searchTimer = null;
   var defaultSearchPlaceholder = el.searchInput.placeholder;
 
@@ -789,6 +790,7 @@ document.addEventListener('DOMContentLoaded', function () {
           (catalog.extraSupported || []).indexOf('search') !== -1;
         if (!searchable) return;
         list.push({ key: addon.url + '|' + catalog.type + '|' + catalog.id, addonUrl: addon.url, type: catalog.type,
+          id: catalog.id, catalogName: catalog.name || catalog.id, version: manifest.version || '',
           name: (catalog.name || catalog.id) + ' · ' + typeLabel(catalog.type), addonName: manifest.name || '' });
       });
     });
@@ -904,62 +906,20 @@ document.addEventListener('DOMContentLoaded', function () {
   function showSearchRows(rows) {
     rows.forEach(function (item) { if (inSearchScope(rowKey(item))) catalogRow(el.searchRows, searchState.rows, item); });
   }
-  // Only the checklist changed: re-filter what was already found.
-  function applySearchScope() {
-    Object.keys(searchState.rows).forEach(function (key) { searchState.rows[key].row.remove(); });
-    searchState.rows = {};
-    showSearchRows(searchState.all);
-    if (searchState.mine) searchState.mine.row.hidden = !searchState.mine.strip.children.length || !inSearchScope(LIBRARY_INDEX);
-    if (searchState.done) updateSearchReadout();
-  }
   function updateSearchReadout() {
     var rows = searchState.all.filter(function (item) { return inSearchScope(rowKey(item)); });
     var found = rows.some(function (item) { return item.metas.some(function (meta) { return !blocked(meta); }); }) ||
       !!searchState.mine && !searchState.mine.row.hidden;
     if (searchState.scope && !searchState.scope.length) setReadout(el.searchReadout, 'Check at least one index to search in.', false);
-    else if (!searchState.all.length && !found) setReadout(el.searchReadout, 'None of your addons can search. Cinemeta can.', true);
+    else if (!searchState.scope && !searchState.all.length && !found) setReadout(el.searchReadout, 'None of your addons can search. Cinemeta can.', true);
     else setReadout(el.searchReadout, found ? '' : 'Nothing found for "' + searchState.text + '"' +
       (searchState.scope ? ' in the checked indexes.' : '.'), !found);
   }
 
-  function renderSearch(query, scope, force) {
-    if (document.activeElement !== el.searchInput) el.searchInput.value = query;
-    searchState.scope = scope;
-    renderSearchScope();
-    if (!force && searchState.query === section + '|' + query) { applySearchScope(); return; }
-    searchState.query = section + '|' + query;
-    searchState.text = query;
-    searchState.rows = {};
-    searchState.all = [];
-    searchState.done = false;
-    searchState.mine = null;
-    var token = ++searchState.token;
-    el.searchRows.innerHTML = '';
-    $('search-refresh').disabled = !query;
-    if (!query) { setReadout(el.searchReadout, 'Type a title to search your library and addons.', false); return; }
-    setReadout(el.searchReadout, 'searching…', false);
-    $('search-refresh').disabled = true;
-    var requestSection = section;
-    var mine = searchState.mine = makeRow(el.searchRows, 'Your library', null);
-    mine.row.hidden = true;
-    libraryReady().then(function () {
-      if (token !== searchState.token || !library.items) return;
-      var hits = LibraryModel.filter(library.items, { text: query, sort: 'az' });
-      hits.forEach(function (item) {
-        mine.strip.appendChild(posterTile({ name: item.name, poster: item.poster, meta: LibraryModel.TYPE_LABELS[item.type],
-          onClick: function () { location.hash = item.kind === 'title' ? detailHref(item.type, item.metadata.id) : detailHref('local', item.key); } }));
-      });
-      mine.row.hidden = !hits.length || !inSearchScope(LIBRARY_INDEX);
-      if (searchState.done) updateSearchReadout();
-    });
-    var cacheScope, fromCache = false;
-    whenAddonsReady.then(function () {
-      if (token !== searchState.token) return null;
-      if (addonsError) throw addonsError;
-      renderSearchScope();
-      cacheScope = browseScope();
-      return force ? null : browseCache.get('search', requestSection, cacheScope, query);
-    }).then(function (cached) {
+  // Everything: one Core search across every searchable catalog.
+  function searchEverything(query, token, force) {
+    var requestSection = section, cacheScope = browseScope(), fromCache = false;
+    return (force ? Promise.resolve(null) : browseCache.get('search', requestSection, cacheScope, query)).then(function (cached) {
       if (token !== searchState.token) return null;
       if (cached) { fromCache = true; return cached; }
       return stremio.searchRows(query, function (rows) {
@@ -968,9 +928,81 @@ document.addEventListener('DOMContentLoaded', function () {
         showSearchRows(rows);
       }, force);
     }).then(function (rows) {
-      if (!rows) return;
+      if (!rows) return null;
       if (!fromCache && rows.every(settledRow)) browseCache.put('search', requestSection, cacheScope, query, rows);
-      if (token !== searchState.token) return;
+      rows.forEach(function (item) { if (item.state === 'Ready' || item.empty) searchState.fetched[rowKey(item)] = item; });
+      return rows;
+    });
+  }
+
+  // Checked indexes only: ask each of those catalogs itself, side by side,
+  // filling its row as it answers. Answers are kept per index, so checking
+  // another one later only asks that one.
+  function searchChecked(query, scope, token, force) {
+    var requestSection = section, queryKey = searchState.query;
+    var indexes = searchIndexes().filter(function (index) { return scope.indexOf(index.key) !== -1; });
+    var rows = indexes.map(function (index) {
+      return searchState.fetched[index.key] || { id: index.id, type: index.type, name: index.catalogName,
+        addonName: index.addonName, addonUrl: index.addonUrl, state: 'Loading', metas: [] };
+    });
+    searchState.all = rows;
+    showSearchRows(rows);
+    return Promise.all(indexes.map(function (index, n) {
+      if (searchState.fetched[index.key]) return null;
+      var cacheKey = index.key + '@' + index.version;
+      return (force ? Promise.resolve(null) : browseCache.get('search-index', requestSection, cacheKey, query)).then(function (cached) {
+        if (cached) return cached;
+        return stremio.searchCatalog(index.addonUrl, index.type, index.id, query).then(function (metas) {
+          var row = Object.assign({}, rows[n], { state: 'Ready', metas: metas, empty: !metas.length });
+          browseCache.put('search-index', requestSection, cacheKey, query, row);
+          return row;
+        }, function (err) {
+          return Object.assign({}, rows[n], { state: 'Err', error: err.message, metas: [] });
+        });
+      }).then(function (row) {
+        if (searchState.query !== queryKey) return;
+        if (row.state === 'Ready') searchState.fetched[index.key] = row;
+        if (token !== searchState.token) return;
+        rows[n] = row;
+        catalogRow(el.searchRows, searchState.rows, row);
+      });
+    })).then(function () { return token === searchState.token ? rows : null; });
+  }
+
+  function renderSearch(query, scope, force) {
+    if (document.activeElement !== el.searchInput) el.searchInput.value = query;
+    searchState.scope = scope;
+    renderSearchScope();
+    var token = ++searchState.token;
+    searchState.all = [];
+    searchState.done = false;
+    if (force || searchState.query !== section + '|' + query) {
+      searchState.query = section + '|' + query;
+      searchState.text = query;
+      searchState.fetched = {};
+      searchState.mine = null;
+      el.searchRows.innerHTML = '';
+      if (query) fillLibraryHits(query);
+    } else {
+      // Same words, different checklist: keep the library row and what was found.
+      Object.keys(searchState.rows).forEach(function (key) { searchState.rows[key].row.remove(); });
+      if (searchState.mine) searchState.mine.row.hidden = !searchState.mine.strip.children.length || !inSearchScope(LIBRARY_INDEX);
+    }
+    searchState.rows = {};
+    $('search-refresh').disabled = !query;
+    if (!query) { setReadout(el.searchReadout, 'Type a title to search your library and addons.', false); return; }
+    if (scope && !scope.length) { searchState.done = true; updateSearchReadout(); return; }
+    setReadout(el.searchReadout, 'searching…', false);
+    $('search-refresh').disabled = true;
+    whenAddonsReady.then(function () {
+      if (token !== searchState.token) return null;
+      if (addonsError) throw addonsError;
+      renderSearchScope();
+      var checked = scope && scope.filter(function (key) { return key !== LIBRARY_INDEX; });
+      if (checked && !checked.length) return [];
+      return checked ? searchChecked(query, checked, token, force) : searchEverything(query, token, force);
+    }).then(function (rows) {
+      if (!rows || token !== searchState.token) return;
       searchState.all = rows;
       searchState.done = true;
       showSearchRows(rows);
@@ -979,6 +1011,22 @@ document.addEventListener('DOMContentLoaded', function () {
       if (token === searchState.token) { searchState.query = null; setReadout(el.searchReadout, err.message, true); }
     }).then(function () {
       if (token === searchState.token) $('search-refresh').disabled = false;
+    });
+  }
+
+  function fillLibraryHits(query) {
+    var libraryToken = ++searchState.libraryToken;
+    var mine = searchState.mine = makeRow(el.searchRows, 'Your library', null);
+    mine.row.hidden = true;
+    libraryReady().then(function () {
+      if (libraryToken !== searchState.libraryToken || !library.items) return;
+      var hits = LibraryModel.filter(library.items, { text: query, sort: 'az' });
+      hits.forEach(function (item) {
+        mine.strip.appendChild(posterTile({ name: item.name, poster: item.poster, meta: LibraryModel.TYPE_LABELS[item.type],
+          onClick: function () { location.hash = item.kind === 'title' ? detailHref(item.type, item.metadata.id) : detailHref('local', item.key); } }));
+      });
+      mine.row.hidden = !hits.length || !inSearchScope(LIBRARY_INDEX);
+      if (searchState.done) updateSearchReadout();
     });
   }
   $('search-refresh').addEventListener('click', function () {

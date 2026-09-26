@@ -126,7 +126,21 @@
 
     <!-- Search: your library first, then a row per searchable addon catalog. -->
     <section id="view-search" class="cn-st-view cn-hidden" data-view="search">
-      <div class="cn-st-refresh"><button id="search-refresh" class="mx-btn mx-sm" type="button">refresh results</button></div>
+      <div class="cn-st-search-tools">
+        <!-- Which indexes (addon search catalogs, plus your library) to search in. -->
+        <details id="search-scope" class="cn-st-scope">
+          <summary class="mx-btn mx-sm" id="search-scope-label">in: everything</summary>
+          <div class="mx-panel cn-st-scope-panel">
+            <input class="mx-input" type="search" id="search-scope-filter" placeholder="find an index" aria-label="Find an index" autocomplete="off">
+            <div class="cn-st-scope-actions">
+              <button id="search-scope-all" class="mx-btn mx-sm" type="button">all</button>
+              <button id="search-scope-none" class="mx-btn mx-sm" type="button">none</button>
+            </div>
+            <div id="search-scope-list" class="cn-st-scope-list"></div>
+          </div>
+        </details>
+        <button id="search-refresh" class="mx-btn mx-sm" type="button">refresh results</button>
+      </div>
       <div id="search-rows"></div>
       <div id="search-readout" class="mx-readout" style="display:none"></div>
     </section>

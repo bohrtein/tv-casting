@@ -314,6 +314,27 @@ function createStremioCoreClient(config) {
     });
   }
 
+  // One catalog's search, asked of its addon directly (the addon protocol's
+  // /catalog/type/id/search=....json), so a narrowed search only reaches the
+  // catalogs it names instead of every searchable one Core knows.
+  function searchCatalog(addonUrl, type, id, query) {
+    var base = String(addonUrl).replace(/\/manifest\.json(\?.*)?$/, '');
+    var url = base + '/catalog/' + encodeURIComponent(type) + '/' + encodeURIComponent(id) +
+      '/search=' + encodeURIComponent(query) + '.json';
+    var controller = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = setTimeout(function () { if (controller) controller.abort(); }, 30000);
+    return fetch(url, { signal: controller && controller.signal }).then(function (response) {
+      if (!response.ok) throw new Error('The addon answered ' + response.status + '.');
+      return response.json();
+    }).then(function (body) {
+      clearTimeout(timer);
+      return (body && Array.isArray(body.metas) ? body.metas : []).filter(function (meta) { return meta && meta.id; });
+    }, function (error) {
+      clearTimeout(timer);
+      throw error && error.name === 'AbortError' ? new Error('The addon took too long to answer.') : error;
+    });
+  }
+
   function search(addons, query) {
     return transport(activeSection).then(function (core) {
       return core.dispatch({ action: 'Load', args: { model: 'CatalogsWithExtra', args: { extra: [['search', query]] } } }, 'search')
@@ -459,6 +480,7 @@ function createStremioCoreClient(config) {
     search: search,
     getBoard: function (onUpdate, fresh) { return catalogRows('board', [], onUpdate, fresh); },
     searchRows: function (query, onUpdate, fresh) { return catalogRows('search', [['search', query]], onUpdate, fresh); },
+    searchCatalog: searchCatalog,
     getMeta: getMeta,
     getStreams: getStreams,
     getSubtitles: getSubtitles,

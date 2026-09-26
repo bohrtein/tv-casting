@@ -18,12 +18,47 @@
 }
 .cn-st .cn-posters { --mx-card-min: 140px; }
 .cn-st-plus18 .mx-nav-brand { color: var(--mx-warn); }
+/* Plus18 artwork is mostly video stills: 16:9 cards, black bars around
+   anything that isn't that shape instead of cropping it. */
+.cn-st-plus18 .cn-poster > .mx-slot-lead,
+.cn-st-plus18 .cn-poster .mx-media,
+.cn-st-plus18 .cn-st-ghost { aspect-ratio: 16 / 9; }
+.cn-st-plus18 .cn-poster > .mx-slot-lead,
+.cn-st-plus18 .cn-poster .mx-media { background: #000; }
+.cn-st-plus18 .cn-poster .mx-media > img { object-fit: contain; object-position: center; }
+.cn-st-plus18 .cn-posters { --mx-card-min: 240px; }
+.cn-st-plus18 .cn-st-strip > * { flex-basis: clamp(200px, 62vw, 300px); }
 
 .cn-st-banner { margin-bottom: var(--mx-space-4); }
 .cn-st-view { padding-bottom: var(--mx-space-6); }
 .cn-st-note { color: var(--mx-ink-dim); font-size: var(--mx-text-md); margin: var(--mx-space-2) 0; }
 .cn-st-view > .mx-panel { margin-bottom: var(--mx-space-4); }
 .cn-st-refresh { display: flex; justify-content: flex-end; margin-bottom: var(--mx-space-2); }
+
+/* Search: the "in:" checklist of indexes, as a dropdown beside refresh. */
+.cn-st-search-tools { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--mx-space-2); margin-bottom: var(--mx-space-2); }
+.cn-st-scope { position: relative; min-width: 0; }
+.cn-st-scope > summary { list-style: none; max-width: min(60vw, 360px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.cn-st-scope > summary::-webkit-details-marker { display: none; }
+.cn-st-scope > summary::after { content: ' \25BE'; }
+.cn-st-scope-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: min(380px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: var(--mx-space-2);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .6);
+}
+.cn-st-scope-actions { display: flex; gap: var(--mx-space-2); }
+.cn-st-scope-list { display: flex; flex-direction: column; max-height: min(50vh, 420px); overflow-y: auto; overscroll-behavior: contain; }
+.cn-st-scope-item { text-transform: none; letter-spacing: normal; font-size: var(--mx-text-md); color: var(--mx-ink); }
+.cn-st-scope-item[hidden] { display: none; }
+.cn-st-scope-item input { flex: 0 0 auto; }
+.cn-st-scope-name { flex: 1 1 auto; min-width: 0; }
+.cn-st-scope-addon { color: var(--mx-ink-dim); font-size: var(--mx-text-xs); white-space: nowrap; }
 
 .cn-st-selects { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mx-space-2); margin-bottom: var(--mx-space-4); }
 .cn-st-selects .mx-input { flex: 0 1 220px; min-width: 0; width: auto; }
