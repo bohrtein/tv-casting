@@ -860,7 +860,10 @@ document.addEventListener('DOMContentLoaded', function () {
         var searchable = (catalog.extra || []).some(function (item) { return item.name === 'search'; }) ||
           (catalog.extraSupported || []).indexOf('search') !== -1;
         if (!searchable) return;
-        list.push({ key: addon.url + '|' + catalog.type + '|' + catalog.id, addonUrl: addon.url, type: catalog.type,
+        // Search-only catalogs have nothing to list until there are words.
+        var needsWords = (catalog.extra || []).some(function (item) { return item.name === 'search' && item.isRequired; }) ||
+          (catalog.extraRequired || []).indexOf('search') !== -1;
+        list.push({ key: addon.url + '|' + catalog.type + '|' + catalog.id, addonUrl: addon.url, type: catalog.type, needsWords: needsWords,
           id: catalog.id, catalogName: catalog.name || catalog.id, version: manifest.version || '',
           name: (catalog.name || catalog.id) + ' · ' + typeLabel(catalog.type), addonName: manifest.name || '' });
       });
@@ -949,9 +952,17 @@ document.addEventListener('DOMContentLoaded', function () {
   var searchScopePicker = createPicker({ name: 'Search in', multi: true, filterPlaceholder: 'find an index',
     className: 'cn-picker-compact', onChange: function (keys) { setSearchScope(normalScope(keys)); } });
   el.searchScope.replaceWith(searchScopePicker.root);
+  // Changing what to search in on Discover shows it straight away: closing
+  // the list opens Search over the checked indexes, with or without words.
+  var discoverScopeChanged = false;
   var discoverScopePicker = createPicker({ name: 'Search in', multi: true, filterPlaceholder: 'find an index',
-    onChange: function (keys) { saveSearchIn(normalScope(keys)); renderSearchScope(); },
-    actions: [{ label: 'this catalog', onClick: function () { store(SEARCH_IN_KEY, ''); renderSearchScope(); } }] });
+    onChange: function (keys) { discoverScopeChanged = true; saveSearchIn(normalScope(keys)); renderSearchScope(); },
+    onClose: function () {
+      if (!discoverScopeChanged) return;
+      discoverScopeChanged = false;
+      if (current.view === 'discover') location.hash = searchHash(el.searchInput.value.trim(), discoverSearchScope());
+    },
+    actions: [{ label: 'this catalog', onClick: function () { discoverScopeChanged = true; store(SEARCH_IN_KEY, ''); renderSearchScope(); } }] });
   el.discoverSearchIn.replaceWith(discoverScopePicker.root);
 
   function renderSearchScope() {
@@ -1001,8 +1012,12 @@ document.addEventListener('DOMContentLoaded', function () {
     var rows = searchState.all.filter(function (item) { return inSearchScope(rowKey(item)); });
     var found = rows.some(function (item) { return item.metas.some(function (meta) { return !blocked(meta); }); }) ||
       !!searchState.mine && !searchState.mine.row.hidden;
+    var wordsOnly = searchState.text ? 0 : searchState.needsWords;
+    var wordsNote = wordsOnly ? (wordsOnly === 1 ? '1 checked index lists' : wordsOnly + ' checked indexes list') +
+      ' nothing until you type a title.' : '';
     if (searchState.scope && !searchState.scope.length) setReadout(el.searchReadout, 'Check at least one index to search in.', false);
-    else if (!searchState.scope && !searchState.all.length && !found) setReadout(el.searchReadout, 'None of your addons can search. Cinemeta can.', true);
+    else if (!searchState.scope && !searchState.all.length && !found && !wordsOnly) setReadout(el.searchReadout, 'None of your addons can search. Cinemeta can.', true);
+    else if (!searchState.text) setReadout(el.searchReadout, found ? wordsNote : 'Nothing to show in the checked indexes. ' + wordsNote, !found);
     else setReadout(el.searchReadout, found ? '' : 'Nothing found for "' + searchState.text + '"' +
       (searchState.scope ? ' in the checked indexes.' : '.'), !found);
   }
@@ -1020,6 +1035,21 @@ document.addEventListener('DOMContentLoaded', function () {
   function searchChecked(query, scope, token, force, signal) {
     var requestSection = section, queryKey = searchState.query;
     var indexes = searchIndexes().filter(function (index) { return scope.indexOf(index.key) !== -1; });
+    // No words: list what each checked catalog has. A search-only catalog
+    // lists its addon's own browsable catalog of that type instead, if it has one.
+    if (!query) {
+      indexes = indexes.map(function (index) {
+        if (!index.needsWords) return index;
+        var stand = catalogs.find(function (c) {
+          return c.addon.url === index.addonUrl && c.catalog.type === index.type &&
+            scope.indexOf(index.addonUrl + '|' + c.catalog.type + '|' + c.catalog.id) === -1 &&
+            !(c.catalog.extra || []).some(function (item) { return item.isRequired; }) && !(c.catalog.extraRequired || []).length;
+        });
+        return stand ? Object.assign({}, index, { fetchId: stand.catalog.id, catalogName: stand.catalog.name || stand.catalog.id }) : index;
+      });
+      searchState.needsWords = indexes.filter(function (index) { return index.needsWords && !index.fetchId; }).length;
+      indexes = indexes.filter(function (index) { return !index.needsWords || index.fetchId; });
+    }
     var rows = indexes.map(function (index) {
       return searchState.fetched[index.key] || { id: index.id, type: index.type, name: index.catalogName,
         addonName: index.addonName, addonUrl: index.addonUrl, state: 'Loading', metas: [] };
@@ -1032,7 +1062,7 @@ document.addEventListener('DOMContentLoaded', function () {
       return (force ? Promise.resolve(null) : browseCache.get('search-index', requestSection, cacheKey, query, signal)).then(function (cached) {
         if (signal && signal.aborted) return null;
         if (cached) return cached;
-        return stremio.searchCatalog(index.addonUrl, index.type, index.id, query, signal).then(function (metas) {
+        return stremio.searchCatalog(index.addonUrl, index.type, index.fetchId || index.id, query, signal).then(function (metas) {
           var row = Object.assign({}, rows[n], { state: 'Ready', metas: metas, empty: !metas.length });
           browseCache.put('search-index', requestSection, cacheKey, query, row);
           return row;
@@ -1063,6 +1093,7 @@ document.addEventListener('DOMContentLoaded', function () {
     renderSearchScope();
     var token = ++searchState.token;
     searchState.all = [];
+    searchState.needsWords = 0;
     searchState.done = false;
     if (force || searchState.query !== section + '|' + query) {
       searchState.query = section + '|' + query;
@@ -1070,17 +1101,17 @@ document.addEventListener('DOMContentLoaded', function () {
       searchState.fetched = {};
       searchState.mine = null;
       el.searchRows.innerHTML = '';
-      if (query) fillLibraryHits(query);
+      fillLibraryHits(query);
     } else {
       // Same words, different checklist: keep the library row and what was found.
       Object.keys(searchState.rows).forEach(function (key) { searchState.rows[key].row.remove(); });
       if (searchState.mine) searchState.mine.row.hidden = !searchState.mine.strip.children.length || !inSearchScope(LIBRARY_INDEX);
     }
     searchState.rows = {};
-    $('search-refresh').disabled = !query;
-    if (!query) { setReadout(el.searchReadout, 'Type a title to search your library and addons.', false); return; }
+    // No words: show what the checked indexes (everything, if none are
+    // narrowed) have, so the "in:" checklist works on its own.
     if (scope && !scope.length) { searchState.done = true; updateSearchReadout(); return; }
-    setReadout(el.searchReadout, 'searching…', false);
+    setReadout(el.searchReadout, query ? 'searching…' : 'loading…', false);
     $('search-refresh').disabled = true;
     whenAddonsReady.then(function () {
       if (token !== searchState.token) return null;
@@ -1123,9 +1154,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   $('search-refresh').addEventListener('click', function () {
     var route = parseRoute();
-    var query = route.params.get('q') || '';
-    if (!query) return;
-    renderSearch(query, routeSearchScope(route.params), true);
+    renderSearch(route.params.get('q') || '', routeSearchScope(route.params), true);
   });
 
   // --- Details ---

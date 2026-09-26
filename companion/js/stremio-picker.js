@@ -4,6 +4,7 @@
 // plain <select>: a button, then a panel with a filter box and the choices.
 // multi: a checklist (onChange gets every checked value, with all/none
 // buttons); otherwise picking one closes it (onPick gets the value).
+// onClose, if given, runs whenever the panel closes.
 function createPicker(opts) {
   var root = document.createElement('div');
   root.className = 'cn-picker' + (opts.className ? ' ' + opts.className : '');
@@ -67,6 +68,7 @@ function createPicker(opts) {
     document.removeEventListener('click', outside);
     if (filter.value) { filter.value = ''; applyFilter(); }
     if (refocus) button.focus();
+    if (opts.onClose) opts.onClose();
   }
 
   // Listening on the page only while open, so pickers rebuilt with the

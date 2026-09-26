@@ -352,11 +352,12 @@ function createStremioCoreClient(config) {
 
   // One catalog's search, asked of its addon directly (the addon protocol's
   // /catalog/type/id/search=....json), so a narrowed search only reaches the
-  // catalogs it names instead of every searchable one Core knows.
+  // catalogs it names instead of every searchable one Core knows. With no
+  // words it asks for the catalog's first page as it is (/catalog/type/id.json).
   function searchCatalog(addonUrl, type, id, query, externalSignal) {
     var base = String(addonUrl).replace(/\/manifest\.json(\?.*)?$/, '');
     var url = base + '/catalog/' + encodeURIComponent(type) + '/' + encodeURIComponent(id) +
-      '/search=' + encodeURIComponent(query) + '.json';
+      (query ? '/search=' + encodeURIComponent(query) : '') + '.json';
     var controller = typeof AbortController === 'function' ? new AbortController() : null;
     var timedOut = false;
     function abortFromOutside() { if (controller) controller.abort(); }
