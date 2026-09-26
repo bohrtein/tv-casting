@@ -15,6 +15,7 @@
   var screen = document.querySelector('.rc-screen');
   var idle = $('receiver-idle'), idleText = $('receiver-idle-text');
   var chip = $('receiver-chip'), chipLabel = $('receiver-chip-label');
+  var OPEN = 1; // WebSocket.OPEN, by number: guests' pages don't use WebSocket
   var socket, hls, loadedUrl = '', generation = 0, enabled = false, retry, activeName = '', announced = false;
   var receiverId, channel, targetId = '', wireless = false;
   var LOCAL_TAB = 'tvc-receiver'; // window name the companion opens this page under
@@ -88,7 +89,7 @@
       error: error ? { code: 'BROWSER_PLAYBACK_FAILED', message: error } : undefined
     };
     controls.render(msg);
-    if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(msg));
+    if (socket && socket.readyState === OPEN) socket.send(JSON.stringify(msg));
   }
   function describe(s) {
     return { idle: 'Waiting for something to play.', buffering: 'Loading…', playing: 'Playing.',
@@ -184,7 +185,9 @@
     clearTimeout(retry);
     if (!enabled || socket && socket.readyState < 2) return;
     setChip('busy', 'connecting'); status.textContent = 'Connecting to the relay…';
-    try { socket = new (APP_CONFIG.RELAY_SOCKET || WebSocket)(APP_CONFIG.RELAY_URL); }
+    var Socket = APP_CONFIG.RELAY_SOCKET || window.WebSocket;
+    if (!Socket) { status.textContent = "This browser can't connect (WebSocket is turned off)."; return; }
+    try { socket = new Socket(APP_CONFIG.RELAY_URL); }
     catch (err) { status.textContent = 'Could not connect to the relay: ' + err.message; retry = setTimeout(connect, 2000); return; }
     var own = socket;
     socket.onopen = function () {
@@ -256,7 +259,7 @@
     var name = currentName();
     storage('localStorage', 'tvc.receiverName', name);
     // Re-register under the new name; the relay keeps the same target id.
-    if (enabled && socket && socket.readyState === WebSocket.OPEN && activeName !== name) {
+    if (enabled && socket && socket.readyState === OPEN && activeName !== name) {
       status.textContent = 'Renaming…';
       socket.close(1000, 'Renaming');
       connect();

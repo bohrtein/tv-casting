@@ -9,6 +9,10 @@
 // saved one is gone, and its commands never leave the page. Guests have
 // one (guest-player.js) instead of the TV.
 function createRelayClient(config, handlers) {
+  // WebSocket's ready states, by number: guests' pages use guest-socket.js
+  // instead, and a browser without WebSocket (iPhone Lockdown Mode) must
+  // still load them.
+  var OPEN = 1, CONNECTING = 0;
   var socket = null;
   var local = handlers.localTarget || null;
   var targetId = local ? local.id : 'tv', targets = [];
@@ -81,7 +85,7 @@ function createRelayClient(config, handlers) {
   var reconnectTimer = null;
 
   function send(message) {
-    if (socket && socket.readyState === WebSocket.OPEN) {
+    if (socket && socket.readyState === OPEN) {
       socket.send(JSON.stringify(message));
       return true;
     }
@@ -99,10 +103,12 @@ function createRelayClient(config, handlers) {
 
   function connect() {
     clearTimeout(reconnectTimer);
-    if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+    if (socket && (socket.readyState === OPEN || socket.readyState === CONNECTING)) {
       return;
     }
-    socket = new (config.RELAY_SOCKET || WebSocket)(config.RELAY_URL);
+    var Socket = config.RELAY_SOCKET || window.WebSocket;
+    if (!Socket) { handlers.onDisconnected(); return; }
+    socket = new Socket(config.RELAY_URL);
 
     socket.onopen = function () {
       reconnectAttempts = 0;
