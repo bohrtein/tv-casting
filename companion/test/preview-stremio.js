@@ -68,7 +68,12 @@ function library() {
   return {
     entries: [{ kind: 'media', key: 'clip', category: 'youtube', title: 'A saved YouTube clip', thumbUrl: `${ORIGIN}/art/y.svg?t=YouTube&w=1`,
       streamUrl: ORIGIN + '/nothing.mp4', bytes: 8e7, createdAt: Date.now() - 7200000, sourceUrl: 'https://www.youtube.com/watch?v=example',
-      progress: { positionSec: 120, durationSec: 600, watched: false, updatedAt: Date.now() - 7200000 } }],
+      progress: { positionSec: 120, durationSec: 600, watched: false, updatedAt: Date.now() - 7200000 } },
+    { kind: 'media', key: 'clip2', category: 'youtube', title: 'A much longer YouTube video title that has to wrap onto a second line and then some more',
+      thumbUrl: `${ORIGIN}/art/y2.svg?t=Video&w=1`, streamUrl: ORIGIN + '/nothing2.mp4', bytes: 3e8, createdAt: Date.now() - 86400000 * 4,
+      progress: { positionSec: 3725, durationSec: 3725, watched: true, updatedAt: Date.now() - 86400000 } },
+    { kind: 'media', key: 'clip3', category: 'youtube', title: 'Never played yet', thumbUrl: `${ORIGIN}/art/y3.svg?t=New&w=1`,
+      streamUrl: ORIGIN + '/nothing3.mp4', bytes: 1e8, createdAt: Date.now() - 86400000 * 2 }],
     torrents: [
       Object.assign({ kind: 'torrents', key: 'movie', category: 'movies', streamUrl: ORIGIN + '/nothing.mp4', bytes: 3.2e9, height: 2160,
         needsTvCopy: false, originalUrl: ORIGIN + '/4k.m3u8', createdAt: Date.now() - 86400000 * 3, metadata: movies[1],

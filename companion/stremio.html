@@ -97,13 +97,18 @@
 
     <!-- Library: your files on the resolver, the way Stremio lists its library. -->
     <section id="view-library" class="cn-st-view cn-hidden" data-view="library">
+      <div id="library-tabs" class="cn-st-libtabs" role="tablist" aria-label="Library sections"></div>
       <div class="cn-st-selects">
-        <select class="mx-input mx-select" id="library-type" aria-label="Type"></select>
         <select class="mx-input mx-select" id="library-sort" aria-label="Sort"></select>
         <input class="mx-input" type="search" id="library-filter" placeholder="filter" aria-label="Filter library by title">
       </div>
       <div id="library-readout" class="mx-readout" style="display:none"></div>
       <div id="library-grid" class="mx-view-grid cn-posters"></div>
+      <!-- YouTube videos: wide thumbnails, the way YouTube lists them. -->
+      <section id="library-youtube" class="cn-st-libyt" hidden>
+        <h3 class="cn-section-title" id="library-youtube-title">YouTube</h3>
+        <div id="library-yt-grid" class="cn-yt-grid"></div>
+      </section>
     </section>
 
     <!-- Calendar: episode release days for the series in your library. -->

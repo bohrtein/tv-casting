@@ -36,8 +36,9 @@ document.addEventListener('DOMContentLoaded', function () {
     discoverType: $('discover-type'), discoverCatalog: $('discover-catalog'), discoverExtra: $('discover-extra'),
     discoverReadout: $('discover-readout'), discoverGrid: $('discover-grid'), discoverMore: $('discover-more'),
     discoverPreview: $('discover-preview'),
-    libraryType: $('library-type'), librarySort: $('library-sort'), libraryFilter: $('library-filter'),
+    libraryTabs: $('library-tabs'), librarySort: $('library-sort'), libraryFilter: $('library-filter'),
     libraryReadout: $('library-readout'), libraryGrid: $('library-grid'),
+    libraryYoutube: $('library-youtube'), libraryYoutubeTitle: $('library-youtube-title'), libraryYtGrid: $('library-yt-grid'),
     calendarTitle: $('calendar-title'), calendarGrid: $('calendar-grid'), calendarReadout: $('calendar-readout'),
     searchRows: $('search-rows'), searchReadout: $('search-readout'),
     detailBg: $('detail-bg'), detailLogo: $('detail-logo'), detailTitle: $('detail-title'), detailInfo: $('detail-info'),
@@ -515,7 +516,6 @@ document.addEventListener('DOMContentLoaded', function () {
   function libraryHash(type) {
     return '#/library' + (type && type !== 'all' ? '/' + encodeURIComponent(type) : '');
   }
-  el.libraryType.addEventListener('change', function () { location.hash = libraryHash(el.libraryType.value); });
   el.librarySort.addEventListener('change', function () { store(LIBRARY_KEY + '.sort', el.librarySort.value); renderLibrary(); });
   el.libraryFilter.addEventListener('input', function () { renderLibrary(); });
 
@@ -527,16 +527,20 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
     var type = route.type || 'all';
-    var types = LibraryModel.types(library.items);
-    el.libraryType.innerHTML = '';
-    option(el.libraryType, 'all', 'All', type === 'all');
-    types.forEach(function (t) { option(el.libraryType, t.value, t.label, t.value === type); });
     var list = LibraryModel.filter(library.items, { type: type, sort: el.librarySort.value, text: el.libraryFilter.value });
     var signature = JSON.stringify([type, el.librarySort.value, el.libraryFilter.value, library.signature]);
     if (signature === libraryView.signature) return;
     libraryView.signature = signature;
+    renderLibraryTabs(type);
     setReadout(el.libraryReadout, library.items.length ? (list.length ? '' : 'Nothing matches.')
       : 'Your library is empty. Choose a stream from any title to save it here.', false);
+    // YouTube videos get their own wide-thumbnail grid (below the posters on All).
+    var videos = list.filter(function (item) { return item.type === 'youtube'; });
+    list = list.filter(function (item) { return item.type !== 'youtube'; });
+    el.libraryYoutube.hidden = !videos.length;
+    hidden(el.libraryYoutubeTitle, type === 'youtube');
+    el.libraryYtGrid.innerHTML = '';
+    videos.forEach(function (item) { el.libraryYtGrid.appendChild(videoCard(item)); });
     el.libraryGrid.innerHTML = '';
     list.forEach(function (item) {
       var meta = item.type === 'series'
@@ -552,6 +556,50 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       }));
     });
+  }
+
+  // All, then one tab per kind of thing saved (Movies, Series, YouTube, …).
+  function renderLibraryTabs(type) {
+    el.libraryTabs.innerHTML = '';
+    [{ value: 'all', label: 'All' }].concat(LibraryModel.types(library.items)).forEach(function (t) {
+      var tab = document.createElement('a');
+      tab.className = 'mx-tab cn-st-libtab' + (t.value === 'youtube' ? ' cn-st-libtab-yt' : '');
+      tab.href = libraryHash(t.value);
+      tab.setAttribute('role', 'tab');
+      tab.setAttribute('aria-selected', String(t.value === type));
+      tab.textContent = t.label;
+      el.libraryTabs.appendChild(tab);
+    });
+  }
+
+  function clock(sec) {
+    sec = Math.round(sec);
+    var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+    return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  // One YouTube video, as YouTube lists it: a 16:9 thumbnail with the
+  // length in the corner and a progress line, then the title.
+  function videoCard(item) {
+    var card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'cn-yt';
+    var progress = item.progress || {};
+    var ratio = LibraryModel.progressRatio(progress);
+    var meta = item.watched ? 'Watched'
+      : ratio > 0 ? Math.round(ratio * 100) + '% watched'
+      : item.added ? 'Saved ' + new Date(item.added).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+    card.innerHTML =
+      '<span class="cn-yt-thumb">' + (item.poster
+        ? '<img loading="lazy" alt="" src="' + escapeHtml(item.poster) + '">'
+        : '<span class="cn-yt-blank">▶</span>') +
+        (progress.durationSec > 0 ? '<span class="cn-yt-length">' + clock(progress.durationSec) + '</span>' : '') +
+      '</span>' +
+      '<span class="cn-yt-title">' + escapeHtml(item.name) + '</span>' +
+      (meta ? '<span class="cn-yt-meta">' + escapeHtml(meta) + '</span>' : '');
+    if (ratio > 0 && ratio < 1) card.querySelector('.cn-yt-thumb').appendChild(progressBar(ratio));
+    card.addEventListener('click', function () { location.hash = detailHref('local', item.key); });
+    return card;
   }
 
   // --- Calendar ---
