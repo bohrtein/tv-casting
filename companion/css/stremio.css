@@ -152,6 +152,8 @@
 }
 #view-detail { position: relative; }
 #view-detail > :not(.cn-st-detail-bg) { position: relative; z-index: 2; }
+/* Downloads sit outside the view but below it, so lift them over the backdrop too. */
+#saving-panel { position: relative; z-index: 2; }
 .cn-st-detail { display: grid; gap: var(--mx-space-5); margin-top: var(--mx-space-3); }
 @media (min-width: 1024px) {
   .cn-st-detail { grid-template-columns: minmax(0, 1fr) minmax(360px, 440px); align-items: start; }
