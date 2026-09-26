@@ -11,7 +11,11 @@ function createPicker(opts) {
   root.innerHTML =
     '<button type="button" class="cn-picker-button" aria-haspopup="listbox" aria-expanded="false">' +
       '<span class="cn-picker-label"></span></button>' +
+    // Phones (mobile.css): the panel is a sheet from the bottom, with a
+    // scrim behind it that closes it and a grip that drags it down.
+    '<div class="cn-picker-scrim" hidden></div>' +
     '<div class="cn-picker-panel" hidden>' +
+      '<div class="cn-picker-grip" aria-hidden="true"></div>' +
       '<input class="mx-input cn-picker-filter" type="search" autocomplete="off" enterkeyhint="done">' +
       (opts.multi ? '<div class="cn-picker-actions">' +
         '<button type="button" class="mx-btn mx-sm" data-all>all</button>' +
@@ -25,6 +29,8 @@ function createPicker(opts) {
   var filter = root.querySelector('.cn-picker-filter');
   var list = root.querySelector('.cn-picker-list');
   var empty = root.querySelector('.cn-picker-empty');
+  var scrim = root.querySelector('.cn-picker-scrim');
+  var grip = root.querySelector('.cn-picker-grip');
   button.setAttribute('aria-label', opts.name || '');
   filter.placeholder = opts.filterPlaceholder || 'filter';
   filter.setAttribute('aria-label', opts.filterPlaceholder || 'filter');
@@ -47,6 +53,8 @@ function createPicker(opts) {
   function open() {
     if (!panel.hidden) return;
     panel.hidden = false;
+    scrim.hidden = false;
+    panel.style.transform = '';
     root.classList.add('cn-picker-open');
     button.setAttribute('aria-expanded', 'true');
     document.addEventListener('click', outside);
@@ -63,6 +71,7 @@ function createPicker(opts) {
   function close(refocus) {
     if (panel.hidden) return;
     panel.hidden = true;
+    scrim.hidden = true;
     root.classList.remove('cn-picker-open');
     button.setAttribute('aria-expanded', 'false');
     document.removeEventListener('click', outside);
@@ -76,6 +85,34 @@ function createPicker(opts) {
   function outside(event) { if (!root.contains(event.target)) close(false); }
 
   button.addEventListener('click', function () { if (panel.hidden) open(); else close(false); });
+  // The scrim is inside root, so outside() leaves it alone: it closes the
+  // sheet itself, and keeps the tap from landing on the page behind.
+  scrim.addEventListener('click', function (event) { event.stopPropagation(); close(false); });
+
+  // Drag the grip down to close; let go early and it springs back.
+  var drag = null;
+  grip.addEventListener('pointerdown', function (event) {
+    drag = { id: event.pointerId, y: event.clientY, t: event.timeStamp, dy: 0 };
+    try { grip.setPointerCapture(event.pointerId); } catch (e) { /* old browsers */ }
+    panel.style.transition = 'none';
+  });
+  grip.addEventListener('pointermove', function (event) {
+    if (!drag || event.pointerId !== drag.id) return;
+    drag.dy = Math.max(0, event.clientY - drag.y);
+    drag.v = drag.dy / Math.max(1, event.timeStamp - drag.t);
+    panel.style.transform = drag.dy ? 'translateY(' + drag.dy + 'px)' : '';
+    event.preventDefault();
+  });
+  function endDrag(event) {
+    if (!drag || event.pointerId !== drag.id) return;
+    var d = drag;
+    drag = null;
+    panel.style.transition = '';
+    panel.style.transform = '';
+    if (d.dy > Math.min(120, panel.offsetHeight / 3) || (d.dy > 20 && d.v > 0.5)) close(false);
+  }
+  grip.addEventListener('pointerup', endDrag);
+  grip.addEventListener('pointercancel', endDrag);
   filter.addEventListener('input', applyFilter);
   root.addEventListener('keydown', function (event) {
     if (event.key === 'Escape' && !panel.hidden) { event.preventDefault(); close(true); return; }

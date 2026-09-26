@@ -23,6 +23,17 @@ body.cn-st { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
   will-change: transform;
 }
 .cn-remote.cn-remote-dragging { transition: none; }
+/* Put away with the "remote" button: slides out of sight, then is gone
+   (hidden, so taps and screen readers skip it). The page gets its room back. */
+.cn-remote.cn-remote-gone {
+  transform: translateY(calc(100% + 40px)) !important;
+  visibility: hidden;
+  transition: transform var(--mx-dur-slow) var(--mx-ease), visibility 0s linear var(--mx-dur-slow);
+}
+body.cn-st.cn-remote-off { padding-bottom: calc(var(--mx-space-5) + env(safe-area-inset-bottom)); }
+@media (max-width: 599px) {
+  body.cn-st.mx-has-nav.cn-remote-off { padding-bottom: calc(var(--mx-nav-h) + var(--mx-space-5) + env(safe-area-inset-bottom)); }
+}
 .cn-remote-head {
   display: flex;
   flex-wrap: wrap;

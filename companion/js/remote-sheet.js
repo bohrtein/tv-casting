@@ -1,21 +1,41 @@
 'use strict';
 
-// The remote as a bottom sheet. On a phone it peeks from the bottom (what's
-// playing and play/pause); drag the grip up for the seek bar and the rest of
-// the buttons, drag it back down to tuck them away. A tap on the grip does the
-// same. On a computer (WIDE) there is room, so it stays open and can't be
-// dragged.
+// The remote as a bottom sheet. On a phone it has three stops:
+//   full     -- everything, captions included
+//   controls -- the seek bar and buttons, captions tucked away
+//   peek     -- only what's playing and play/pause
+// Drag the grip between them (it snaps to the nearest, or the next one in
+// the direction of a quick flick). A tap on the grip steps up one stop,
+// and from full back down to peek. Casting opens it at whichever of full
+// or controls was used last. On a computer (WIDE) there is room, so it
+// stays open and can't be dragged.
 function createRemoteSheet(sheet) {
   var WIDE = window.matchMedia('(min-width: 900px)');
+  var LEVEL_KEY = 'tvc.remote.level';
+  var LEVELS = ['peek', 'controls', 'full'];
   var grip = sheet.querySelector('.cn-remote-grip');
   var head = sheet.querySelector('.cn-remote-head');
   var body = sheet.querySelector('.cn-remote-body');
-  var open = false;
+  var captions = sheet.querySelector('.cn-captions');
+  var level = 'peek';
   var drag = null;
 
-  // How far the sheet sits below its open position when collapsed:
-  // everything under the head, bottom padding included.
-  function hiddenBy() { return sheet.offsetHeight - (head.offsetTop + head.offsetHeight); }
+  function remembered() {
+    try { return localStorage.getItem(LEVEL_KEY) === 'controls' ? 'controls' : 'full'; } catch (e) { return 'full'; }
+  }
+  function remember(value) {
+    try { localStorage.setItem(LEVEL_KEY, value); } catch (e) { /* private mode */ }
+  }
+
+  // How far the sheet sits below its fully open position at each stop:
+  // everything under the head for peek, everything from the captions
+  // down for controls (bottom padding included in both).
+  function offsetFor(value) {
+    if (value === 'full') return 0;
+    var bottom = sheet.getBoundingClientRect().bottom;
+    var cut = value === 'controls' && captions ? captions.getBoundingClientRect().top : head.getBoundingClientRect().bottom;
+    return Math.max(0, bottom - cut);
+  }
 
   function place(offset, animate) {
     sheet.classList.toggle('cn-remote-dragging', !animate);
@@ -23,11 +43,17 @@ function createRemoteSheet(sheet) {
   }
 
   function set(value) {
-    open = WIDE.matches || !!value;
+    level = WIDE.matches ? 'full' : value;
+    var open = level !== 'peek';
+    if (open && !WIDE.matches) remember(level);
+    // Stops are measured from the top of the body, so it can't be
+    // scrolled part way down.
+    if (level !== 'full') body.scrollTop = 0;
     sheet.classList.toggle('cn-remote-open', open);
+    sheet.classList.toggle('cn-remote-full', level === 'full');
     grip.setAttribute('aria-expanded', open ? 'true' : 'false');
-    grip.setAttribute('aria-label', open ? 'Collapse remote' : 'Expand remote');
-    place(open ? 0 : hiddenBy(), true);
+    grip.setAttribute('aria-label', level === 'peek' ? 'Show remote controls' : level === 'controls' ? 'Show captions' : 'Hide remote');
+    place(offsetFor(level), true);
   }
 
   function start(e) {
@@ -36,7 +62,7 @@ function createRemoteSheet(sheet) {
     if (!head.contains(e.target)) return;
     // Buttons in the head row keep working as buttons.
     if (e.target.closest('button') && e.target.closest('button') !== grip) return;
-    drag = { id: e.pointerId, y: e.clientY, t: e.timeStamp, base: open ? 0 : hiddenBy(), offset: null, moved: false };
+    drag = { id: e.pointerId, y: e.clientY, t: e.timeStamp, base: offsetFor(level), offset: null, moved: false };
     try { sheet.setPointerCapture(e.pointerId); } catch (err) { /* old browsers */ }
   }
 
@@ -45,7 +71,7 @@ function createRemoteSheet(sheet) {
     var dy = e.clientY - drag.y;
     if (!drag.moved && Math.abs(dy) < 6) return;
     drag.moved = true;
-    drag.offset = Math.max(0, Math.min(hiddenBy(), drag.base + dy));
+    drag.offset = Math.max(0, Math.min(offsetFor('peek'), drag.base + dy));
     drag.v = dy / Math.max(1, e.timeStamp - drag.t); // px per ms, + is down
     place(drag.offset, false);
     e.preventDefault();
@@ -56,12 +82,26 @@ function createRemoteSheet(sheet) {
     var d = drag;
     drag = null;
     if (!d.moved) {
-      // A tap on the grip or the empty part of the head toggles.
-      if (e.type === 'pointerup') set(!open);
+      // A tap on the grip or the empty part of the head steps up.
+      if (e.type === 'pointerup') step();
       return;
     }
-    var fast = Math.abs(d.v || 0) > 0.5;
-    set(fast ? d.v < 0 : d.offset < hiddenBy() / 2);
+    var stops = LEVELS.map(function (value) { return { value: value, offset: offsetFor(value) }; });
+    var target;
+    if (Math.abs(d.v || 0) > 0.5) {
+      // A flick goes to the next stop that way from where it was let go.
+      var ahead = stops.filter(function (s) { return d.v < 0 ? s.offset < d.offset - 1 : s.offset > d.offset + 1; });
+      ahead.sort(function (a, b) { return Math.abs(a.offset - d.offset) - Math.abs(b.offset - d.offset); });
+      target = ahead[0];
+    }
+    if (!target) {
+      target = stops.slice().sort(function (a, b) { return Math.abs(a.offset - d.offset) - Math.abs(b.offset - d.offset); })[0];
+    }
+    set(target.value);
+  }
+
+  function step() {
+    set(level === 'peek' ? 'controls' : level === 'controls' ? 'full' : 'peek');
   }
 
   sheet.addEventListener('pointerdown', start);
@@ -70,24 +110,44 @@ function createRemoteSheet(sheet) {
   sheet.addEventListener('pointercancel', end);
   // The grip is a button so the keyboard can reach it; pointer taps are
   // handled above, this covers Enter and Space.
-  grip.addEventListener('click', function (e) { if (e.detail === 0) set(!open); });
+  grip.addEventListener('click', function (e) { if (e.detail === 0) step(); });
   head.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && open && !WIDE.matches) set(false);
+    if (e.key === 'Escape' && level !== 'peek' && !WIDE.matches) set(level === 'full' ? 'controls' : 'peek');
   });
 
-  // Keep the collapsed position right when the body's height changes
-  // (seek bar appears, pending-seek note, rotation).
-  function resync() { if (!drag) set(open); }
+  // Keep each stop in the right place when the body's height changes
+  // (seek bar appears, pending-seek note, caption note, rotation).
+  function resync() { if (!drag) set(level); }
   if (WIDE.addEventListener) WIDE.addEventListener('change', resync);
   else if (WIDE.addListener) WIDE.addListener(resync);
   window.addEventListener('resize', resync);
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resync).observe(body);
 
-  set(false);
+  // Put away entirely (the "remote" button by the search box), peek bar
+  // and all, for more room on a phone. Remembered; casting brings it back.
+  var GONE_KEY = 'tvc.remote.hidden';
+  var gone = false;
+  function hide(value) {
+    gone = !!value && !WIDE.matches;
+    sheet.classList.toggle('cn-remote-gone', gone);
+    document.body.classList.toggle('cn-remote-off', gone);
+    sheet.setAttribute('aria-hidden', gone ? 'true' : 'false');
+    try { localStorage.setItem(GONE_KEY, gone ? '1' : '0'); } catch (e) { /* private mode */ }
+    if (onHidden) onHidden(gone);
+  }
+  var onHidden = null;
+  try { gone = localStorage.getItem(GONE_KEY) === '1'; } catch (e) { /* private mode */ }
+
+  set('peek');
+  hide(gone);
   return {
-    open: function () { set(true); },
-    close: function () { set(false); },
-    isOpen: function () { return open; }
+    open: function () { hide(false); set(remembered()); },
+    hidden: function () { return gone; },
+    setHidden: hide,
+    onHiddenChange: function (fn) { onHidden = fn; fn(gone); },
+    close: function () { set('peek'); },
+    isOpen: function () { return level !== 'peek'; },
+    level: function () { return level; }
   };
 }
 

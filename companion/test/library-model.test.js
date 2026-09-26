@@ -66,3 +66,19 @@ test('calendar lists library episodes by release day', () => {
   assert.deepEqual(Object.keys(days), ['1', '3']);
   assert.equal(days[3][0].video.id, 'tt1:1:2');
 });
+
+test('storage adds up each item, by kind and biggest first', () => {
+  const sized = { entries: [
+    { kind: 'media', key: 'a', category: 'youtube', title: 'Clip', bytes: 2e8 },
+    { kind: 'media', key: 'b', category: 'youtube', title: 'Long clip', bytes: 9e8 },
+    { kind: 'media', key: 'x', category: 'porn', title: 'Hidden', bytes: 5e9 }
+  ], torrents: [
+    episode(1, 1, { bytes: 1e9 }), episode(1, 2, { bytes: 2e9 }),
+    { kind: 'torrents', key: 'film', category: 'movies', bytes: 4e9, metadata: { type: 'movie', id: 'tt9', name: 'Film' } },
+    { kind: 'torrents', key: 'empty', category: 'movies', title: 'Nothing yet' }
+  ] };
+  const usage = LibraryModel.storage(LibraryModel.build(sized, 'normal'), 2);
+  assert.equal(usage.totalBytes, 8.1e9);
+  assert.deepEqual(usage.types.map((t) => [t.type, t.bytes, t.count]), [['movie', 4e9, 1], ['series', 3e9, 1], ['youtube', 1.1e9, 2]]);
+  assert.deepEqual(usage.largest.map((l) => [l.item.name, l.bytes]), [['Film', 4e9], ['Show', 3e9]]);
+});

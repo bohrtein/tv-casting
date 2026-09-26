@@ -5,7 +5,11 @@
 
 .cn-st-top { flex-wrap: nowrap; gap: var(--mx-space-3); }
 .cn-st-search { flex: 1 1 auto; min-width: 0; }
-.cn-st-search .mx-input { width: 100%; }
+.cn-st-search { display: flex; align-items: center; gap: var(--mx-space-2); }
+.cn-st-search .mx-input { width: 100%; flex: 1 1 auto; min-width: 0; }
+/* Hides the phone's remote (remote-sheet.js); a computer's is docked. */
+.cn-remote-toggle { flex: 0 0 auto; }
+@media (min-width: 900px) { .cn-remote-toggle { display: none; } }
 .cn-st-top-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--mx-space-2); flex: 0 1 auto; min-width: 0; }
 .cn-st-top-actions .tvc-target-label .mx-input { width: auto; max-width: 180px; min-height: var(--mx-h-sm); }
 .cn-st-search { flex-basis: 280px; }
@@ -18,6 +22,18 @@
 }
 .cn-st .cn-posters { --mx-card-min: 140px; }
 .cn-st-plus18 .mx-nav-brand { color: var(--mx-warn); }
+/* Slim name bar above the search row, where the sidebar brand is hidden. */
+.cn-st-brandbar { display: flex; align-items: center; justify-content: center; height: 30px; margin: 0 0 var(--mx-space-1); }
+.cn-st-brandbar a {
+  font-family: var(--mx-gothic);
+  font-size: 22px;
+  line-height: 1;
+  color: var(--mx-ink-hot);
+  text-decoration: none;
+  text-shadow: 0 0 12px var(--mx-accent-glow);
+}
+.cn-st-plus18 .cn-st-brandbar a { color: var(--mx-warn); }
+@media (min-width: 1024px) { .cn-st-brandbar { display: none; } }
 /* Plus18 artwork is mostly video stills: 16:9 cards, black bars around
    anything that isn't that shape instead of cropping it. */
 .cn-st-plus18 .cn-poster > .mx-slot-lead,
@@ -90,6 +106,8 @@
   box-shadow: var(--mx-shadow), 0 0 24px var(--mx-accent-low);
 }
 .cn-picker-panel[hidden] { display: none; }
+/* Phone-only parts of the dropdown sheet (mobile.css shows them). */
+.cn-picker-scrim, .cn-picker-grip { display: none; }
 .cn-picker .cn-picker-panel .cn-picker-filter { flex: 0 0 auto; width: 100%; min-height: 40px; padding: 8px 11px; }
 .cn-picker .cn-picker-panel .cn-picker-filter[hidden] { display: none; }
 .cn-picker-actions { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -509,3 +527,33 @@
 .cn-account .cn-confirm { color: var(--mx-danger); border-color: var(--mx-danger-line); background: var(--mx-danger-low); }
 .cn-accounts-form { display: flex; flex-wrap: wrap; gap: var(--mx-space-2); margin-bottom: var(--mx-space-2); }
 .cn-accounts-form .mx-input { flex: 1 1 160px; min-width: 0; font-size: max(16px, var(--mx-text-md)); }
+
+/* Library storage panel: a bar of the drive, by kind, then the biggest items. */
+.cn-st-storage[hidden] { display: none; }
+.cn-st-storage > summary { display: flex; align-items: baseline; gap: var(--mx-space-3); cursor: pointer; list-style: none; }
+.cn-st-storage > summary::-webkit-details-marker { display: none; }
+.cn-st-storage > summary::before { content: '\25B8'; color: var(--mx-ink-dim); }
+.cn-st-storage[open] > summary::before { content: '\25BE'; }
+.cn-st-storage-label { color: var(--mx-ink-hot); text-transform: uppercase; letter-spacing: 0.08em; font-size: var(--mx-text-sm); }
+.cn-st-storage-sum { color: var(--mx-ink); font-size: var(--mx-text-sm); }
+.cn-st-storage-bar { display: flex; height: 14px; margin: var(--mx-space-4) 0 var(--mx-space-3); border: 1px solid var(--mx-border); border-radius: var(--mx-r-sm); overflow: hidden; background: var(--mx-surface-sunken); }
+.cn-st-storage-bar .cn-st-seg { height: 100%; min-width: 3px; border-radius: 0; }
+.cn-st-storage-bar .cn-st-seg-other, .cn-st-storage-bar .cn-st-seg-free { min-width: 0; flex: 1 1 auto; }
+.cn-st-storage-bar .cn-st-seg + .cn-st-seg { box-shadow: inset 1px 0 0 var(--mx-bg); }
+.cn-st-seg { display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex: 0 0 auto; }
+.cn-st-seg-0 { background: var(--mx-accent); }
+.cn-st-seg-1 { background: color-mix(in srgb, var(--mx-accent) 62%, var(--mx-bg)); }
+.cn-st-seg-2 { background: color-mix(in srgb, var(--mx-accent) 38%, var(--mx-bg)); }
+.cn-st-seg-3 { background: color-mix(in srgb, var(--mx-accent) 22%, var(--mx-bg)); }
+.cn-st-seg-other { background: var(--mx-warn-line); }
+.cn-st-seg-free { background: transparent; box-shadow: inset 0 0 0 1px var(--mx-border-soft); }
+.cn-st-storage-bar .cn-st-seg-free { box-shadow: none; }
+.cn-st-storage-legend, .cn-st-storage-top { list-style: none; margin: 0; padding: 0; font-size: var(--mx-text-sm); }
+.cn-st-storage-legend li, .cn-st-storage-top li { display: flex; align-items: center; gap: var(--mx-space-2); padding: 3px 0; }
+.cn-st-storage-name { color: var(--mx-ink); }
+.cn-st-storage-detail { color: var(--mx-ink-dim); flex: 1 1 auto; }
+.cn-st-storage-size { color: var(--mx-ink-hot); font-variant-numeric: tabular-nums; margin-left: auto; white-space: nowrap; }
+.cn-st-storage-h { margin: var(--mx-space-4) 0 var(--mx-space-1); color: var(--mx-ink-dim); font-size: var(--mx-text-sm); font-weight: normal; text-transform: uppercase; letter-spacing: 0.08em; }
+.cn-st-storage-h[hidden] { display: none; }
+.cn-st-storage-top a { color: var(--mx-ink); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.cn-st-storage-top a:hover { color: var(--mx-accent); }

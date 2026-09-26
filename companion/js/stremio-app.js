@@ -58,6 +58,9 @@ document.addEventListener('DOMContentLoaded', function () {
     discoverPreview: $('discover-preview'),
     libraryTabs: $('library-tabs'), librarySort: $('library-sort'), libraryFilter: $('library-filter'),
     libraryReadout: $('library-readout'), libraryGrid: $('library-grid'),
+    libraryStorage: $('library-storage'), libraryStorageSummary: $('library-storage-summary'),
+    libraryStorageBar: $('library-storage-bar'), libraryStorageLegend: $('library-storage-legend'),
+    libraryStorageTop: $('library-storage-top'),
     libraryYoutube: $('library-youtube'), libraryYoutubeTitle: $('library-youtube-title'), libraryYtGrid: $('library-yt-grid'),
     calendarTitle: $('calendar-title'), calendarGrid: $('calendar-grid'), calendarReadout: $('calendar-readout'),
     searchRows: $('search-rows'), searchReadout: $('search-readout'),
@@ -300,7 +303,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // The remote sheet at the bottom (remote-sheet.js, remote-controls.js).
   var remoteSheet = createRemoteSheet($('remote-sheet'));
-  var remote = createRemoteControls(relay, nowCasting, resolver);
+  var remoteToggle = $('remote-toggle');
+  remoteSheet.onHiddenChange(function (gone) {
+    remoteToggle.setAttribute('aria-pressed', gone ? 'false' : 'true');
+    remoteToggle.title = gone ? 'Show the remote' : 'Hide the remote';
+  });
+  remoteToggle.addEventListener('click', function () { remoteSheet.setHidden(!remoteSheet.hidden()); });
+  var remote =createRemoteControls(relay, nowCasting, resolver);
   function renderStatus(msg) {
     if (msg.state === 'tv_offline') setRelayChip('err', 'tv offline');
     remote.render(msg);
@@ -327,7 +336,7 @@ document.addEventListener('DOMContentLoaded', function () {
       library.error = null;
       library.items = LibraryModel.build(cache, section);
     }, function (err) { library.error = err; }).then(function () {
-      var signature = JSON.stringify(library.items || []);
+      var signature = JSON.stringify([library.items || [], library.cache && library.cache.disk]);
       var changed = signature !== library.signature;
       library.signature = signature;
       library.waiting.splice(0).forEach(function (resolve) { resolve(); });
@@ -734,6 +743,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (signature === libraryView.signature) return;
     libraryView.signature = signature;
     renderLibraryTabs(type);
+    renderStorage();
     setReadout(el.libraryReadout, library.items.length ? (list.length ? '' : 'Nothing matches.')
       : 'Your library is empty. Choose a stream from any title to save it here.', false);
     // YouTube videos get their own wide-thumbnail grid (below the posters on All).
@@ -757,6 +767,69 @@ document.addEventListener('DOMContentLoaded', function () {
           location.hash = item.kind === 'title' ? detailHref(item.type, item.metadata.id) : detailHref('local', item.key);
         }
       }));
+    });
+  }
+
+  function formatSize(n) {
+    if (n >= 1e12) return (n / 1e12).toFixed(2) + ' TB';
+    if (n >= 1e9) return (n / 1e9).toFixed(n >= 1e11 ? 0 : 1) + ' GB';
+    return Math.max(1, Math.round(n / 1e6)) + ' MB';
+  }
+
+  // The storage panel: the whole library (not just the open tab), by
+  // kind, against the drive it's on. Guests' libraries come without the
+  // drive (guest-gateway.js), so they see only their own total. Anything
+  // else on the drive, 18+ files hidden in this mode included, counts as
+  // "other files".
+  (function () {
+    el.libraryStorage.open = stored(LIBRARY_KEY + '.storage') === 'open';
+    el.libraryStorage.addEventListener('toggle', function () {
+      store(LIBRARY_KEY + '.storage', el.libraryStorage.open ? 'open' : 'closed');
+    });
+  })();
+  function renderStorage() {
+    var usage = LibraryModel.storage(library.items, 5);
+    var disk = library.cache && library.cache.disk;
+    el.libraryStorage.hidden = !usage.totalBytes && !disk;
+    var usedByAll = disk ? disk.totalBytes - disk.freeBytes : usage.totalBytes;
+    var scale = disk ? disk.totalBytes : usage.totalBytes || 1;
+    el.libraryStorageSummary.textContent = formatSize(usage.totalBytes) + ' used' +
+      (disk ? ' · ' + formatSize(disk.freeBytes) + ' free of ' + formatSize(disk.totalBytes) : '');
+    var segments = usage.types.map(function (t, i) {
+      return { label: t.label, detail: t.count + (t.count === 1 ? ' item' : ' items'), bytes: t.bytes, cls: 'cn-st-seg-' + Math.min(i, 3) };
+    });
+    if (disk && usedByAll > usage.totalBytes) segments.push({ label: 'Other files', detail: 'on the drive', bytes: usedByAll - usage.totalBytes, cls: 'cn-st-seg-other' });
+    if (disk) segments.push({ label: 'Free', detail: Math.round(disk.freeBytes / disk.totalBytes * 100) + '%', bytes: disk.freeBytes, cls: 'cn-st-seg-free' });
+    el.libraryStorageBar.innerHTML = '';
+    el.libraryStorageLegend.innerHTML = '';
+    segments.forEach(function (s) {
+      var seg = document.createElement('span');
+      seg.className = 'cn-st-seg ' + s.cls;
+      seg.style.width = (s.bytes / scale * 100).toFixed(2) + '%';
+      el.libraryStorageBar.appendChild(seg);
+      var row = document.createElement('li');
+      row.innerHTML = '<span class="cn-st-seg ' + s.cls + '"></span><span class="cn-st-storage-name"></span>' +
+        '<span class="cn-st-storage-detail"></span><span class="cn-st-storage-size"></span>';
+      row.children[1].textContent = s.label;
+      row.children[2].textContent = s.detail;
+      row.children[3].textContent = formatSize(s.bytes);
+      el.libraryStorageLegend.appendChild(row);
+    });
+    el.libraryStorageBar.setAttribute('aria-label', el.libraryStorageSummary.textContent);
+    el.libraryStorageTop.innerHTML = '';
+    el.libraryStorageTop.previousElementSibling.hidden = !usage.largest.length;
+    usage.largest.forEach(function (entry) {
+      var item = entry.item;
+      var row = document.createElement('li');
+      var link = document.createElement('a');
+      link.href = item.kind === 'title' ? detailHref(item.type, item.metadata.id) : detailHref('local', item.key);
+      link.textContent = item.name;
+      var size = document.createElement('span');
+      size.className = 'cn-st-storage-size';
+      size.textContent = formatSize(entry.bytes);
+      row.appendChild(link);
+      row.appendChild(size);
+      el.libraryStorageTop.appendChild(row);
     });
   }
 

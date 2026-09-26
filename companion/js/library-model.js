@@ -209,10 +209,34 @@ var LibraryModel = (function () {
     return days;
   }
 
+  // What the library takes on disk: in total, per kind (in TYPE_ORDER),
+  // and the biggest items, for the library's storage panel.
+  function storage(items, largestCount) {
+    var byType = {};
+    var total = 0;
+    var sized = [];
+    items.forEach(function (item) {
+      var bytes = item.files.reduce(function (sum, e) { return sum + (e.bytes || 0); }, 0);
+      if (!bytes) return;
+      total += bytes;
+      var t = byType[item.type] = byType[item.type] || { type: item.type, label: TYPE_LABELS[item.type], bytes: 0, count: 0 };
+      t.bytes += bytes;
+      t.count++;
+      sized.push({ item: item, bytes: bytes });
+    });
+    sized.sort(function (a, b) { return b.bytes - a.bytes; });
+    return {
+      totalBytes: total,
+      types: TYPE_ORDER.filter(function (type) { return byType[type]; }).map(function (type) { return byType[type]; }),
+      largest: sized.slice(0, largestCount || 5)
+    };
+  }
+
   return {
     TYPE_LABELS: TYPE_LABELS, SORTS: SORTS, build: build, types: types, filter: filter,
     continueWatching: continueWatching, findTitle: findTitle, filesFor: filesFor,
-    episodeStatus: episodeStatus, progressRatio: progressRatio, calendar: calendar, titleKey: titleKey
+    episodeStatus: episodeStatus, progressRatio: progressRatio, calendar: calendar, titleKey: titleKey,
+    storage: storage
   };
 })();
 

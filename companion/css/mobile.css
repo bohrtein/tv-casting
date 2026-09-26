@@ -131,12 +131,32 @@
     padding: var(--mx-space-3) var(--mx-space-4) calc(var(--mx-space-4) + env(safe-area-inset-bottom));
     border-radius: var(--mx-r-lg) var(--mx-r-lg) 0 0;
     border-bottom: 0;
-    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .6), var(--mx-shadow);
+    box-shadow: var(--mx-shadow);
+    z-index: 1;
+    transition: transform var(--mx-dur-slow) var(--mx-ease);
   }
-  .cn-picker-panel::before {
-    content: "";
-    align-self: center;
+  /* A real element, not a shadow: taps on it close the sheet instead of
+     landing on the page (or doing nothing, on an iPhone). */
+  .cn-picker-scrim:not([hidden]) {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .6);
+    cursor: pointer;
+  }
+  /* The handle: drag it down to close. A tall strip, easy to catch. */
+  .cn-picker-grip {
+    display: flex;
+    justify-content: center;
+    align-items: center;
     flex: 0 0 auto;
+    height: 24px;
+    margin: calc(-1 * var(--mx-space-3)) calc(-1 * var(--mx-space-4)) 0;
+    touch-action: none;
+    cursor: grab;
+  }
+  .cn-picker-grip::before {
+    content: "";
     width: 36px;
     height: 4px;
     border-radius: 2px;

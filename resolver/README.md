@@ -219,7 +219,9 @@ the download to get there.
   you already downloaded" without re-resolving the source url. Also
   `"torrents": [{ "kind", "key", "title", "streamUrl", "thumbUrl", "bytes", "createdAt", "lastUsedAt" }]`:
   the films saved from torrents, which the
-  companion's downloads list offers to cast.
+  companion's downloads list offers to cast. And `"disk": { "totalBytes", "freeBytes" }`
+  for the drive `MEDIA_DIR` is on (`null` if Node can't tell), for the
+  library's storage panel. The guest door leaves it out.
 - `GET /thumb/<media|torrents>/<key>.jpg` — a 480 px frame from 10% into a
   saved video or film (`src/thumbs.js`), made on first request and kept in
   `MEDIA_DIR/thumbs/` until the video is deleted. A film still saving gets a

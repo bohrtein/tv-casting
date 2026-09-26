@@ -53,11 +53,16 @@
 
 <div class="mx-shell">
 
+  <!-- Phones and tablets: a slim name bar (the sidebar shows it on a computer). -->
+  <header class="cn-st-brandbar"><a href="#/">stremio</a></header>
+
   <!-- Stremio Web's horizontal bar: search across addons, then the section and TV state. -->
   <div class="mx-topbar cn-st-top">
     <form id="search-form" class="cn-st-search" role="search">
       <label class="mx-sr-only" for="search-input">Search</label>
       <input class="mx-input" type="search" id="search-input" placeholder="Search movies, series, your library…" enterkeyhint="search" autocomplete="off">
+      <!-- Phones: puts the remote away entirely, and back (remote-sheet.js). -->
+      <button id="remote-toggle" class="mx-btn mx-sm cn-remote-toggle" type="button" aria-controls="remote-sheet" aria-pressed="true">remote</button>
     </form>
     <div class="cn-st-top-actions" data-relay-targets>
       <button id="plus18-toggle" class="mx-btn mx-sm" type="button" aria-pressed="false">18+</button>
@@ -108,6 +113,14 @@
         <select class="mx-input mx-select" id="library-sort" aria-label="Sort"></select>
         <input class="mx-input" type="search" id="library-filter" placeholder="filter" aria-label="Filter library by title">
       </div>
+      <!-- Storage: what the library takes on the server's drive. -->
+      <details id="library-storage" class="mx-panel cn-st-storage" hidden>
+        <summary><span class="cn-st-storage-label">Storage</span><span id="library-storage-summary" class="cn-st-storage-sum"></span></summary>
+        <div id="library-storage-bar" class="cn-st-storage-bar" role="img"></div>
+        <ul id="library-storage-legend" class="cn-st-storage-legend"></ul>
+        <h3 class="cn-st-storage-h">Largest</h3>
+        <ol id="library-storage-top" class="cn-st-storage-top"></ol>
+      </details>
       <div id="library-readout" class="mx-readout" style="display:none"></div>
       <div id="library-grid" class="mx-view-grid cn-posters"></div>
       <!-- YouTube videos: wide thumbnails, the way YouTube lists them. -->

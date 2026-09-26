@@ -81,7 +81,8 @@ function library() {
         progress: { positionSec: 3100, durationSec: 5400, watched: false, updatedAt: Date.now() - 86400000 } }),
       ep(1, 1, { progress: watched }), ep(1, 2, { partial: true, canResume: true, savedSec: 900, durationSec: 2700 })],
     titles: [Object.assign({}, show, { videos: show.videos.map((v) => Object.assign({}, v, {
-      progress: v.id === `${show.id}:1:1` ? watched : { positionSec: 0, durationSec: 0, watched: false } })) })]
+      progress: v.id === `${show.id}:1:1` ? watched : { positionSec: 0, durationSec: 0, watched: false } })) })],
+    disk: { totalBytes: 2e12, freeBytes: 1.35e12 }
   };
 }
 

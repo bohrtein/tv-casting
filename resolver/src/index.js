@@ -279,7 +279,18 @@ function librarySnapshot(host) {
       entry.progress = libraryState.progress(entry);
       if (entry.metadata && entry.metadata.poster) entry.thumbUrl = entry.metadata.poster;
     }
-    return { entries: list, torrents, titles: Object.values(libraryState.data.titles).map(m => libraryState.localMetadata(m, origin)) };
+    return { entries: list, torrents, titles: Object.values(libraryState.data.titles).map(m => libraryState.localMetadata(m, origin)), disk: diskUsage() };
+}
+
+// The drive the library is on, for the library's storage panel. null
+// where the platform can't say (fs.statfs is Node 18.15+).
+function diskUsage() {
+  try {
+    const s = fs.statfsSync(MEDIA_DIR);
+    return { totalBytes: s.blocks * s.bsize, freeBytes: s.bavail * s.bsize };
+  } catch (e) {
+    return null;
+  }
 }
 
 function sendJson(res, status, body) {
