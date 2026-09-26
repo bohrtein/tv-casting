@@ -115,6 +115,30 @@ function httpInputArgs() {
   ];
 }
 
+function needsVideoNormalization(url, codec, signal) {
+  if (!COPY_VIDEO.includes(codec)) return Promise.resolve(false);
+  return new Promise((resolve, reject) => {
+    const child = spawn(FFMPEG_BIN, [
+      '-hide_banner', '-nostats', '-v', 'warning', ...httpInputArgs(),
+      '-t', '2', '-i', url, '-map', '0:v:0', '-an', '-f', 'null', '-'
+    ], { signal });
+    let stderr = '';
+    child.stderr.on('data', (c) => { stderr = (stderr + c).slice(-16000); });
+    child.on('error', (err) => {
+      if (err.name === 'AbortError') return;
+      // If validation itself cannot start, preserve the old fast path rather
+      // than making every torrent require a full transcode.
+      resolve(false);
+    });
+    child.on('close', (code) => {
+      if (signal && signal.aborted) { reject(new Error('Cancelled.')); return; }
+      const broken = /non-existing (?:SPS|PPS)|decode_slice_header error|Invalid NAL unit|missing picture in access unit|Error splitting the input into NAL units|no frame!/i.test(stderr);
+      if (broken) console.log(new Date().toISOString(), `video bitstream needs normalization (${codec}):`, stderr.trim().split('\n').slice(-3).join(' | '));
+      resolve(broken || code !== 0);
+    });
+  });
+}
+
 function probe(url, signal) {
   return new Promise((resolve, reject) => {
     const child = spawn(FFPROBE_BIN, [
@@ -234,17 +258,20 @@ async function download(url, outDir, { onProbed, onReady, onProgress, onResume =
   if (!info.video) throw new Error('That torrent file has no video in it.');
   const { width, height, codec_name: codec } = info.video;
   const tooBig = MAX_HEIGHT > 0 && (height > MAX_HEIGHT || width > MAX_WIDTH);
-  const convert = tooBig || !COPY_VIDEO.includes(codec);
+  const normalize = !tooBig && COPY_VIDEO.includes(codec)
+    ? await needsVideoNormalization(url, codec, signal)
+    : false;
+  const convert = tooBig || normalize || !COPY_VIDEO.includes(codec);
   // Only ever shrinks, keeping the shape; never scales a small film up.
   const box = MAX_HEIGHT > 0 ? { w: MAX_WIDTH, h: MAX_HEIGHT } : { w: 1920, h: 1080 };
   const keepOriginal = tooBig && KEEP_ORIGINAL;
   const converting = !convert ? null
     : tooBig ? `${width}x${height} ${codec} → ${MAX_HEIGHT}p${keepOriginal ? ', keeping the original' : ''}`
-      : `${codec} → h264`;
-  const encoderLabel = convert ? ((await pickEncoder()) === 'nvenc' ? ' on the GPU' : ' on the CPU') : '';
-  onProbed({ durationSec: info.duration, converting: converting && converting + encoderLabel });
-
+      : normalize ? `${codec} bitstream cleanup → h264`
+        : `${codec} → h264`;
   const encoder = convert ? await pickEncoder() : null;
+  const encoderLabel = convert ? (encoder === 'nvenc' ? ' on the GPU' : ' on the CPU') : '';
+  onProbed({ durationSec: info.duration, converting: converting && converting + encoderLabel });
   const videoArgs = !convert ? ['-c:v', 'copy'] : encodeArgs(encoder, box);
   // GPU decoding hands frames back to the CPU for scaling (plain -hwaccel,
   // no hw output format), so the filters above work the same either way;
