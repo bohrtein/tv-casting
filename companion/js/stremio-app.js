@@ -370,6 +370,31 @@ document.addEventListener('DOMContentLoaded', function () {
   // --- Board ---
 
   var board = { key: null, rows: {}, token: 0, cw: null };
+  var boardRenderQueue = [];
+  var boardRenderFrame = 0;
+
+  function flushBoardRenderQueue() {
+    boardRenderFrame = 0;
+    var painted = 0;
+    while (boardRenderQueue.length && painted < 2) {
+      var job = boardRenderQueue.shift();
+      if (job.token !== board.token || current.view !== 'board') continue;
+      catalogRow(el.boardRows, board.rows, job.item);
+      painted++;
+    }
+    if (boardRenderQueue.length) boardRenderFrame = requestAnimationFrame(flushBoardRenderQueue);
+  }
+
+  function queueBoardRows(rows, token) {
+    rows.forEach(function (item) {
+      var key = rowKey(item);
+      boardRenderQueue = boardRenderQueue.filter(function (job) {
+        return job.token !== token || rowKey(job.item) !== key;
+      });
+      boardRenderQueue.push({ item: item, token: token });
+    });
+    if (!boardRenderFrame) boardRenderFrame = requestAnimationFrame(flushBoardRenderQueue);
+  }
   function renderContinueWatching() {
     if (!board.cw) return;
     var list = library.items ? LibraryModel.continueWatching(library.items) : [];
@@ -395,6 +420,9 @@ document.addEventListener('DOMContentLoaded', function () {
     board.key = key;
     board.rows = {};
     var token = ++board.token;
+    boardRenderQueue = [];
+    if (boardRenderFrame) cancelAnimationFrame(boardRenderFrame);
+    boardRenderFrame = 0;
     el.boardRows.innerHTML = '';
     board.cw = makeRow(el.boardRows, 'Continue Watching', '#/library');
     board.cw.row.hidden = true;
@@ -414,12 +442,12 @@ document.addEventListener('DOMContentLoaded', function () {
       // No addons: nothing to ask Core for (it would only sit loading).
       if (!addons.length) return [];
       return stremio.getBoard(function (rows) {
-        if (token === board.token) ownRows(rows).forEach(function (item) { catalogRow(el.boardRows, board.rows, item); });
+        if (token === board.token) queueBoardRows(ownRows(rows), token);
       }, fresh).then(ownRows);
     }).then(function (rows) {
       if (!rows || token !== board.token) return;
       if (!fromCache && addons.length && rows.every(settledRow)) browseCache.put('board', requestSection, scope, '', rows);
-      rows.forEach(function (item) { catalogRow(el.boardRows, board.rows, item); });
+      queueBoardRows(rows, token);
       setReadout(el.boardReadout, rows.length ? '' : section === 'plus18'
         ? 'No Plus18 catalogs yet. Install an addon under Addons.'
         : 'No catalogs yet. Install an addon under Addons (Cinemeta has them).', !rows.length);

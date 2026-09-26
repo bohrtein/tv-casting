@@ -278,6 +278,8 @@ function createStremioCoreClient(config) {
   function catalogRows(model, extra, onUpdate, fresh) {
     var section = activeSection;
     var key = JSON.stringify(extra);
+    var lastRowSignatures = {};
+    var updateTimer = null;
     // Core's catalog rows carry only the addon's manifest, so find its URL
     // among this section's installed addons by manifest id.
     function addonUrl(addon) {
@@ -297,10 +299,29 @@ function createStremioCoreClient(config) {
       });
     }
     function current(state) { return state.selected && JSON.stringify(state.selected.extra || []) === key; }
+    function changedRows(state) {
+      return rows(state).filter(function (item) {
+        var metas = item.metas || [];
+        var first = metas.length && metas[0] && metas[0].id || '';
+        var last = metas.length && metas[metas.length - 1] && metas[metas.length - 1].id || '';
+        var signature = [item.state, item.error || '', metas.length, first, last].join('|');
+        var rowKey = [item.addonUrl || '', item.type || '', item.id || ''].join('|');
+        if (lastRowSignatures[rowKey] === signature) return false;
+        lastRowSignatures[rowKey] = signature;
+        return true;
+      });
+    }
     return transport(section).then(function (core) {
       var stop = core.onEvent(function (event) {
-        if (!event || event.name !== 'NewState' || !event.args || event.args.indexOf(model) === -1) return;
-        core.getState(model).then(function (state) { if (current(state) && onUpdate) onUpdate(rows(state)); }).catch(function () {});
+        if (!event || event.name !== 'NewState' || !event.args || event.args.indexOf(model) === -1 || updateTimer) return;
+        updateTimer = setTimeout(function () {
+          updateTimer = null;
+          core.getState(model).then(function (state) {
+            if (!current(state) || !onUpdate) return;
+            var changed = changedRows(state);
+            if (changed.length) onUpdate(changed);
+          }).catch(function () {});
+        }, 16);
       });
       return (fresh ? core.dispatch({ action: 'Unload' }, model) : Promise.resolve()).then(function () {
         return core.dispatch({ action: 'Load', args: { model: 'CatalogsWithExtra', args: { extra: extra } } }, model);
@@ -317,7 +338,15 @@ function createStremioCoreClient(config) {
               return core.getState(model);
             });
           });
-        }).then(function (state) { stop(); return rows(state); }, function (error) { stop(); throw error; });
+        }).then(function (state) {
+          if (updateTimer) { clearTimeout(updateTimer); updateTimer = null; }
+          stop();
+          return rows(state);
+        }, function (error) {
+          if (updateTimer) { clearTimeout(updateTimer); updateTimer = null; }
+          stop();
+          throw error;
+        });
     });
   }
 
