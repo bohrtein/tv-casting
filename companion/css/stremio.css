@@ -63,6 +63,9 @@
   box-shadow: 0 2px 10px rgba(0, 0, 0, .8);
 }
 .cn-st-badge-saved::before { content: '\2713'; margin-right: 5px; }
+/* Library tiles are all saved, so the badge can be quieter there. */
+#view-library .cn-st-badge { padding: 3px 7px; font-size: 10px; }
+#view-library .cn-st-badge-saved::before { margin-right: 4px; }
 .cn-st-progress {
   display: block;
   height: 3px;
